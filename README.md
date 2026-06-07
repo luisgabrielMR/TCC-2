@@ -2,7 +2,7 @@
 
 Projeto experimental para comparar o desempenho de APIs backend equivalentes em Python, Node.js, Java, Go e C#/.NET acessando a mesma base PostgreSQL com SQL direto, pool de conexoes configurado explicitamente e sem ORM.
 
-Esta primeira base prepara o banco, contratos, payloads, scripts de validacao, warmup documentado e atalhos de execucao facil. As cinco APIs serao implementadas depois que essa base comum estiver validada.
+Esta base prepara o banco, contratos, payloads, scripts de validacao, warmup documentado, atalhos de execucao facil e as cinco APIs equivalentes.
 
 ## Execucao rapida da base
 
@@ -81,7 +81,7 @@ O reset volta o banco para o estado inicial conhecido, com seed deterministico e
 
 ## Subir uma API especifica
 
-As APIs Python, Node.js, Go e .NET ja possuem implementacao inicial. A API Java ainda esta pendente. Quando cada pasta receber seu `Dockerfile`, os perfis do `docker-compose.yml` ja estarao prontos:
+As cinco APIs ja possuem implementacao inicial e `Dockerfile`. Os perfis do `docker-compose.yml` permitem subir uma linguagem por vez:
 
 ```bash
 docker compose --profile python up -d --build python-api
@@ -145,7 +145,7 @@ Cada comando deve:
 8. Salvar resultados.
 9. Encerrar a API.
 
-Na base atual, os comandos das APIs Python, Node.js, Go e .NET ja podem ser usados quando o Docker estiver disponivel. O comando Java avisa que a API ainda nao foi implementada se o `Dockerfile` da linguagem nao existir.
+Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker estiver disponivel.
 
 ## Executar todas sequencialmente
 
@@ -400,7 +400,7 @@ launchers/windows/13_RESUMIR_RESULTADOS.bat
 
 ## Observacao sobre as APIs
 
-As pastas das cinco linguagens ja existem em `apps/`. As APIs Python, Node.js, Go e .NET foram implementadas primeiro. Java deve seguir a mesma logica de banco, endpoints, SQL, warmup e politica de frameworks minimos.
+As pastas das cinco linguagens existem em `apps/` e seguem a mesma logica de banco, endpoints, SQL, warmup e politica de frameworks minimos.
 
 ## Erros comuns
 
@@ -428,7 +428,7 @@ API nao responde em `/health`:
 
 Script de linguagem diz que a API nao foi implementada:
 
-- Isso ainda e esperado para Java. A pasta existe, mas o `Dockerfile` e o codigo da API ainda serao criados para essa linguagem.
+- Confirme se o `Dockerfile` e o codigo da API existem na pasta da linguagem escolhida.
 
 WSL/Linux nao executa no Windows:
 
