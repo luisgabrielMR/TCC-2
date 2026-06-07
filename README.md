@@ -81,7 +81,7 @@ O reset volta o banco para o estado inicial conhecido, com seed deterministico e
 
 ## Subir uma API especifica
 
-As APIs ainda nao foram implementadas nesta primeira etapa. Quando cada pasta receber seu `Dockerfile`, os perfis do `docker-compose.yml` ja estarao prontos:
+A API Python ja possui implementacao inicial. As APIs Node.js, Java, Go e .NET ainda estao pendentes. Quando cada pasta receber seu `Dockerfile`, os perfis do `docker-compose.yml` ja estarao prontos:
 
 ```bash
 docker compose --profile python up -d --build python-api
@@ -145,7 +145,7 @@ Cada comando deve:
 8. Salvar resultados.
 9. Encerrar a API.
 
-Na base atual, esses comandos avisam que a API ainda nao foi implementada se o `Dockerfile` da linguagem nao existir.
+Na base atual, o comando da API Python ja pode ser usado quando o Docker estiver disponivel. Os comandos das outras linguagens avisam que a API ainda nao foi implementada se o `Dockerfile` da linguagem nao existir.
 
 ## Executar todas sequencialmente
 
@@ -400,7 +400,7 @@ launchers/windows/13_RESUMIR_RESULTADOS.bat
 
 ## Observacao sobre as APIs
 
-As pastas das cinco linguagens ja existem em `apps/`, mas a implementacao das APIs sera feita em uma etapa posterior. Esta ordem evita que cada linguagem avance com interpretacoes diferentes do banco, dos endpoints, do SQL, do warmup e da politica de frameworks minimos.
+As pastas das cinco linguagens ja existem em `apps/`. A API Python foi a primeira implementada. Node.js, Java, Go e .NET devem seguir a mesma logica de banco, endpoints, SQL, warmup e politica de frameworks minimos.
 
 ## Erros comuns
 
@@ -428,7 +428,7 @@ API nao responde em `/health`:
 
 Script de linguagem diz que a API nao foi implementada:
 
-- Isso e esperado nesta primeira etapa. A pasta existe, mas o `Dockerfile` e o codigo da API serao criados na proxima etapa.
+- Isso ainda e esperado para Node.js, Java, Go e .NET. A pasta existe, mas o `Dockerfile` e o codigo da API ainda serao criados para essas linguagens.
 
 WSL/Linux nao executa no Windows:
 
