@@ -1,0 +1,55 @@
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Operating system and editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Java
+target/
+build/
+.gradle/
+
+# Go
+bin/
+*.test
+
+# .NET
+bin/
+obj/
+
+# Docker/runtime data
+docker-data/
+postgres-data/
+grafana-data/
+prometheus-data/
+
+# Benchmark outputs
+results/raw/**
+results/processed/**
+results/summaries/**
+!results/raw/.gitkeep
+!results/processed/.gitkeep
+!results/summaries/.gitkeep
+
+# Large exports
+*.har
+*.pcap
+*.zip
+*.tar
+*.tar.gz

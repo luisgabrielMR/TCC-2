@@ -1,0 +1,104 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    container_name: tcc_benchmark_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-benchmark_db}
+      POSTGRES_USER: ${POSTGRES_USER:-benchmark_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchmark_password}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-benchmark_user} -d ${POSTGRES_DB:-benchmark_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - benchmark
+
+  postgres-exporter:
+    image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:v0.15.0}
+    container_name: tcc_benchmark_postgres_exporter
+    profiles: ["monitoring"]
+    environment:
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-benchmark_user}:${POSTGRES_PASSWORD:-benchmark_password}@postgres:5432/${POSTGRES_DB:-benchmark_db}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "9187:9187"
+    networks:
+      - benchmark
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.55.1}
+    container_name: tcc_benchmark_prometheus
+    profiles: ["monitoring"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    networks:
+      - benchmark
+
+  grafana:
+    image: ${GRAFANA_IMAGE:-grafana/grafana:11.3.0}
+    container_name: tcc_benchmark_grafana
+    profiles: ["monitoring"]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    networks:
+      - benchmark
+
+  cadvisor:
+    image: ${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:v0.49.1}
+    container_name: tcc_benchmark_cadvisor
+    profiles: ["monitoring"]
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - benchmark
+
+  locust:
+    image: ${LOCUST_IMAGE:-locustio/locust:2.32.6}
+    container_name: tcc_benchmark_locust
+    profiles: ["load"]
+    working_dir: /mnt/locust
+    volumes:
+      - ./load-tests/locust:/mnt/locust:ro
+      - ./common/payloads:/mnt/payloads:ro
+      - ./results:/mnt/results
+    command: ["-f", "locustfile.py", "--host", "${LOCUST_HOST:-http://host.docker.internal:8000}"]
+    ports:
+      - "8089:8089"
+    networks:
+      - benchmark
+
+networks:
+  benchmark:
+    name: tcc_benchmark_network
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:
