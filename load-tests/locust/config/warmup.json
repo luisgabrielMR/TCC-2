@@ -1,0 +1,7 @@
+{
+  "scenario": "warmup",
+  "users": 20,
+  "spawn_rate": 5,
+  "duration_seconds": 180,
+  "included_in_results": false
+}

@@ -11,6 +11,7 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./database/init:/docker-entrypoint-initdb.d:ro
+      - ./database:/benchmark/database:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-benchmark_user} -d ${POSTGRES_DB:-benchmark_db}"]
       interval: 5s
@@ -91,6 +92,90 @@ services:
     command: ["-f", "locustfile.py", "--host", "${LOCUST_HOST:-http://host.docker.internal:8000}"]
     ports:
       - "8089:8089"
+    networks:
+      - benchmark
+
+  python-api:
+    profiles: ["python"]
+    build:
+      context: ./apps/python-api
+    container_name: tcc_benchmark_python_api
+    environment: &api-environment
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-benchmark_db}
+      POSTGRES_USER: ${POSTGRES_USER:-benchmark_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-benchmark_password}
+      DB_POOL_MIN: ${DB_POOL_MIN:-1}
+      DB_POOL_MAX: ${DB_POOL_MAX:-20}
+      DB_POOL_ACQUIRE_TIMEOUT_SECONDS: ${DB_POOL_ACQUIRE_TIMEOUT_SECONDS:-10}
+      DB_POOL_IDLE_TIMEOUT_SECONDS: ${DB_POOL_IDLE_TIMEOUT_SECONDS:-60}
+      DB_POOL_MAX_LIFETIME_SECONDS: ${DB_POOL_MAX_LIFETIME_SECONDS:-300}
+    ports:
+      - "${API_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - benchmark
+
+  node-api:
+    profiles: ["node"]
+    build:
+      context: ./apps/node-api
+    container_name: tcc_benchmark_node_api
+    environment:
+      <<: *api-environment
+    ports:
+      - "${API_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - benchmark
+
+  java-api:
+    profiles: ["java"]
+    build:
+      context: ./apps/java-api
+    container_name: tcc_benchmark_java_api
+    environment:
+      <<: *api-environment
+    ports:
+      - "${API_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - benchmark
+
+  go-api:
+    profiles: ["go"]
+    build:
+      context: ./apps/go-api
+    container_name: tcc_benchmark_go_api
+    environment:
+      <<: *api-environment
+    ports:
+      - "${API_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - benchmark
+
+  dotnet-api:
+    profiles: ["dotnet"]
+    build:
+      context: ./apps/dotnet-api
+    container_name: tcc_benchmark_dotnet_api
+    environment:
+      <<: *api-environment
+    ports:
+      - "${API_EXTERNAL_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - benchmark
 

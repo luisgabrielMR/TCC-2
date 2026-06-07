@@ -1,0 +1,139 @@
+from __future__ import annotations
+
+import json
+import os
+import random
+import threading
+from itertools import cycle
+from pathlib import Path
+
+from locust import HttpUser, constant_pacing, task
+
+
+SCENARIO = os.getenv("SCENARIO", "mixed")
+PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", "../../common/payloads"))
+WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
+
+
+class PayloadCycle:
+    def __init__(self, path: Path, parse_json: bool = True) -> None:
+        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            raise RuntimeError(f"Payload file is empty: {path}")
+        values = [json.loads(line) if parse_json else line for line in lines]
+        self._cycle = cycle(values)
+        self._lock = threading.Lock()
+
+    def next(self):
+        with self._lock:
+            return next(self._cycle)
+
+
+customers_create = PayloadCycle(PAYLOAD_DIR / "customers_create.jsonl")
+customers_update = PayloadCycle(PAYLOAD_DIR / "customers_update.jsonl")
+orders_create = PayloadCycle(PAYLOAD_DIR / "orders_create.jsonl")
+customer_ids = PayloadCycle(PAYLOAD_DIR / "ids_customers.jsonl", parse_json=False)
+category_ids = PayloadCycle(PAYLOAD_DIR / "ids_categories.jsonl", parse_json=False)
+order_ids = PayloadCycle(PAYLOAD_DIR / "ids_orders.jsonl", parse_json=False)
+
+
+class BenchmarkUser(HttpUser):
+    wait_time = constant_pacing(WAIT_SECONDS)
+
+    def get_health(self) -> None:
+        self.client.get("/health", name="GET /health")
+
+    def get_customer(self) -> None:
+        customer_id = customer_ids.next()
+        self.client.get(f"/customers/{customer_id}", name="GET /customers/{id}")
+
+    def list_customers(self) -> None:
+        self.client.get("/customers?page=1&pageSize=50", name="GET /customers")
+
+    def create_customer(self) -> None:
+        payload = customers_create.next()
+        self.client.post("/customers", json=payload, name="POST /customers")
+
+    def update_customer(self) -> None:
+        customer_id = customer_ids.next()
+        payload = customers_update.next()
+        self.client.put(f"/customers/{customer_id}", json=payload, name="PUT /customers/{id}")
+
+    def list_products(self) -> None:
+        category_id = category_ids.next()
+        self.client.get(f"/products?categoryId={category_id}", name="GET /products")
+
+    def create_order(self) -> None:
+        payload = orders_create.next()
+        self.client.post("/orders", json=payload, name="POST /orders")
+
+    def get_order(self) -> None:
+        order_id = order_ids.next()
+        self.client.get(f"/orders/{order_id}", name="GET /orders/{id}")
+
+    @task
+    def run_selected_scenario(self) -> None:
+        if SCENARIO == "smoke":
+            for action in (
+                self.get_health,
+                self.get_customer,
+                self.list_customers,
+                self.list_products,
+                self.get_order,
+            ):
+                action()
+            return
+
+        if SCENARIO == "warmup":
+            random.choice([
+                self.get_health,
+                self.get_customer,
+                self.list_customers,
+                self.list_products,
+                self.get_order,
+            ])()
+            return
+
+        if SCENARIO == "read_heavy":
+            random.choices(
+                [
+                    self.get_customer,
+                    self.list_customers,
+                    self.list_products,
+                    self.get_order,
+                    self.create_customer,
+                    self.update_customer,
+                ],
+                weights=[25, 20, 20, 25, 5, 5],
+                k=1,
+            )[0]()
+            return
+
+        if SCENARIO == "write_heavy":
+            random.choices(
+                [
+                    self.create_customer,
+                    self.update_customer,
+                    self.create_order,
+                    self.get_customer,
+                    self.get_order,
+                ],
+                weights=[25, 25, 30, 10, 10],
+                k=1,
+            )[0]()
+            return
+
+        random.choices(
+            [
+                self.get_health,
+                self.get_customer,
+                self.list_customers,
+                self.list_products,
+                self.get_order,
+                self.create_customer,
+                self.update_customer,
+                self.create_order,
+            ],
+            weights=[5, 15, 15, 15, 15, 10, 10, 15],
+            k=1,
+        )[0]()
