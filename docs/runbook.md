@@ -13,44 +13,28 @@ docker compose up -d postgres
 ## Subir monitoramento
 
 ```bash
-docker compose --profile monitoring up -d postgres postgres-exporter prometheus grafana
+docker compose --profile monitoring up -d postgres postgres-exporter prometheus grafana cadvisor
 ```
 
-Prometheus:
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000`, credenciais locais `admin / admin`
 
-```text
-http://localhost:9090
-```
+Prometheus coleta PostgreSQL pelo `postgres-exporter`. O cAdvisor complementa a visualizacao quando suportado pelo host. A coleta oficial de CPU, memoria e rede usa amostras continuas de `docker stats`, inclusive no Docker Desktop. Nao existe target `/metrics` nas APIs.
 
-Grafana:
-
-```text
-http://localhost:3000
-```
-
-Credenciais locais padrão:
-
-```text
-admin / admin
-```
-
-## Executar smoke test de API ativa
+## Validar uma API ativa
 
 ```bash
-./scripts/smoke_test_api.sh http://localhost:8000
-```
-
-## Testar payloads manualmente
-
-```bash
-./scripts/test_payloads_manually.sh http://localhost:8000
+./scripts/smoke_test_api.sh http://127.0.0.1:8000
+./scripts/test_payloads_manually.sh http://127.0.0.1:8000
 ```
 
 ## Rodar warmup
 
 ```bash
-./scripts/run_warmup.sh http://localhost:8000
+./scripts/run_warmup.sh
 ```
+
+`API_BASE_URL` e usada pelos scripts no host (`http://127.0.0.1:8000`). `LOCUST_HOST` e usada pelo Locust dentro do container (`http://host.docker.internal:8000`).
 
 ## Rodar uma linguagem
 
@@ -58,17 +42,21 @@ admin / admin
 ./scripts/run_one_language.sh python mixed 1
 ```
 
-O script deve:
+O script reseta o banco, sobe a API, valida o contrato e os endpoints, aquece, reseta sem reiniciar a API, executa o teste principal, coleta metricas, exporta as series do PostgreSQL, reseta novamente o banco e encerra a API mesmo em caso de falha.
 
-1. Resetar banco.
-2. Subir somente a API escolhida.
-3. Rodar smoke test.
-4. Rodar warmup.
-5. Resetar banco sem reiniciar a API.
-6. Rodar teste principal.
-7. Coletar métricas.
-8. Exportar resultados.
-9. Encerrar a API.
+Cada rodada grava `docker_stats_raw.csv`, `docker_stats_summary.csv` e os arquivos `prometheus_*.csv` junto aos CSVs do Locust.
+
+No Windows, o mesmo fluxo e nativo em PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -RunNumber 1
+```
+
+Verificacao completa sem gerar uma rodada oficial de cinco minutos:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/verificar-projeto.ps1
+```
 
 ## Encerrar containers
 
@@ -76,10 +64,4 @@ O script deve:
 docker compose down
 ```
 
-Para remover volumes do banco local:
-
-```bash
-docker compose down -v
-```
-
-Use remoção de volumes apenas quando quiser apagar o estado local do PostgreSQL.
+Use `docker compose down -v` somente quando quiser apagar o estado local do PostgreSQL.

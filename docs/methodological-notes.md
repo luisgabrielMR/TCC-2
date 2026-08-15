@@ -1,24 +1,20 @@
-# Notas metodológicas
+# Notas metodologicas
 
 ## Justificativa para uso mínimo de frameworks
 
-A escolha por uso mínimo de frameworks busca reduzir interferências de frameworks completos, ORMs e abstrações automáticas, mantendo a análise concentrada na interação entre linguagem, runtime, servidor HTTP, driver PostgreSQL, pool de conexões e execução das operações.
+O experimento busca reduzir interferencias de frameworks completos, ORMs e abstracoes automaticas. Cada API usa apenas o necessario para HTTP, JSON, acesso PostgreSQL, pool de conexoes e execucao das operacoes.
 
-O objetivo não é eliminar toda biblioteca. O experimento permite bibliotecas necessárias para expor HTTP, serializar JSON, configurar rotas simples, acessar PostgreSQL e gerenciar pool de conexões. O que deve ser evitado são camadas que escondam a lógica principal, como geração automática de endpoints, persistência por ORM, validações mágicas, scaffolding pesado ou estruturas MVC complexas sem necessidade experimental.
-
-## Bibliotecas planejadas
-
-- Python: FastAPI em uso mínimo, Uvicorn, psycopg3 e psycopg_pool.
-- Node.js: Express em uso mínimo e `pg`.
-- Java: Javalin ou HTTP simples, JDBC e HikariCP.
-- Go: `net/http`, roteador mínimo se necessário, `database/sql` e driver PostgreSQL.
+- Python: FastAPI, Uvicorn, psycopg e psycopg_pool.
+- Node.js: Express e pg.
+- Java: JDK HttpServer, Jackson, JDBC e HikariCP.
+- Go: net/http, database/sql e lib/pq.
 - C#/.NET: ASP.NET Core Minimal API e Npgsql.
 
-Essas escolhas devem ser revisadas quando cada API for implementada e registradas em `docs/environment-versions.md`.
+Nenhuma implementacao usa ORM, geracao automatica de entidades ou persistencia implicita. FastAPI, Express e ASP.NET Core Minimal API sao usados somente como camada HTTP/JSON; Java e Go usam os servidores HTTP das bibliotecas padrao. O SQL, as transacoes e o mapeamento das respostas permanecem explicitos em todas as linguagens.
 
-## Política de pool de conexões
+## Pool de conexoes
 
-Configuração base:
+Configuracao base:
 
 ```env
 DB_POOL_MIN=1
@@ -28,25 +24,38 @@ DB_POOL_IDLE_TIMEOUT_SECONDS=60
 DB_POOL_MAX_LIFETIME_SECONDS=300
 ```
 
-Como cada ecossistema implementa pooling de forma diferente, o objetivo não é tornar os drivers internamente idênticos. O objetivo é garantir intenção equivalente: mesmo limite máximo de conexões, tempos próximos de espera, política semelhante de ociosidade e registro explícito das diferenças.
+Cada ecossistema implementa pooling de modo diferente. A comparacao preserva a mesma intencao e registra estas diferencas em `metadata.json`:
 
-Diferenças inevitáveis devem ser registradas no `metadata.json` de cada rodada.
+- Python/psycopg_pool: aplica minimo, maximo, espera de aquisicao, ociosidade e vida maxima.
+- Node.js/pg: aplica maximo, espera, ociosidade e vida maxima; `min` nao preabre conexoes.
+- Java/HikariCP: aplica todos os cinco parametros diretamente.
+- Go/database/sql: aplica maximo, minimo ocioso, ociosidade e vida maxima; o tempo de aquisicao e usado no `PingContext` inicial porque nao ha opcao global equivalente por aquisicao.
+- .NET/Npgsql: aplica todos os cinco parametros na connection string.
 
 ## Warmup
 
-O warmup deve ser igual para todas as linguagens:
+O warmup e igual para todas as linguagens:
 
-- duração: 180 segundos
-- usuários: 20
+- duracao: 180 segundos
+- usuarios: 20
 - spawn rate: 5
-- resultado não entra na coleta principal
-- API não deve ser reiniciada entre warmup e teste principal
-- banco deve ser resetado depois do warmup sem derrubar a API
+- resultado fora da coleta principal
+- API nao reiniciada entre warmup e teste principal
+- banco resetado depois do warmup sem derrubar a API
+- banco resetado novamente depois da coleta principal
 
-## Controle de geração de payloads
+## Payloads e estoque
 
-O Locust não deve gerar payloads aleatórios pesados durante a coleta principal. Os arquivos JSONL em `common/payloads/` devem ser gerados antes da coleta e lidos sequencialmente pelos cenários de carga.
+Os arquivos JSONL em `common/payloads/` sao gerados antes da coleta e lidos sequencialmente, sem gerar, copiar ou alterar JSON durante o teste. `customers_create.jsonl` contem 50.000 clientes unicos e deterministas. A rodada falha de forma explicita se consumir todo o arquivo, em vez de reutilizar registros e criar conflitos artificiais.
 
-## Execução separada por linguagem
+O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir. Assim, esgotamento de produto nao favorece APIs mais lentas nem penaliza APIs mais rapidas.
 
-A coleta principal deve executar apenas uma API por vez. Scripts sequenciais podem percorrer as linguagens, mas devem subir uma, coletar, derrubar e só então iniciar a próxima.
+## Metricas comparaveis
+
+Latencia, throughput e falhas HTTP sao medidos pelo Locust. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`. CPU, memoria e rede dos containers sao amostradas continuamente por `docker stats` e preservadas em CSV bruto e consolidado.
+
+O cAdvisor permanece disponivel para Linux. No Docker Desktop com armazenamento containerd, ele pode nao publicar series por container; por isso, o resultado oficial de recursos usa a coleta continua de `docker stats`, igual para as cinco APIs. As APIs nao expoem `/metrics`, evitando instrumentacao e custo diferentes entre linguagens.
+
+## Execucao separada
+
+A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma linguagem, aquece, coleta, encerra e somente entao inicia a proxima.

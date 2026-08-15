@@ -94,7 +94,7 @@ docker compose --profile dotnet up -d --build dotnet-api
 Durante os testes, mantenha apenas uma API ativa por vez. A porta externa padrao e:
 
 ```text
-http://localhost:8000
+http://127.0.0.1:8000
 ```
 
 ## Smoke test
@@ -102,15 +102,15 @@ http://localhost:8000
 Com uma API ativa:
 
 ```bash
-./scripts/smoke_test_api.sh http://localhost:8000
+./scripts/smoke_test_api.sh http://127.0.0.1:8000
 ```
 
-O smoke test chama os endpoints principais com payloads pequenos. Ele nao substitui o warmup.
+O smoke test chama os endpoints principais com payloads pequenos. `scripts/contract_test_api.py` tambem compara corpos, erros, tipos e timestamps entre as cinco implementacoes. Esses testes nao substituem o warmup.
 
 ## Warmup
 
 ```bash
-./scripts/run_warmup.sh http://localhost:8000
+./scripts/run_warmup.sh
 ```
 
 Configuracao padrao:
@@ -122,6 +122,8 @@ WARMUP_SPAWN_RATE=5
 ```
 
 O warmup nao entra nos resultados principais. Depois do warmup, o banco deve ser resetado sem reiniciar a API.
+
+Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. O Locust roda em container e usa `LOCUST_HOST=http://host.docker.internal:8000`.
 
 ## Rodada principal por linguagem
 
@@ -141,8 +143,8 @@ Cada comando deve:
 4. Executar warmup.
 5. Resetar o banco sem reiniciar a API.
 6. Executar o teste principal.
-7. Coletar metricas.
-8. Salvar resultados.
+7. Coletar metricas continuamente.
+8. Salvar resultados e resetar novamente o banco.
 9. Encerrar a API.
 
 Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker estiver disponivel.
@@ -183,18 +185,22 @@ admin / admin
 
 Grafana e apoio visual. Os dados brutos e consolidados devem ser preservados em `results/`.
 
+Prometheus coleta o PostgreSQL pelo `postgres-exporter`. O cAdvisor fornece visualizacao adicional em hosts compativeis. CPU, memoria e rede oficiais sao amostradas continuamente por `docker stats`, o que tambem funciona no Docker Desktop com containerd. As APIs nao expoem `/metrics`, mantendo o mesmo custo de instrumentacao nas cinco linguagens.
+
 ## Coletar versoes
 
 ```bash
 ./scripts/collect_versions.sh
 ```
 
-Saidas:
+Catalogo versionado e snapshot local:
 
 ```text
 docs/environment-versions.md
 results/summaries/environment-versions.json
 ```
+
+O script atualiza o snapshot JSON; o catalogo Markdown registra as versoes verificadas das imagens e dependencias do projeto.
 
 ## Encerrar containers
 
@@ -235,35 +241,38 @@ Os principais atalhos sao:
 - `11_TESTE_DOTNET_MIXED.bat`
 - `12_TESTAR_TODAS_SEQUENCIALMENTE.bat`
 - `13_RESUMIR_RESULTADOS.bat`
+- `14_VERIFICAR_PROJETO_COMPLETO.bat`
+
+O fluxo PowerShell do Windows e nativo e nao depende de Bash ou WSL.
 
 ## Como testar manualmente os payloads
 
-Primeiro deixe uma API ativa respondendo em `http://localhost:8000`. A porta externa padrao do experimento e sempre essa, para facilitar a comparacao.
+Primeiro deixe uma API ativa respondendo em `http://127.0.0.1:8000`. A porta externa padrao do experimento e sempre essa, para facilitar a comparacao.
 
 Testar `GET /health`:
 
 ```bash
-curl http://localhost:8000/health
+curl http://127.0.0.1:8000/health
 ```
 
 Testar `GET /customers/{id}` usando um ID pronto:
 
 ```bash
 CUSTOMER_ID=$(head -n 1 common/payloads/ids_customers.jsonl)
-curl "http://localhost:8000/customers/$CUSTOMER_ID"
+curl "http://127.0.0.1:8000/customers/$CUSTOMER_ID"
 ```
 
 Testar pagina de clientes:
 
 ```bash
-curl "http://localhost:8000/customers?page=1&pageSize=50"
+curl "http://127.0.0.1:8000/customers?page=1&pageSize=50"
 ```
 
 Testar `POST /customers`:
 
 ```bash
 head -n 1 common/payloads/customers_create.jsonl > /tmp/customer_payload.json
-curl -X POST http://localhost:8000/customers \
+curl -X POST http://127.0.0.1:8000/customers \
   -H "Content-Type: application/json" \
   --data @/tmp/customer_payload.json
 ```
@@ -273,7 +282,7 @@ Testar `PUT /customers/{id}`:
 ```bash
 CUSTOMER_ID=$(head -n 1 common/payloads/ids_customers.jsonl)
 head -n 1 common/payloads/customers_update.jsonl > /tmp/customer_update_payload.json
-curl -X PUT "http://localhost:8000/customers/$CUSTOMER_ID" \
+curl -X PUT "http://127.0.0.1:8000/customers/$CUSTOMER_ID" \
   -H "Content-Type: application/json" \
   --data @/tmp/customer_update_payload.json
 ```
@@ -282,14 +291,14 @@ Testar `GET /products?categoryId={id}`:
 
 ```bash
 CATEGORY_ID=$(head -n 1 common/payloads/ids_categories.jsonl)
-curl "http://localhost:8000/products?categoryId=$CATEGORY_ID"
+curl "http://127.0.0.1:8000/products?categoryId=$CATEGORY_ID"
 ```
 
 Testar `POST /orders`:
 
 ```bash
 head -n 1 common/payloads/orders_create.jsonl > /tmp/order_payload.json
-curl -X POST http://localhost:8000/orders \
+curl -X POST http://127.0.0.1:8000/orders \
   -H "Content-Type: application/json" \
   --data @/tmp/order_payload.json
 ```
@@ -298,13 +307,13 @@ Testar `GET /orders/{id}`:
 
 ```bash
 ORDER_ID=$(head -n 1 common/payloads/ids_orders.jsonl)
-curl "http://localhost:8000/orders/$ORDER_ID"
+curl "http://127.0.0.1:8000/orders/$ORDER_ID"
 ```
 
 Tambem existe um script para validar todos os endpoints principais de uma API ativa:
 
 ```bash
-./scripts/test_payloads_manually.sh http://localhost:8000
+./scripts/test_payloads_manually.sh http://127.0.0.1:8000
 ```
 
 Esse script nao executa carga pesada. Ele apenas le exemplos dos arquivos JSONL, envia chamadas simples e mostra o status HTTP de cada endpoint.
@@ -317,7 +326,7 @@ No Windows:
 launchers/windows/05_TESTAR_PAYLOADS_API_ATIVA.bat
 ```
 
-Esse atalho chama `launchers/windows/powershell/testar-payloads.ps1` e espera a API ativa em `http://localhost:8000`.
+Esse atalho chama `launchers/windows/powershell/testar-payloads.ps1` e espera a API ativa em `http://127.0.0.1:8000`.
 
 No WSL/Linux:
 
@@ -334,10 +343,11 @@ No WSL/Linux:
 5. Rodar warmup.
 6. Resetar o banco sem reiniciar a API.
 7. Rodar o teste principal.
-8. Coletar metricas.
+8. Coletar metricas continuamente.
 9. Salvar resultados com linguagem, cenario, data e rodada.
-10. Derrubar a API.
-11. Repetir para a proxima linguagem.
+10. Resetar novamente o banco.
+11. Derrubar a API.
+12. Repetir para a proxima linguagem.
 
 ## Checklist antes de coleta oficial
 
@@ -423,7 +433,7 @@ Payloads nao existem:
 API nao responde em `/health`:
 
 - Confirme se apenas a API escolhida esta ativa.
-- Confirme se ela expoe `http://localhost:8000`.
+- Confirme se ela expoe `http://127.0.0.1:8000`.
 - Verifique logs com `docker compose logs <servico-da-api>`.
 
 Script de linguagem diz que a API nao foi implementada:

@@ -21,14 +21,14 @@ docker compose --profile java up -d --build java-api
 A API fica em:
 
 ```text
-http://localhost:8000
+http://127.0.0.1:8000
 ```
 
 ## Teste manual rapido
 
 ```bash
-curl http://localhost:8000/health
-./scripts/test_payloads_manually.sh http://localhost:8000
+curl http://127.0.0.1:8000/health
+./scripts/test_payloads_manually.sh http://127.0.0.1:8000
 ```
 
 ## Pool

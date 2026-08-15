@@ -2,6 +2,8 @@
 
 Todas as APIs devem retornar JSON equivalente, códigos HTTP equivalentes e mensagens de erro padronizadas. Os nomes de campos JSON usam `camelCase`.
 
+Todos os identificadores JSON sao numeros inteiros. Datas usam UTC no formato `YYYY-MM-DDTHH:MM:SSZ`, sem fracao de segundo. Erros de validacao acumulam os campos invalidos em ordem deterministica; campos aninhados usam nomes como `address.street`, `address.isDefault` e `payment.method`.
+
 ## Resposta de erro
 
 Formato obrigatório:

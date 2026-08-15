@@ -1,42 +1,41 @@
-# Versões do ambiente
+# Versoes do ambiente
 
-Este arquivo é atualizado pelo script `scripts/collect_versions.sh`. A tabela abaixo registra também as escolhas mínimas planejadas por linguagem.
+Estado verificado em 15 de agosto de 2026. Os runtimes foram coletados das imagens construidas e as bibliotecas vieram dos manifestos versionados.
 
-## Versões coletadas
+## Host e infraestrutura
 
-> Execute `./scripts/collect_versions.sh` para preencher os dados atuais em `results/summaries/environment-versions.json`.
-
-| Item | Versão |
+| Item | Versao utilizada |
 | --- | --- |
-| Sistema operacional | A coletar |
-| Docker | A coletar |
-| Docker Compose | A coletar |
-| PostgreSQL | A coletar |
-| Python | A coletar |
-| Node.js | A coletar |
-| Java/JDK | A coletar |
-| Go | A coletar |
-| .NET SDK | A coletar |
-| Locust | A coletar |
-| Prometheus | A coletar |
-| Grafana | A coletar |
+| Sistema operacional | Microsoft Windows 11 Pro 10.0.26200, build 26200 |
+| Docker Engine | 29.7.2, build a7dcaa6 |
+| Docker Compose | v5.3.1 |
+| PostgreSQL | 17.10 (`postgres:17`) |
+| Locust | 2.32.6 (`locustio/locust:2.32.6`) |
+| Prometheus | 2.55.1 (`prom/prometheus:v2.55.1`) |
+| Grafana | 11.3.0 (`grafana/grafana:11.3.0`) |
+| postgres-exporter | 0.15.0 (`prometheuscommunity/postgres-exporter:v0.15.0`) |
+| cAdvisor | 0.49.1 (`gcr.io/cadvisor/cadvisor:v0.49.1`) |
 
-## Bibliotecas mínimas planejadas
+## APIs e dependencias diretas
 
-| Linguagem | HTTP | PostgreSQL | Pool | Justificativa |
+| Linguagem/runtime | HTTP/JSON | PostgreSQL | Pool | Motivo do componente HTTP |
 | --- | --- | --- | --- | --- |
-| Python | FastAPI + Uvicorn | psycopg3 | psycopg_pool | Expor HTTP e JSON com pouco código, mantendo SQL explícito. |
-| Node.js | Express | pg | pg.Pool | Roteamento simples e driver PostgreSQL direto. |
-| Java | Javalin ou HTTP simples | JDBC | HikariCP | Evita Spring Data/JPA e mantém controle direto do SQL. |
-| Go | net/http | database/sql + driver PostgreSQL | database/sql | Biblioteca padrão para HTTP e pooling configurado no próprio `sql.DB`. |
-| C#/.NET | Minimal API | Npgsql | NpgsqlDataSource/pooling Npgsql | Estrutura mínima do ASP.NET Core sem Entity Framework. |
+| Python 3.12.14 | FastAPI 0.115.6 + Uvicorn 0.34.0 | psycopg 3.2.3 | psycopg_pool 3.2.4 | Roteamento e serializacao JSON minimos; SQL explicito |
+| Node.js 22.23.2 | Express 4.22.2 | pg 8.13.1 | `pg.Pool` | Roteamento HTTP leve; SQL explicito |
+| Java Temurin 21.0.11+10 LTS | JDK HttpServer + Jackson 2.17.2 | PostgreSQL JDBC 42.7.4 | HikariCP 5.1.0 | Servidor HTTP do JDK; Jackson somente para JSON |
+| Go 1.23.12 | `net/http` | lib/pq 1.10.9 | `database/sql` | Bibliotecas padrao para HTTP e pool |
+| .NET 8.0.30 | ASP.NET Core Minimal API | Npgsql 8.0.5 | pooling do Npgsql | API HTTP nativa e minima do runtime; SQL explicito |
 
-## Variáveis de pool
+Nenhuma API usa ORM. As imagens base de todos os servicos estao fixadas por digest SHA-256 nos Dockerfiles, no `docker-compose.yml` e no `.env.example`. Python usa `requirements.lock`, Node.js usa `package-lock.json` com `npm ci`, Go usa `go.sum` e .NET usa `packages.lock.json` com restore em modo bloqueado.
 
-| Variável | Valor base |
+## Pool equivalente
+
+| Variavel | Valor base |
 | --- | --- |
 | `DB_POOL_MIN` | 1 |
 | `DB_POOL_MAX` | 20 |
 | `DB_POOL_ACQUIRE_TIMEOUT_SECONDS` | 10 |
 | `DB_POOL_IDLE_TIMEOUT_SECONDS` | 60 |
 | `DB_POOL_MAX_LIFETIME_SECONDS` | 300 |
+
+As diferencas inevitaveis entre drivers sao registradas no `metadata.json` de cada rodada: `pg` nao preabre o minimo configurado e `database/sql` nao oferece um timeout global por aquisicao equivalente aos demais drivers.
