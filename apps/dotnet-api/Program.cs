@@ -66,13 +66,13 @@ app.MapPost("/customers", async (HttpRequest request) =>
     try
     {
         await using var insertCustomer = new NpgsqlCommand(Sql.InsertCustomer, conn, tx);
-        insertCustomer.Parameters.AddWithValue("fullName", body.Value!.FullName);
-        insertCustomer.Parameters.AddWithValue("email", body.Value.Email);
-        insertCustomer.Parameters.AddWithValue("documentNumber", body.Value.DocumentNumber);
+        insertCustomer.Parameters.AddWithValue("fullName", body.Value!.FullName!);
+        insertCustomer.Parameters.AddWithValue("email", body.Value.Email!);
+        insertCustomer.Parameters.AddWithValue("documentNumber", body.Value.DocumentNumber!);
         insertCustomer.Parameters.AddWithValue("phone", (object?)body.Value.Phone ?? DBNull.Value);
         var customerId = Convert.ToInt32(await insertCustomer.ExecuteScalarAsync());
 
-        await InsertAddress(conn, tx, customerId, body.Value.Address);
+        await InsertAddress(conn, tx, customerId, body.Value.Address!);
         await InsertAudit(conn, tx, "customer", customerId, "create_customer", body.Value);
         var customer = await FetchCustomerFromConnection(conn, tx, customerId);
         await tx.CommitAsync();
@@ -97,9 +97,9 @@ app.MapPut("/customers/{id}", async (string id, HttpRequest request) =>
     await using var conn = await dataSource.OpenConnectionAsync();
     await using var tx = await conn.BeginTransactionAsync();
     await using var update = new NpgsqlCommand(Sql.UpdateCustomer, conn, tx);
-    update.Parameters.AddWithValue("fullName", body.Value!.FullName);
+    update.Parameters.AddWithValue("fullName", body.Value!.FullName!);
     update.Parameters.AddWithValue("phone", (object?)body.Value.Phone ?? DBNull.Value);
-    update.Parameters.AddWithValue("status", body.Value.Status);
+    update.Parameters.AddWithValue("status", body.Value.Status!);
     update.Parameters.AddWithValue("id", parsed.Value);
     var changed = await update.ExecuteNonQueryAsync();
     if (changed == 0)
@@ -109,7 +109,7 @@ app.MapPut("/customers/{id}", async (string id, HttpRequest request) =>
     }
 
     await using var updateAddress = new NpgsqlCommand(Sql.UpdateAddress, conn, tx);
-    AddAddressParameters(updateAddress, body.Value.Address);
+    AddAddressParameters(updateAddress, body.Value.Address!);
     updateAddress.Parameters.AddWithValue("customerId", parsed.Value);
     await updateAddress.ExecuteNonQueryAsync();
     await InsertAudit(conn, tx, "customer", parsed.Value, "update_customer", body.Value);
@@ -167,7 +167,7 @@ app.MapPost("/orders", async (HttpRequest request) =>
     insertOrder.Parameters.AddWithValue("addressId", body.Value.AddressId);
     var orderId = Convert.ToInt32(await insertOrder.ExecuteScalarAsync());
 
-    foreach (var item in body.Value.Items)
+    foreach (var item in body.Value.Items!)
     {
         await using var lockProduct = new NpgsqlCommand("SELECT id, unit_price, stock_quantity FROM products WHERE id = @id AND active = true FOR UPDATE", conn, tx);
         lockProduct.Parameters.AddWithValue("id", item.ProductId);
@@ -201,7 +201,7 @@ app.MapPost("/orders", async (HttpRequest request) =>
 
     await using var paymentCmd = new NpgsqlCommand("INSERT INTO payments (order_id, method, status, amount, paid_at) VALUES (@orderId, @method, 'paid', @amount, now())", conn, tx);
     paymentCmd.Parameters.AddWithValue("orderId", orderId);
-    paymentCmd.Parameters.AddWithValue("method", body.Value.Payment.Method);
+    paymentCmd.Parameters.AddWithValue("method", body.Value.Payment!.Method!);
     paymentCmd.Parameters.AddWithValue("amount", total);
     await paymentCmd.ExecuteNonQueryAsync();
 
@@ -360,15 +360,15 @@ static async Task InsertAddress(NpgsqlConnection conn, NpgsqlTransaction tx, int
 
 static void AddAddressParameters(NpgsqlCommand cmd, AddressInput address)
 {
-    cmd.Parameters.AddWithValue("label", address.Label);
-    cmd.Parameters.AddWithValue("street", address.Street);
-    cmd.Parameters.AddWithValue("number", address.Number);
+    cmd.Parameters.AddWithValue("label", address.Label!);
+    cmd.Parameters.AddWithValue("street", address.Street!);
+    cmd.Parameters.AddWithValue("number", address.Number!);
     cmd.Parameters.AddWithValue("complement", (object?)address.Complement ?? DBNull.Value);
-    cmd.Parameters.AddWithValue("district", address.District);
-    cmd.Parameters.AddWithValue("city", address.City);
-    cmd.Parameters.AddWithValue("state", address.State);
-    cmd.Parameters.AddWithValue("postalCode", address.PostalCode);
-    cmd.Parameters.AddWithValue("isDefault", address.IsDefault);
+    cmd.Parameters.AddWithValue("district", address.District!);
+    cmd.Parameters.AddWithValue("city", address.City!);
+    cmd.Parameters.AddWithValue("state", address.State!);
+    cmd.Parameters.AddWithValue("postalCode", address.PostalCode!);
+    cmd.Parameters.AddWithValue("isDefault", address.IsDefault!.Value);
 }
 
 static async Task InsertAudit(NpgsqlConnection conn, NpgsqlTransaction tx, string entityType, int entityId, string action, object payload)
@@ -419,7 +419,7 @@ static ApiError? ValidateUpdateCustomer(UpdateCustomerRequest request)
     var details = new List<Dictionary<string, string>>();
     Required(details, "fullName", request.FullName);
     Required(details, "status", request.Status);
-    if (request.Status is not ("active" or "inactive")) details.Add(OneDetail("status", "Must be active or inactive"));
+    if (!string.IsNullOrWhiteSpace(request.Status) && request.Status is not ("active" or "inactive")) details.Add(OneDetail("status", "Must be active or inactive"));
     ValidateAddress(details, request.Address);
     return details.Count == 0 ? null : new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
 }
@@ -429,18 +429,34 @@ static ApiError? ValidateCreateOrder(CreateOrderRequest request)
     var details = new List<Dictionary<string, string>>();
     if (request.CustomerId <= 0) details.Add(OneDetail("customerId", "Must be a positive integer"));
     if (request.AddressId <= 0) details.Add(OneDetail("addressId", "Must be a positive integer"));
-    if (request.Items.Count == 0) details.Add(OneDetail("items", "Must contain at least one item"));
-    for (var i = 0; i < request.Items.Count; i++)
+    if (request.Items is null or { Count: 0 }) details.Add(OneDetail("items", "Must contain at least one item"));
+    for (var i = 0; i < (request.Items?.Count ?? 0); i++)
     {
-        if (request.Items[i].ProductId <= 0) details.Add(OneDetail($"items[{i}].productId", "Must be a positive integer"));
+        if (request.Items![i].ProductId <= 0) details.Add(OneDetail($"items[{i}].productId", "Must be a positive integer"));
         if (request.Items[i].Quantity <= 0) details.Add(OneDetail($"items[{i}].quantity", "Must be a positive integer"));
     }
-    if (request.Payment.Method is not ("credit_card" or "debit_card" or "pix" or "boleto")) details.Add(OneDetail("payment.method", "Invalid payment method"));
+    if (request.Payment is null)
+    {
+        details.Add(OneDetail("payment", "Required object"));
+    }
+    else if (string.IsNullOrWhiteSpace(request.Payment.Method))
+    {
+        details.Add(OneDetail("payment.method", "Required non-empty string"));
+    }
+    else if (request.Payment.Method is not ("credit_card" or "debit_card" or "pix" or "boleto"))
+    {
+        details.Add(OneDetail("payment.method", "Invalid payment method"));
+    }
     return details.Count == 0 ? null : new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
 }
 
-static void ValidateAddress(List<Dictionary<string, string>> details, AddressInput address)
+static void ValidateAddress(List<Dictionary<string, string>> details, AddressInput? address)
 {
+    if (address is null)
+    {
+        details.Add(OneDetail("address", "Required object"));
+        return;
+    }
     Required(details, "address.label", address.Label);
     Required(details, "address.street", address.Street);
     Required(details, "address.number", address.Number);
@@ -448,6 +464,7 @@ static void ValidateAddress(List<Dictionary<string, string>> details, AddressInp
     Required(details, "address.city", address.City);
     Required(details, "address.state", address.State);
     Required(details, "address.postalCode", address.PostalCode);
+    if (address.IsDefault is null) details.Add(OneDetail("address.isDefault", "Required boolean"));
 }
 
 static void Required(List<Dictionary<string, string>> details, string field, string? value)
@@ -591,9 +608,9 @@ record ApiError(int Status, string Code, string Message, List<Dictionary<string,
 record ParseResult(int Value, ApiError? Error);
 record PaginationResult(int Page, int PageSize, ApiError? Error);
 record JsonRead<T>(T? Value, ApiError? Error);
-record AddressInput(string Label, string Street, string Number, string? Complement, string District, string City, string State, string PostalCode, bool IsDefault);
-record CreateCustomerRequest(string FullName, string Email, string DocumentNumber, string? Phone, AddressInput Address);
-record UpdateCustomerRequest(string FullName, string? Phone, string Status, AddressInput Address);
+record AddressInput(string? Label, string? Street, string? Number, string? Complement, string? District, string? City, string? State, string? PostalCode, bool? IsDefault);
+record CreateCustomerRequest(string? FullName, string? Email, string? DocumentNumber, string? Phone, AddressInput? Address);
+record UpdateCustomerRequest(string? FullName, string? Phone, string? Status, AddressInput? Address);
 record OrderItemInput(int ProductId, int Quantity);
-record PaymentInput(string Method);
-record CreateOrderRequest(int CustomerId, int AddressId, List<OrderItemInput> Items, PaymentInput Payment);
+record PaymentInput(string? Method);
+record CreateOrderRequest(int CustomerId, int AddressId, List<OrderItemInput>? Items, PaymentInput? Payment);

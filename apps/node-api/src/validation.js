@@ -33,10 +33,10 @@ function requireObject(payload) {
   return payload;
 }
 
-function requiredString(payload, key, details) {
+function requiredString(payload, key, details, field = key) {
   const value = payload[key];
   if (typeof value !== "string" || value.trim() === "") {
-    details.push({ field: key, message: "Required non-empty string" });
+    details.push({ field, message: "Required non-empty string" });
     return "";
   }
   return value.trim();
@@ -50,13 +50,22 @@ function optionalString(payload, key) {
   return String(value).trim();
 }
 
-function requiredBool(payload, key, details) {
+function requiredBool(payload, key, details, field = key) {
   const value = payload[key];
   if (typeof value !== "boolean") {
-    details.push({ field: key, message: "Required boolean" });
+    details.push({ field, message: "Required boolean" });
     return false;
   }
   return value;
+}
+
+function positiveIntField(value, field, details) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    details.push({ field, message: "Must be a positive integer" });
+    return 0;
+  }
+  return parsed;
 }
 
 function address(payload, details) {
@@ -65,15 +74,15 @@ function address(payload, details) {
     return {};
   }
   return {
-    label: requiredString(payload, "label", details),
-    street: requiredString(payload, "street", details),
-    number: requiredString(payload, "number", details),
+    label: requiredString(payload, "label", details, "address.label"),
+    street: requiredString(payload, "street", details, "address.street"),
+    number: requiredString(payload, "number", details, "address.number"),
     complement: optionalString(payload, "complement"),
-    district: requiredString(payload, "district", details),
-    city: requiredString(payload, "city", details),
-    state: requiredString(payload, "state", details),
-    postalCode: requiredString(payload, "postalCode", details),
-    isDefault: requiredBool(payload, "isDefault", details)
+    district: requiredString(payload, "district", details, "address.district"),
+    city: requiredString(payload, "city", details, "address.city"),
+    state: requiredString(payload, "state", details, "address.state"),
+    postalCode: requiredString(payload, "postalCode", details, "address.postalCode"),
+    isDefault: requiredBool(payload, "isDefault", details, "address.isDefault")
   };
 }
 
@@ -99,12 +108,13 @@ export function createCustomer(payload) {
 export function updateCustomer(payload) {
   payload = requireObject(payload);
   const details = [];
+  const fullName = requiredString(payload, "fullName", details);
   const status = requiredString(payload, "status", details);
   if (status && !VALID_STATUSES.has(status)) {
     details.push({ field: "status", message: "Must be active or inactive" });
   }
   const result = {
-    fullName: requiredString(payload, "fullName", details),
+    fullName,
     phone: optionalString(payload, "phone"),
     status,
     address: address(payload.address, details)
@@ -118,8 +128,8 @@ export function updateCustomer(payload) {
 export function createOrder(payload) {
   payload = requireObject(payload);
   const details = [];
-  const customerId = positiveInt(payload.customerId, "customerId");
-  const addressId = positiveInt(payload.addressId, "addressId");
+  const customerId = positiveIntField(payload.customerId, "customerId", details);
+  const addressId = positiveIntField(payload.addressId, "addressId", details);
   const items = [];
 
   if (!Array.isArray(payload.items) || payload.items.length === 0) {
@@ -131,8 +141,8 @@ export function createOrder(payload) {
         return;
       }
       items.push({
-        productId: positiveInt(item.productId, `items[${index}].productId`),
-        quantity: positiveInt(item.quantity, `items[${index}].quantity`)
+        productId: positiveIntField(item.productId, `items[${index}].productId`, details),
+        quantity: positiveIntField(item.quantity, `items[${index}].quantity`, details)
       });
     });
   }

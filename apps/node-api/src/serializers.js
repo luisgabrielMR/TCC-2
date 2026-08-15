@@ -2,14 +2,16 @@ function instant(value) {
   if (value === null || value === undefined) {
     return null;
   }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
-  return new Date(value).toISOString();
+  const instantValue = value instanceof Date ? value : new Date(value);
+  return instantValue.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 function money(value) {
   return Number(value).toFixed(2);
+}
+
+function integer(value) {
+  return Number(value);
 }
 
 export function addressFromRow(row) {
@@ -17,7 +19,7 @@ export function addressFromRow(row) {
     return null;
   }
   return {
-    id: row.address_id,
+    id: integer(row.address_id),
     label: row.label,
     street: row.street,
     number: row.number,
@@ -32,7 +34,7 @@ export function addressFromRow(row) {
 
 export function customerFromRow(row) {
   return {
-    id: row.id,
+    id: integer(row.id),
     fullName: row.full_name,
     email: row.email,
     documentNumber: row.document_number,
@@ -46,8 +48,8 @@ export function customerFromRow(row) {
 
 export function productFromRow(row) {
   return {
-    id: row.id,
-    categoryId: row.category_id,
+    id: integer(row.id),
+    categoryId: integer(row.category_id),
     sku: row.sku,
     name: row.name,
     unitPrice: money(row.unit_price),
@@ -63,11 +65,11 @@ export function orderFromRows(rows) {
 
   const first = rows[0];
   return {
-    id: first.order_id,
+    id: integer(first.order_id),
     status: first.order_status,
     totalAmount: money(first.total_amount),
     customer: {
-      id: first.customer_id,
+      id: integer(first.customer_id),
       fullName: first.full_name,
       email: first.email,
       documentNumber: first.document_number,
@@ -79,13 +81,13 @@ export function orderFromRows(rows) {
     },
     address: addressFromRow(first),
     items: rows.map((row) => ({
-      id: row.item_id,
+      id: integer(row.item_id),
       quantity: row.quantity,
       unitPrice: money(row.item_unit_price),
       totalPrice: money(row.item_total_price),
       product: {
-        id: row.product_id,
-        categoryId: row.category_id,
+        id: integer(row.product_id),
+        categoryId: integer(row.category_id),
         categoryName: row.category_name,
         sku: row.sku,
         name: row.product_name,
@@ -95,7 +97,7 @@ export function orderFromRows(rows) {
       }
     })),
     payment: {
-      id: first.payment_id,
+      id: integer(first.payment_id),
       method: first.payment_method,
       status: first.payment_status,
       amount: money(first.payment_amount),

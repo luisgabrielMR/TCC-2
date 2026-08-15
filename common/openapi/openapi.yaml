@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: API contract shared by all benchmark implementations.
 servers:
-  - url: http://localhost:8000
+  - url: http://127.0.0.1:8000
 paths:
   /health:
     get:

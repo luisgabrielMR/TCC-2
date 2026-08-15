@@ -16,7 +16,7 @@ def instant(value: datetime | None) -> str | None:
         return None
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    text = value.astimezone(timezone.utc).isoformat()
+    text = value.astimezone(timezone.utc).replace(microsecond=0).isoformat()
     return text.replace("+00:00", "Z")
 
 

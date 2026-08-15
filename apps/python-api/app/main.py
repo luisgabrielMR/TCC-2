@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from psycopg import Error as PsycopgError
+from starlette.concurrency import run_in_threadpool
 
 from . import repository, validation
 from .config import load_settings
@@ -56,7 +57,7 @@ def list_customers(page: str = "1", pageSize: str = "50"):
 async def create_customer(request: Request):
     payload = validation.create_customer(await read_json(request))
     try:
-        customer = repository.create_customer(get_pool(), payload)
+        customer = await run_in_threadpool(repository.create_customer, get_pool(), payload)
     except ApiError:
         raise
     except PsycopgError as exc:
@@ -80,7 +81,7 @@ async def update_customer(customer_id: str, request: Request):
     parsed_id = validation.positive_int(customer_id, "id")
     payload = validation.update_customer(await read_json(request))
     try:
-        return repository.update_customer(get_pool(), parsed_id, payload)
+        return await run_in_threadpool(repository.update_customer, get_pool(), parsed_id, payload)
     except ApiError:
         raise
     except PsycopgError as exc:
@@ -102,7 +103,7 @@ def list_products(categoryId: str):
 async def create_order(request: Request):
     payload = validation.create_order(await read_json(request))
     try:
-        order = repository.create_order(get_pool(), payload)
+        order = await run_in_threadpool(repository.create_order, get_pool(), payload)
     except ApiError:
         raise
     except PsycopgError as exc:

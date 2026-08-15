@@ -1,6 +1,5 @@
 package benchmark;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -14,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.Executors;
 
@@ -423,9 +423,15 @@ public class Main {
 
     private static Map<String, Object> readBody(HttpExchange exchange) throws IOException {
         try {
-            return JSON.readValue(exchange.getRequestBody(), new TypeReference<>() {});
+            var value = JSON.readValue(exchange.getRequestBody(), Object.class);
+            if (!(value instanceof Map<?, ?> raw)) {
+                throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", detail("$", "Must be a JSON object"));
+            }
+            return castMap(raw);
+        } catch (ApiError error) {
+            throw error;
         } catch (Exception error) {
-            throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", detail("field", "Invalid JSON"));
+            throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", detail("$", "Invalid JSON"));
         }
     }
 
@@ -443,8 +449,8 @@ public class Main {
         var details = new ArrayList<Map<String, String>>();
         required(details, "fullName", payload.get("fullName"));
         required(details, "status", payload.get("status"));
-        var status = String.valueOf(payload.get("status"));
-        if (!Set.of("active", "inactive").contains(status)) details.add(oneDetail("status", "Must be active or inactive"));
+        var status = string(payload, "status");
+        if (status != null && !status.isBlank() && !Set.of("active", "inactive").contains(status)) details.add(oneDetail("status", "Must be active or inactive"));
         validateAddress(details, payload.get("address"));
         if (!details.isEmpty()) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
     }
@@ -459,8 +465,17 @@ public class Main {
             if (number(items.get(i), "productId") <= 0) details.add(oneDetail("items[" + i + "].productId", "Must be a positive integer"));
             if (number(items.get(i), "quantity") <= 0) details.add(oneDetail("items[" + i + "].quantity", "Must be a positive integer"));
         }
-        var method = string(object(payload, "payment"), "method");
-        if (!Set.of("credit_card", "debit_card", "pix", "boleto").contains(method)) details.add(oneDetail("payment.method", "Invalid payment method"));
+        var paymentValue = payload.get("payment");
+        if (!(paymentValue instanceof Map<?, ?> rawPayment)) {
+            details.add(oneDetail("payment", "Required object"));
+        } else {
+            var payment = castMap(rawPayment);
+            required(details, "payment.method", payment.get("method"));
+            var method = string(payment, "method");
+            if (method != null && !method.isBlank() && !Set.of("credit_card", "debit_card", "pix", "boleto").contains(method)) {
+                details.add(oneDetail("payment.method", "Invalid payment method"));
+            }
+        }
         if (!details.isEmpty()) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
     }
 
@@ -477,6 +492,7 @@ public class Main {
         required(details, "address.city", address.get("city"));
         required(details, "address.state", address.get("state"));
         required(details, "address.postalCode", address.get("postalCode"));
+        if (!(address.get("isDefault") instanceof Boolean)) details.add(oneDetail("address.isDefault", "Required boolean"));
     }
 
     private static boolean method(HttpExchange exchange, String method) throws IOException {
@@ -572,7 +588,7 @@ public class Main {
     }
 
     private static String instant(Timestamp value) {
-        return INSTANT.format(value.toInstant().atOffset(ZoneOffset.UTC));
+        return INSTANT.format(value.toInstant().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
     }
 
     private static Map<String, String> oneDetail(String field, String message) {
@@ -603,7 +619,7 @@ public class Main {
     }
 
     private static ApiError dbError(Exception error) {
-        return new ApiError(500, "DATABASE_ERROR", "Database error", detail("message", error.getMessage()));
+        return new ApiError(500, "DATABASE_ERROR", "Database error", detail("message", String.valueOf(error.getMessage())));
     }
 
     private static final class ApiError extends RuntimeException {

@@ -1,4 +1,4 @@
-FROM golang:1.23-bookworm AS build
+FROM golang:1.23-bookworm@sha256:167053a2bb901972bf2c1611f8f52c44d5fe7e762e5cab213708d82c421614db AS build
 
 WORKDIR /src
 
@@ -8,7 +8,7 @@ RUN go mod download
 COPY main.go .
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/go-api .
 
-FROM debian:bookworm-slim
+FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241
 
 ENV PORT=8000
 

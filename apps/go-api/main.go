@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -46,22 +47,22 @@ type addressInput struct {
 	City       string  `json:"city"`
 	State      string  `json:"state"`
 	PostalCode string  `json:"postalCode"`
-	IsDefault  bool    `json:"isDefault"`
+	IsDefault  *bool   `json:"isDefault"`
 }
 
 type createCustomerRequest struct {
-	FullName       string       `json:"fullName"`
-	Email          string       `json:"email"`
-	DocumentNumber string       `json:"documentNumber"`
-	Phone          *string      `json:"phone"`
-	Address        addressInput `json:"address"`
+	FullName       string        `json:"fullName"`
+	Email          string        `json:"email"`
+	DocumentNumber string        `json:"documentNumber"`
+	Phone          *string       `json:"phone"`
+	Address        *addressInput `json:"address"`
 }
 
 type updateCustomerRequest struct {
-	FullName string       `json:"fullName"`
-	Phone    *string      `json:"phone"`
-	Status   string       `json:"status"`
-	Address  addressInput `json:"address"`
+	FullName string        `json:"fullName"`
+	Phone    *string       `json:"phone"`
+	Status   string        `json:"status"`
+	Address  *addressInput `json:"address"`
 }
 
 type orderItemInput struct {
@@ -69,13 +70,15 @@ type orderItemInput struct {
 	Quantity  int `json:"quantity"`
 }
 
+type paymentInput struct {
+	Method string `json:"method"`
+}
+
 type createOrderRequest struct {
-	CustomerID int `json:"customerId"`
-	AddressID  int `json:"addressId"`
+	CustomerID int              `json:"customerId"`
+	AddressID  int              `json:"addressId"`
 	Items      []orderItemInput `json:"items"`
-	Payment    struct {
-		Method string `json:"method"`
-	} `json:"payment"`
+	Payment    *paymentInput    `json:"payment"`
 }
 
 type customerRow struct {
@@ -325,6 +328,7 @@ func (a *app) createCustomer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	address := payload.Address
 	tx, err := a.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, dbError(err))
@@ -342,7 +346,7 @@ func (a *app) createCustomer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, dbError(err))
 		return
 	}
-	if _, err := tx.ExecContext(r.Context(), insertAddressSQL, customerID, payload.Address.Label, payload.Address.Street, payload.Address.Number, payload.Address.Complement, payload.Address.District, payload.Address.City, payload.Address.State, payload.Address.PostalCode, payload.Address.IsDefault); err != nil {
+	if _, err := tx.ExecContext(r.Context(), insertAddressSQL, customerID, address.Label, address.Street, address.Number, address.Complement, address.District, address.City, address.State, address.PostalCode, *address.IsDefault); err != nil {
 		writeError(w, dbError(err))
 		return
 	}
@@ -373,6 +377,7 @@ func (a *app) updateCustomer(w http.ResponseWriter, r *http.Request, id int) {
 		writeError(w, err)
 		return
 	}
+	address := payload.Address
 	tx, err := a.db.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, dbError(err))
@@ -389,7 +394,7 @@ func (a *app) updateCustomer(w http.ResponseWriter, r *http.Request, id int) {
 		writeError(w, apiError{Status: 404, Code: "NOT_FOUND", Message: "Customer not found"})
 		return
 	}
-	if _, err := tx.ExecContext(r.Context(), updateAddressSQL, payload.Address.Label, payload.Address.Street, payload.Address.Number, payload.Address.Complement, payload.Address.District, payload.Address.City, payload.Address.State, payload.Address.PostalCode, payload.Address.IsDefault, id); err != nil {
+	if _, err := tx.ExecContext(r.Context(), updateAddressSQL, address.Label, address.Street, address.Number, address.Complement, address.District, address.City, address.State, address.PostalCode, *address.IsDefault, id); err != nil {
 		writeError(w, dbError(err))
 		return
 	}
@@ -540,13 +545,13 @@ func (a *app) fetchOrder(ctx context.Context, q queryer, id int) (map[string]any
 
 type orderRow struct {
 	OrderID, CustomerID, AddressID, ItemID, Quantity, ProductID, StockQuantity, CategoryID, PaymentID int64
-	OrderStatus, TotalAmount, FullName, Email, DocumentNumber, CustomerStatus string
-	Label, Street, Number, Complement, District, City, State, PostalCode sql.NullString
-	ItemUnitPrice, ItemTotalPrice, SKU, ProductName, ProductUnitPrice, CategoryName string
-	PaymentMethod, PaymentStatus, PaymentAmount string
-	Active, IsDefault bool
-	Phone sql.NullString
-	OrderCreatedAt, OrderUpdatedAt, CustomerCreatedAt, CustomerUpdatedAt, PaidAt time.Time
+	OrderStatus, TotalAmount, FullName, Email, DocumentNumber, CustomerStatus                         string
+	Label, Street, Number, Complement, District, City, State, PostalCode                              sql.NullString
+	ItemUnitPrice, ItemTotalPrice, SKU, ProductName, ProductUnitPrice, CategoryName                   string
+	PaymentMethod, PaymentStatus, PaymentAmount                                                       string
+	Active, IsDefault                                                                                 bool
+	Phone                                                                                             sql.NullString
+	OrderCreatedAt, OrderUpdatedAt, CustomerCreatedAt, CustomerUpdatedAt, PaidAt                      time.Time
 }
 
 func scanCustomer(rows *sql.Rows) (customerRow, error) {
@@ -578,9 +583,9 @@ func orderBaseJSON(r orderRow) map[string]any {
 	addr := map[string]any{"id": r.AddressID, "label": r.Label.String, "street": r.Street.String, "number": r.Number.String, "complement": nullableString(r.Complement), "district": r.District.String, "city": r.City.String, "state": r.State.String, "postalCode": r.PostalCode.String, "isDefault": r.IsDefault}
 	return map[string]any{
 		"id": r.OrderID, "status": r.OrderStatus, "totalAmount": r.TotalAmount,
-		"customer": map[string]any{"id": r.CustomerID, "fullName": r.FullName, "email": r.Email, "documentNumber": r.DocumentNumber, "phone": nullableString(r.Phone), "status": r.CustomerStatus, "address": addr, "createdAt": r.CustomerCreatedAt.UTC().Format(time.RFC3339), "updatedAt": r.CustomerUpdatedAt.UTC().Format(time.RFC3339)},
-		"address": addr,
-		"payment": map[string]any{"id": r.PaymentID, "method": r.PaymentMethod, "status": r.PaymentStatus, "amount": r.PaymentAmount, "paidAt": r.PaidAt.UTC().Format(time.RFC3339)},
+		"customer":  map[string]any{"id": r.CustomerID, "fullName": r.FullName, "email": r.Email, "documentNumber": r.DocumentNumber, "phone": nullableString(r.Phone), "status": r.CustomerStatus, "address": addr, "createdAt": r.CustomerCreatedAt.UTC().Format(time.RFC3339), "updatedAt": r.CustomerUpdatedAt.UTC().Format(time.RFC3339)},
+		"address":   addr,
+		"payment":   map[string]any{"id": r.PaymentID, "method": r.PaymentMethod, "status": r.PaymentStatus, "amount": r.PaymentAmount, "paidAt": r.PaidAt.UTC().Format(time.RFC3339)},
 		"createdAt": r.OrderCreatedAt.UTC().Format(time.RFC3339), "updatedAt": r.OrderUpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
@@ -600,9 +605,15 @@ func nullableString(value sql.NullString) any {
 }
 
 func decodeJSON(r *http.Request, target any) error {
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil {
+	raw, err := io.ReadAll(r.Body)
+	if err != nil || !json.Valid(raw) {
+		return apiError{Status: 400, Code: "VALIDATION_ERROR", Message: "Invalid request payload", Details: []map[string]string{{"field": "$", "message": "Invalid JSON"}}}
+	}
+	trimmed := strings.TrimSpace(string(raw))
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return apiError{Status: 400, Code: "VALIDATION_ERROR", Message: "Invalid request payload", Details: []map[string]string{{"field": "$", "message": "Must be a JSON object"}}}
+	}
+	if err := json.Unmarshal(raw, target); err != nil {
 		return apiError{Status: 400, Code: "VALIDATION_ERROR", Message: "Invalid request payload", Details: []map[string]string{{"field": "$", "message": "Invalid JSON"}}}
 	}
 	return nil
@@ -650,14 +661,21 @@ func validateCreateOrder(p createOrderRequest) error {
 			details = append(details, map[string]string{"field": fmt.Sprintf("items[%d].quantity", i), "message": "Must be a positive integer"})
 		}
 	}
-	method := p.Payment.Method
-	if method != "credit_card" && method != "debit_card" && method != "pix" && method != "boleto" {
+	if p.Payment == nil {
+		details = append(details, map[string]string{"field": "payment", "message": "Required object"})
+	} else if strings.TrimSpace(p.Payment.Method) == "" {
+		details = append(details, map[string]string{"field": "payment.method", "message": "Required non-empty string"})
+	} else if p.Payment.Method != "credit_card" && p.Payment.Method != "debit_card" && p.Payment.Method != "pix" && p.Payment.Method != "boleto" {
 		details = append(details, map[string]string{"field": "payment.method", "message": "Invalid payment method"})
 	}
 	return detailsError(details)
 }
 
-func validateAddress(details *[]map[string]string, a addressInput) {
+func validateAddress(details *[]map[string]string, a *addressInput) {
+	if a == nil {
+		*details = append(*details, map[string]string{"field": "address", "message": "Required object"})
+		return
+	}
 	required(details, "address.label", a.Label)
 	required(details, "address.street", a.Street)
 	required(details, "address.number", a.Number)
@@ -665,6 +683,9 @@ func validateAddress(details *[]map[string]string, a addressInput) {
 	required(details, "address.city", a.City)
 	required(details, "address.state", a.State)
 	required(details, "address.postalCode", a.PostalCode)
+	if a.IsDefault == nil {
+		*details = append(*details, map[string]string{"field": "address.isDefault", "message": "Required boolean"})
+	}
 }
 
 func required(details *[]map[string]string, field, value string) {
@@ -727,8 +748,13 @@ func dbError(err error) error {
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
 	w.Header().Set("Content-Type", "application/json")
+	encoded, err := json.Marshal(body)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+	_, _ = w.Write(encoded)
 }
 
 func writeError(w http.ResponseWriter, err error) {
