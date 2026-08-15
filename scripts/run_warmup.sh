@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/_lib.sh"
 
-BASE_URL="${1:-$API_BASE_URL}"
+BASE_URL="${1:-$LOCUST_HOST}"
 mkdir -p results/raw/warmup
 
 echo "Rodando warmup em $BASE_URL por ${WARMUP_DURATION_SECONDS}s..."

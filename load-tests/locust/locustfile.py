@@ -29,7 +29,25 @@ class PayloadCycle:
             return next(self._cycle)
 
 
-customers_create = PayloadCycle(PAYLOAD_DIR / "customers_create.jsonl")
+class PayloadSequence:
+    def __init__(self, path: Path) -> None:
+        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            raise RuntimeError(f"Payload file is empty: {path}")
+        self._values = [json.loads(line) for line in lines]
+        self._index = 0
+        self._lock = threading.Lock()
+
+    def next(self):
+        with self._lock:
+            if self._index >= len(self._values):
+                raise RuntimeError("customers_create.jsonl exhausted; generate more payloads before the benchmark")
+            value = self._values[self._index]
+            self._index += 1
+            return value
+
+
+customers_create = PayloadSequence(PAYLOAD_DIR / "customers_create.jsonl")
 customers_update = PayloadCycle(PAYLOAD_DIR / "customers_update.jsonl")
 orders_create = PayloadCycle(PAYLOAD_DIR / "orders_create.jsonl")
 customer_ids = PayloadCycle(PAYLOAD_DIR / "ids_customers.jsonl", parse_json=False)

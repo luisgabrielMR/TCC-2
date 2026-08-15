@@ -16,7 +16,7 @@ BASE_CUSTOMERS = 200
 BASE_CATEGORIES = 5
 BASE_PRODUCTS = 100
 BASE_ORDERS = 300
-CREATE_CUSTOMERS = 250
+CREATE_CUSTOMERS = 50_000
 UPDATE_CUSTOMERS = 200
 CREATE_ORDERS = 250
 
@@ -37,8 +37,8 @@ def write_id_file(path: Path, values) -> None:
 def customer_create_payloads():
     for idx in range(1, CREATE_CUSTOMERS + 1):
         yield {
-            "fullName": f"Cliente Carga {idx:04d}",
-            "email": f"cliente.carga.{idx:04d}@example.com",
+            "fullName": f"Cliente Carga {idx:08d}",
+            "email": f"cliente.carga.{idx:08d}@example.com",
             "documentNumber": f"900{idx:08d}",
             "phone": f"+55 11 98{idx:07d}",
             "address": {

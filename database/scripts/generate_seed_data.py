@@ -68,7 +68,7 @@ SELECT
     'SKU-' || lpad(gs::text, 5, '0'),
     'Produto Base ' || lpad(gs::text, 4, '0'),
     (10 + (gs % 50) + ((gs % 7) * 0.11))::numeric(12, 2),
-    1000 + (gs % 100),
+    100000 + gs,
     true,
     timestamp '2026-01-01 09:00:00+00' + (gs || ' minutes')::interval
 FROM generate_series(1, 100) AS gs

@@ -23,7 +23,27 @@ def read_locust_rows():
             for row in reader:
                 if row.get("Name") == "Aggregated":
                     continue
-                yield language, scenario, run_number, row
+                yield language, scenario, run_number, stats_file.parent, row
+
+
+def read_api_resources(language: str, run_directory: Path) -> dict[str, str]:
+    summary = run_directory / "docker_stats_summary.csv"
+    if not summary.exists():
+        return {}
+    expected = f"tcc_benchmark_{language}_api"
+    with summary.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("container_name") == expected:
+                return row
+    return {}
+
+
+def read_locust_aggregate(run_directory: Path) -> dict[str, str]:
+    with (run_directory / "locust_stats.csv").open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("Name") == "Aggregated":
+                return row
+    return {}
 
 
 def main() -> None:
@@ -33,7 +53,7 @@ def main() -> None:
     endpoint_rows = []
     language_totals = {}
 
-    for language, scenario, run_number, row in read_locust_rows():
+    for language, scenario, run_number, run_directory, row in read_locust_rows():
         endpoint = row.get("Name", "")
         method = row.get("Type", "")
         requests = int(float(row.get("Request Count", "0") or 0))
@@ -60,13 +80,14 @@ def main() -> None:
         })
 
         key = (language, scenario, run_number)
-        total = language_totals.setdefault(key, {"requests": 0, "failures": 0, "rps": 0.0})
-        total["requests"] += requests
-        total["failures"] += failures
-        try:
-            total["rps"] += float(rps)
-        except ValueError:
-            pass
+        if key not in language_totals:
+            aggregate = read_locust_aggregate(run_directory)
+            language_totals[key] = {
+                "requests": int(float(aggregate.get("Request Count", "0") or 0)),
+                "failures": int(float(aggregate.get("Failure Count", "0") or 0)),
+                "rps": float(aggregate.get("Requests/s", "0") or 0),
+                "resources": read_api_resources(language, run_directory),
+            }
 
     endpoint_path = PROCESSED / "summary_by_endpoint.csv"
     with endpoint_path.open("w", encoding="utf-8", newline="") as handle:
@@ -90,12 +111,17 @@ def main() -> None:
 
     language_path = PROCESSED / "summary_by_language.csv"
     with language_path.open("w", encoding="utf-8", newline="") as handle:
-        fieldnames = ["language", "scenario", "run", "requests", "failures", "error_rate", "throughput_rps"]
+        fieldnames = [
+            "language", "scenario", "run", "requests", "failures", "error_rate", "throughput_rps",
+            "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
+            "network_rx_delta_bytes", "network_tx_delta_bytes",
+        ]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for (language, scenario, run_number), total in sorted(language_totals.items()):
             requests = total["requests"]
             failures = total["failures"]
+            resources = total["resources"]
             writer.writerow({
                 "language": language,
                 "scenario": scenario,
@@ -104,6 +130,12 @@ def main() -> None:
                 "failures": failures,
                 "error_rate": f"{(failures / requests) if requests else 0:.6f}",
                 "throughput_rps": f"{total['rps']:.3f}",
+                "cpu_average_percent": resources.get("cpu_average_percent", ""),
+                "cpu_max_percent": resources.get("cpu_max_percent", ""),
+                "memory_average_bytes": resources.get("memory_average_bytes", ""),
+                "memory_max_bytes": resources.get("memory_max_bytes", ""),
+                "network_rx_delta_bytes": resources.get("network_rx_delta_bytes", ""),
+                "network_tx_delta_bytes": resources.get("network_tx_delta_bytes", ""),
             })
 
     final_summary = SUMMARIES / "final_summary.md"
@@ -114,6 +146,8 @@ def main() -> None:
         else:
             handle.write(f"- Linhas por endpoint: {len(endpoint_rows)}\n")
             handle.write(f"- Rodadas consolidadas: {len(language_totals)}\n")
+            measured = sum(1 for total in language_totals.values() if total["resources"])
+            handle.write(f"- Rodadas com CPU e memoria: {measured}/{len(language_totals)}\n")
             handle.write(f"- Arquivo por linguagem: `{language_path}`\n")
             handle.write(f"- Arquivo por endpoint: `{endpoint_path}`\n")
 

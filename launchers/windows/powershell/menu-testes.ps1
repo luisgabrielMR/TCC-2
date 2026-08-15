@@ -5,6 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 Set-Location $Root
+. (Join-Path $PSScriptRoot "benchmark-common.ps1")
 
 function Read-EnvFile {
     $map = @{}
@@ -82,28 +83,20 @@ function Invoke-ValidateDatabase {
     docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $user -d $db -f /benchmark/database/scripts/validate_database.sql
 }
 
-function Invoke-BashScript([string]$Script, [string[]]$Args = @()) {
-    $bash = Get-Command bash -ErrorAction SilentlyContinue
-    if ($bash) {
-        & bash $Script @Args
-        return
-    }
-    $wsl = Get-Command wsl -ErrorAction SilentlyContinue
-    if ($wsl) {
-        $linuxRoot = (& wsl wslpath -a "$Root").Trim()
-        $quotedArgs = ($Args | ForEach-Object { "'$($_ -replace "'", "'\''")'" }) -join " "
-        & wsl bash -lc "cd '$linuxRoot' && bash '$Script' $quotedArgs"
-        return
-    }
-    throw "Nao encontrei bash nem WSL. Use os scripts .sh no WSL/Linux ou instale Git Bash."
-}
-
 function Invoke-Warmup {
-    Invoke-BashScript "./scripts/run_warmup.sh" @("http://localhost:8000")
+    $environment = Get-BenchmarkEnvironment
+    $hostUrl = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
+    $seconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "180")
+    $users = [int](Get-BenchmarkValue $environment "WARMUP_USERS" "20")
+    $spawnRate = [int](Get-BenchmarkValue $environment "WARMUP_SPAWN_RATE" "5")
+    Invoke-BenchmarkLocust "warmup" $users $spawnRate "${seconds}s" $hostUrl "/mnt/results/raw/warmup/warmup"
 }
 
 function Invoke-RunAll {
-    Invoke-BashScript "./scripts/run_all_languages_sequentially.sh" @("mixed", "1")
+    foreach ($language in @("python", "node", "java", "go", "dotnet")) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language $language -Scenario mixed -RunNumber 1
+        if ($LASTEXITCODE -ne 0) { throw "A rodada $language falhou." }
+    }
 }
 
 function Invoke-Summarize {
@@ -116,7 +109,7 @@ function Invoke-Action([string]$SelectedAction) {
         "prepare-db" { Invoke-PrepareDatabase }
         "payloads" { Invoke-PythonScript "database/scripts/generate_test_payloads.py" }
         "validate-db" { Invoke-ValidateDatabase }
-        "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://localhost:8000" }
+        "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://127.0.0.1:8000" }
         "warmup" { Invoke-Warmup }
         "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 1 }
         "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 1 }
@@ -125,6 +118,7 @@ function Invoke-Action([string]$SelectedAction) {
         "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 1 }
         "all" { Invoke-RunAll }
         "summarize" { Invoke-Summarize }
+        "verify" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/verificar-projeto.ps1" }
         default { throw "Acao desconhecida: $SelectedAction" }
     }
 }
@@ -151,6 +145,7 @@ while ($true) {
     Write-Host "11 Rodar .NET mixed"
     Write-Host "12 Rodar todas sequencialmente"
     Write-Host "13 Resumir resultados"
+    Write-Host "14 Verificar projeto completo"
     Write-Host "0  Sair"
     Write-Host ""
     $choice = Read-Host "Escolha"
@@ -168,6 +163,7 @@ while ($true) {
         "11" { Invoke-Action "dotnet"; Read-Host "Enter para continuar" }
         "12" { Invoke-Action "all"; Read-Host "Enter para continuar" }
         "13" { Invoke-Action "summarize"; Read-Host "Enter para continuar" }
+        "14" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
         "0" { break }
         default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
     }

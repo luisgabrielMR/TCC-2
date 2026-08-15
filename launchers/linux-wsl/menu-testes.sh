@@ -31,7 +31,7 @@ MENU
     3) ./launchers/linux-wsl/gerar-payloads.sh ;;
     4) ./launchers/linux-wsl/validar-banco.sh ;;
     5) ./launchers/linux-wsl/testar-payloads-api-ativa.sh ;;
-    6) ./scripts/run_warmup.sh http://localhost:8000 ;;
+    6) ./scripts/run_warmup.sh ;;
     7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 1 ;;
     8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 1 ;;
     9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 1 ;;

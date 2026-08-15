@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17}
+    image: ${POSTGRES_IMAGE:-postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3}
     container_name: tcc_benchmark_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-benchmark_db}
@@ -21,7 +21,7 @@ services:
       - benchmark
 
   postgres-exporter:
-    image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:v0.15.0}
+    image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:v0.15.0@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6}
     container_name: tcc_benchmark_postgres_exporter
     profiles: ["monitoring"]
     environment:
@@ -35,7 +35,7 @@ services:
       - benchmark
 
   prometheus:
-    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.55.1}
+    image: ${PROMETHEUS_IMAGE:-prom/prometheus:v2.55.1@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3}
     container_name: tcc_benchmark_prometheus
     profiles: ["monitoring"]
     command:
@@ -50,7 +50,7 @@ services:
       - benchmark
 
   grafana:
-    image: ${GRAFANA_IMAGE:-grafana/grafana:11.3.0}
+    image: ${GRAFANA_IMAGE:-grafana/grafana:11.3.0@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3}
     container_name: tcc_benchmark_grafana
     profiles: ["monitoring"]
     environment:
@@ -66,7 +66,7 @@ services:
       - benchmark
 
   cadvisor:
-    image: ${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:v0.49.1}
+    image: ${CADVISOR_IMAGE:-gcr.io/cadvisor/cadvisor:v0.49.1@sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388}
     container_name: tcc_benchmark_cadvisor
     profiles: ["monitoring"]
     privileged: true
@@ -81,12 +81,13 @@ services:
       - benchmark
 
   locust:
-    image: ${LOCUST_IMAGE:-locustio/locust:2.32.6}
+    image: ${LOCUST_IMAGE:-locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3}
     container_name: tcc_benchmark_locust
     profiles: ["load"]
     working_dir: /mnt/locust
     volumes:
       - ./load-tests/locust:/mnt/locust:ro
+      - ./scripts:/mnt/scripts:ro
       - ./common/payloads:/mnt/payloads:ro
       - ./results:/mnt/results
     command: ["-f", "locustfile.py", "--host", "${LOCUST_HOST:-http://host.docker.internal:8000}"]
