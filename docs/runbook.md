@@ -44,7 +44,7 @@ Prometheus coleta PostgreSQL pelo `postgres-exporter`. O cAdvisor complementa a 
 
 O script reseta o banco, sobe a API, valida o contrato e os endpoints, aquece, reseta sem reiniciar a API, executa o teste principal, coleta metricas, exporta as series do PostgreSQL, reseta novamente o banco e encerra a API mesmo em caso de falha.
 
-Cada rodada grava `docker_stats_raw.csv`, `docker_stats_summary.csv` e os arquivos `prometheus_*.csv` junto aos CSVs do Locust.
+Cada rodada grava `docker_stats_raw.csv`, `docker_stats_summary.csv` e os arquivos `prometheus_*.csv` junto aos CSVs do Locust. A contagem final do Locust substitui automaticamente a fotografia periodica em `locust_stats.csv` antes da consolidacao.
 
 No Windows, o mesmo fluxo e nativo em PowerShell:
 

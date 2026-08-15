@@ -52,7 +52,7 @@ O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir
 
 ## Metricas comparaveis
 
-Latencia, throughput e falhas HTTP sao medidos pelo Locust. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`. CPU, memoria e rede dos containers sao amostradas continuamente por `docker stats` e preservadas em CSV bruto e consolidado.
+Latencia, throughput e falhas HTTP sao medidos pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`. CPU, memoria e rede dos containers sao amostradas continuamente por `docker stats` e preservadas em CSV bruto e consolidado.
 
 O cAdvisor permanece disponivel para Linux. No Docker Desktop com armazenamento containerd, ele pode nao publicar series por container; por isso, o resultado oficial de recursos usa a coleta continua de `docker stats`, igual para as cinco APIs. As APIs nao expoem `/metrics`, evitando instrumentacao e custo diferentes entre linguagens.
 

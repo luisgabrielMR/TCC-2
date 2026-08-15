@@ -98,6 +98,9 @@ METRICS_PID=$!
 METRICS_STARTED=true
 MAIN_RUN_STARTED=true
 
+PYTHON_BIN="$(python_bin)"
+"$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$RESULT_DIR/locust" --prepare
+
 SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   -e SCENARIO="$SCENARIO_NAME" \
   -e PAYLOAD_DIR=/mnt/payloads \
@@ -110,6 +113,7 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   --host "$LOCUST_HOST" \
   --csv "/mnt/$RESULT_DIR/locust" \
   --only-summary
+"$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$RESULT_DIR/locust"
 
 touch "$METRICS_STOP_FILE"
 wait "$METRICS_PID"

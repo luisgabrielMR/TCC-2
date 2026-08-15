@@ -143,7 +143,7 @@ Cada comando deve:
 4. Executar warmup.
 5. Resetar o banco sem reiniciar a API.
 6. Executar o teste principal.
-7. Coletar metricas continuamente.
+7. Coletar metricas continuamente e finalizar os CSVs do Locust.
 8. Salvar resultados e resetar novamente o banco.
 9. Encerrar a API.
 

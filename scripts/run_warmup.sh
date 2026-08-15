@@ -7,6 +7,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 BASE_URL="${1:-$LOCUST_HOST}"
 mkdir -p results/raw/warmup
+PYTHON_BIN="$(python_bin)"
+"$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix results/raw/warmup/warmup --prepare
 
 echo "Rodando warmup em $BASE_URL por ${WARMUP_DURATION_SECONDS}s..."
 SCENARIO=warmup docker compose --profile load run --rm \
@@ -21,5 +23,6 @@ SCENARIO=warmup docker compose --profile load run --rm \
   --host "$BASE_URL" \
   --csv /mnt/results/raw/warmup/warmup \
   --only-summary
+"$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix results/raw/warmup/warmup
 
 echo "Warmup concluido. Resultados de warmup nao entram na coleta principal."

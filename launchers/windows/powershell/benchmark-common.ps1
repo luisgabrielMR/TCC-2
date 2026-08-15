@@ -123,6 +123,15 @@ function Invoke-BenchmarkLocust {
         [string]$CsvPrefix
     )
 
+    $containerRoot = "/mnt/results/"
+    if (-not $CsvPrefix.StartsWith($containerRoot)) {
+        throw "O prefixo CSV do Locust deve estar dentro de /mnt/results: $CsvPrefix"
+    }
+    $relativePrefix = $CsvPrefix.Substring($containerRoot.Length).Replace("/", [IO.Path]::DirectorySeparatorChar)
+    $hostPrefix = Join-Path (Join-Path $script:BenchmarkRoot "results") $relativePrefix
+    $finalizer = Join-Path $script:BenchmarkRoot "scripts/finalize_locust_csv.py"
+    Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix, "--prepare")
+
     Invoke-BenchmarkCompose @(
         "--profile", "load", "run", "--rm",
         "-e", "SCENARIO=$Scenario",
@@ -131,6 +140,7 @@ function Invoke-BenchmarkLocust {
         "-u", "$Users", "-r", "$SpawnRate", "-t", $Duration,
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )
+    Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix)
 }
 
 function Get-LanguageMetadata {

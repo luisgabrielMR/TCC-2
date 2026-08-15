@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 import random
@@ -7,12 +8,33 @@ import threading
 from itertools import cycle
 from pathlib import Path
 
-from locust import HttpUser, constant_pacing, task
+from locust import HttpUser, constant_pacing, events, task
+from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
 PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", "../../common/payloads"))
 WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
+
+
+@events.quitting.add_listener
+def write_final_csv_snapshot(environment, **_kwargs) -> None:
+    options = environment.parsed_options
+    prefix = getattr(options, "csv_prefix", None) if options else None
+    if not prefix:
+        return
+
+    exporter = StatsCSV(environment, PERCENTILES_TO_REPORT)
+    outputs = (
+        ("stats", exporter.requests_csv_columns, exporter._requests_data_rows),
+        ("failures", exporter.failures_columns, exporter._failures_data_rows),
+        ("exceptions", exporter.exceptions_columns, exporter._exceptions_data_rows),
+    )
+    for kind, columns, write_rows in outputs:
+        with Path(f"{prefix}_final_{kind}.csv").open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(columns)
+            write_rows(writer)
 
 
 class PayloadCycle:
