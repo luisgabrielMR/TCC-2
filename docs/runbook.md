@@ -39,7 +39,7 @@ Prometheus coleta PostgreSQL pelo `postgres-exporter`. O cAdvisor complementa a 
 ## Rodar uma linguagem
 
 ```bash
-./scripts/run_one_language.sh python mixed 1
+./scripts/run_one_language.sh python mixed 0 controlled_50
 ```
 
 O script reseta o banco, sobe a API, valida o contrato e os endpoints, aquece, reseta sem reiniciar a API, executa o teste principal, coleta metricas, exporta as series do PostgreSQL, reseta novamente o banco e encerra a API mesmo em caso de falha.
@@ -49,8 +49,10 @@ Cada rodada grava `docker_stats_raw.csv`, `docker_stats_summary.csv` e os arquiv
 No Windows, o mesmo fluxo e nativo em PowerShell:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -RunNumber 1
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50
 ```
+
+`RunNumber 0` escolhe automaticamente a proxima rodada e evita sobrescrever resultados. Para a bateria de capacidade, use `scripts/run_capacity_battery.sh` no Linux/WSL ou `launchers/windows/18_BATERIA_50_100_200.bat` no Windows.
 
 Verificacao completa sem gerar uma rodada oficial de cinco minutos:
 

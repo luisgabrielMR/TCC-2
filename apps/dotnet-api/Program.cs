@@ -597,7 +597,7 @@ record Settings(string ConnectionString)
         builder.MaxPoolSize = IntEnv("DB_POOL_MAX", 20);
         builder.Timeout = IntEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10);
         builder.ConnectionIdleLifetime = IntEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60);
-        builder.ConnectionLifetime = IntEnv("DB_POOL_MAX_LIFETIME_SECONDS", 300);
+        builder.ConnectionLifetime = IntEnv("DB_POOL_MAX_LIFETIME_SECONDS", 1800);
         return new Settings(builder.ConnectionString);
     }
     static string Env(string name, string fallback) => Environment.GetEnvironmentVariable(name) ?? fallback;

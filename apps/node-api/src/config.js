@@ -19,7 +19,7 @@ export function loadConfig() {
       max: intEnv("DB_POOL_MAX", 20),
       acquireTimeoutSeconds: intEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10),
       idleTimeoutSeconds: intEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60),
-      maxLifetimeSeconds: intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 300)
+      maxLifetimeSeconds: intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 1800)
     }
   };
 }

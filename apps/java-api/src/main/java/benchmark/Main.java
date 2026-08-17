@@ -47,7 +47,7 @@ public class Main {
         config.setMaximumPoolSize(intEnv("DB_POOL_MAX", 20));
         config.setConnectionTimeout(intEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10) * 1000L);
         config.setIdleTimeout(intEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60) * 1000L);
-        config.setMaxLifetime(intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 300) * 1000L);
+        config.setMaxLifetime(intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 1800) * 1000L);
         return new HikariDataSource(config);
     }
 

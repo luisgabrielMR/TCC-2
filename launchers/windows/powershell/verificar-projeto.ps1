@@ -14,18 +14,18 @@ $verificationDirectory = Join-Path $script:BenchmarkRoot "results/raw/verificati
 $contractBaseline = "/mnt/results/raw/verification/contract-baseline.json"
 
 try {
-    Write-Host "[1/6] Validando Docker Compose..."
+    Write-Host "[1/7] Validando Docker Compose..."
     Stop-BenchmarkServices -Services $services
     Invoke-BenchmarkCompose -Arguments @("config", "--quiet")
 
-    Write-Host "[2/6] Construindo as cinco APIs..."
+    Write-Host "[2/7] Construindo as cinco APIs..."
     $buildArguments = @()
     foreach ($language in $languages) { $buildArguments += @("--profile", $language) }
     $buildArguments += "build"
     $buildArguments += $services
     Invoke-BenchmarkCompose -Arguments $buildArguments
 
-    Write-Host "[3/6] Resetando e validando o banco..."
+    Write-Host "[3/7] Resetando e validando o banco..."
     Reset-BenchmarkDatabase $environment
     $user = Get-BenchmarkValue $environment "POSTGRES_USER" "benchmark_user"
     $database = Get-BenchmarkValue $environment "POSTGRES_DB" "benchmark_db"
@@ -34,7 +34,7 @@ try {
         "-U", $user, "-d", $database, "-f", "/benchmark/database/scripts/validate_database.sql"
     )
 
-    Write-Host "[4/6] Testando os oito endpoints em cada linguagem..."
+    Write-Host "[4/7] Testando os oito endpoints em cada linguagem..."
     New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
     Remove-Item (Join-Path $verificationDirectory "contract-baseline.json") -Force -ErrorAction SilentlyContinue
     foreach ($language in $languages) {
@@ -55,7 +55,7 @@ try {
         $activeService = $null
     }
 
-    Write-Host "[5/6] Validando monitoramento..."
+    Write-Host "[5/7] Validando monitoramento..."
     Invoke-BenchmarkCompose -Arguments @("--profile", "monitoring", "up", "-d", "--force-recreate", "postgres-exporter", "prometheus", "grafana", "cadvisor")
     $prometheusPort = Get-BenchmarkValue $environment "PROMETHEUS_PORT" "9090"
     $prometheusUrl = "http://127.0.0.1:$prometheusPort"
@@ -107,21 +107,21 @@ try {
         throw "Grafana nao ficou saudavel dentro do tempo esperado."
     }
 
-    Write-Host "[6/6] Executando carga curta de escrita pelo Locust..."
+    Write-Host "[6/7] Executando warmup misto curto pelo Locust..."
     Reset-BenchmarkDatabase $environment
     $activeService = "python-api"
     Invoke-BenchmarkCompose -Arguments @("--profile", "python", "up", "-d", $activeService)
     Wait-BenchmarkApi $apiBaseUrl
     New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
     Get-ChildItem $verificationDirectory -Filter "locust*.csv" -ErrorAction SilentlyContinue | Remove-Item -Force
-    $uniquenessCheck = "from locustfile import customers_create; rows=[customers_create.next() for _ in range(2000)]; assert len({r['email'] for r in rows}) == 2000; assert len({r['documentNumber'] for r in rows}) == 2000"
+    $uniquenessCheck = "from locustfile import customers_create; assert len(customers_create._values) >= 75000; rows=[customers_create.next() for _ in range(5000)]; assert len({r['email'] for r in rows}) == 5000; assert len({r['documentNumber'] for r in rows}) == 5000"
     Invoke-BenchmarkCompose -Arguments @(
         "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
         "-e", "PAYLOAD_DIR=/mnt/payloads", "locust", "-c", $uniquenessCheck
     )
     $measurement = Start-BenchmarkMeasurements $verificationDirectory 1
     $mainRunStarted = $true
-    Invoke-BenchmarkLocust "write_heavy" 20 10 "15s" $locustHost "/mnt/results/raw/verification/locust"
+    Invoke-BenchmarkLocust "warmup" 20 10 "15s" $locustHost "/mnt/results/raw/verification/locust"
     Stop-BenchmarkMeasurements $measurement
     $metricsEndEpoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     Export-BenchmarkPrometheus $verificationDirectory $environment $measurement.StartEpoch $metricsEndEpoch
@@ -129,6 +129,12 @@ try {
     $aggregate = $stats | Where-Object { $_.Name -eq "Aggregated" }
     if (-not $aggregate -or [int]$aggregate."Failure Count" -ne 0) {
         throw "A carga curta do Locust registrou falhas."
+    }
+    foreach ($endpoint in @("POST /customers", "PUT /customers/{id}", "POST /orders")) {
+        $endpointRow = $stats | Where-Object { $_.Name -eq $endpoint }
+        if (-not $endpointRow -or [int]$endpointRow."Request Count" -lt 1) {
+            throw "O warmup nao exercitou a rota de escrita $endpoint."
+        }
     }
     $resource = Import-Csv (Join-Path $verificationDirectory "docker_stats_summary.csv") |
         Where-Object { $_.container_name -eq "tcc_benchmark_python_api" }
@@ -143,7 +149,12 @@ try {
     Reset-BenchmarkDatabase $environment
     $mainRunStarted = $false
 
-    Write-Host "Verificacao completa concluida: banco, 5 APIs, 40 chamadas de endpoint, monitoramento e carga de escrita aprovados."
+    Write-Host "[7/7] Validando consolidadores e testes automatizados..."
+    Invoke-BenchmarkPython @("-m", "unittest", "discover", "-s", "tests", "-v")
+    Invoke-BenchmarkPython @("scripts/summarize_results.py")
+    Invoke-BenchmarkPython @("scripts/generate_results_dashboard.py")
+
+    Write-Host "Verificacao completa concluida: banco, 5 APIs, warmup misto, monitoramento, relatorios e testes aprovados."
 }
 finally {
     if ($measurement -and -not $measurement.Stopped) {

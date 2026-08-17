@@ -55,6 +55,9 @@ Frameworks completos podem introduzir pipelines, middlewares, reflexão, injeç�
 - CPU média por container
 - Memória média por container
 - Métricas básicas do PostgreSQL
+- Tempo total da fase principal, sem warmup
+- CPU do gerador Locust
+- Ganho de RPS e eficiência de escala entre 50, 100 e 200 usuários
 
 ## Fluxo geral
 
@@ -76,3 +79,11 @@ Frameworks completos podem introduzir pipelines, middlewares, reflexão, injeç�
 ## Rodadas
 
 Os scripts aceitam múltiplas rodadas por linguagem e cenário. O padrão sugerido é executar três rodadas por linguagem por cenário, sempre registrando ordem, commit, horários, parâmetros de Locust, parâmetros de warmup e configuração efetiva do pool.
+
+## Niveis de carga
+
+- `controlled_50`: 50 usuarios, spawn rate 10, comparacao controlada.
+- `capacity_100`: 100 usuarios, spawn rate 20, teste extra de escalabilidade.
+- `capacity_200`: 200 usuarios, spawn rate 40, teste extra de escalabilidade.
+
+Cada nivel executa warmup, reset e medicao independentes. O limite encontrado e descrito como capacidade pratica observada no ambiente, sem generalizacao para outras maquinas.

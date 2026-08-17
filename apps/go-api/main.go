@@ -156,7 +156,7 @@ func loadSettings() settings {
 		poolMax:        intEnv("DB_POOL_MAX", 20),
 		acquireTimeout: intEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10),
 		idleTimeout:    intEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60),
-		maxLifetime:    intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 300),
+		maxLifetime:    intEnv("DB_POOL_MAX_LIFETIME_SECONDS", 1800),
 	}
 }
 

@@ -3,4 +3,4 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
-./scripts/run_all_languages_sequentially.sh mixed 1
+./scripts/run_all_languages_sequentially.sh mixed 0 controlled_50

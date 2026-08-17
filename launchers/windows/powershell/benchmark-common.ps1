@@ -120,7 +120,8 @@ function Invoke-BenchmarkLocust {
         [int]$SpawnRate,
         [string]$Duration,
         [string]$HostUrl,
-        [string]$CsvPrefix
+        [string]$CsvPrefix,
+        [string]$WaitSeconds = "0.1"
     )
 
     $containerRoot = "/mnt/results/"
@@ -136,11 +137,72 @@ function Invoke-BenchmarkLocust {
         "--profile", "load", "run", "--rm",
         "-e", "SCENARIO=$Scenario",
         "-e", "PAYLOAD_DIR=/mnt/payloads",
+        "-e", "LOCUST_WAIT_SECONDS=$WaitSeconds",
         "locust", "-f", "locustfile.py", "--headless",
         "-u", "$Users", "-r", "$SpawnRate", "-t", $Duration,
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )
     Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix)
+}
+
+function Invoke-BenchmarkWarmup {
+    param(
+        [hashtable]$Environment,
+        [string]$Scenario,
+        [int]$Users,
+        [int]$SpawnRate,
+        [int]$InitialDurationSeconds,
+        [int]$RetryDurationSeconds,
+        [int]$StabilityWindowSeconds,
+        [double]$MaxRpsDriftPercent,
+        [string]$WaitSeconds,
+        [string]$HostUrl,
+        [string]$ResultRelative
+    )
+
+    $attempts = @()
+    foreach ($durationSeconds in @($InitialDurationSeconds, $RetryDurationSeconds)) {
+        if ($durationSeconds -le 0) { continue }
+        $attemptNumber = $attempts.Count + 1
+        $attemptRelative = "$ResultRelative/warmup/attempt_$attemptNumber"
+        $attemptDirectory = Join-Path $script:BenchmarkRoot $attemptRelative
+        New-Item -ItemType Directory -Force $attemptDirectory | Out-Null
+        Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
+        Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds | Out-Host
+
+        $validationPath = Join-Path $attemptDirectory "validation.json"
+        Invoke-BenchmarkPython @(
+            (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
+            "--stats", (Join-Path $attemptDirectory "locust_stats.csv"),
+            "--history", (Join-Path $attemptDirectory "locust_stats_history.csv"),
+            "--scenario", $Scenario,
+            "--expected-users", "$Users",
+            "--window-seconds", "$StabilityWindowSeconds",
+            "--max-rps-drift-percent", "$MaxRpsDriftPercent",
+            "--output", $validationPath
+        ) | Out-Host
+        $validation = Get-Content $validationPath -Raw | ConvertFrom-Json
+        $attempts += [pscustomobject]@{
+            attempt = $attemptNumber
+            duration_seconds = $durationSeconds
+            validation = $validation
+        }
+        if ($validation.stable) {
+            return [pscustomobject]@{
+                stable = $true
+                total_duration_seconds = ($attempts | Measure-Object -Property duration_seconds -Sum).Sum
+                attempts = $attempts
+            }
+        }
+
+        if ($attemptNumber -eq 1 -and $RetryDurationSeconds -gt 0) {
+            Write-Warning "Warmup ainda instavel; o banco sera restaurado antes da tentativa adicional."
+            Reset-BenchmarkDatabase $Environment | Out-Host
+        }
+    }
+
+    $lastReasons = $attempts[-1].validation.reasons -join "; "
+    throw "Warmup nao estabilizou: $lastReasons"
 }
 
 function Get-LanguageMetadata {

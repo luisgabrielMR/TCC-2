@@ -22,6 +22,9 @@ Menu de testes - TCC PostgreSQL Backend Benchmark
 11 Rodar .NET mixed
 12 Rodar todas sequencialmente
 13 Resumir resultados
+16 Capacidade: todas com 100 usuarios
+17 Capacidade: todas com 200 usuarios
+18 Bateria completa: 50, 100 e 200
 0  Sair
 MENU
   read -r -p "Escolha: " choice
@@ -32,11 +35,11 @@ MENU
     4) ./launchers/linux-wsl/validar-banco.sh ;;
     5) ./launchers/linux-wsl/testar-payloads-api-ativa.sh ;;
     6) ./scripts/run_warmup.sh ;;
-    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 1 ;;
-    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 1 ;;
-    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 1 ;;
-    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 1 ;;
-    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 1 ;;
+    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 controlled_50 ;;
+    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 0 controlled_50 ;;
+    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 0 controlled_50 ;;
+    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 0 controlled_50 ;;
+    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 0 controlled_50 ;;
     12) ./launchers/linux-wsl/testar-todas-sequencialmente.sh ;;
     13)
       if command -v python3 >/dev/null 2>&1; then
@@ -47,6 +50,9 @@ MENU
         echo "Python nao encontrado."
       fi
       ;;
+    16) ./scripts/run_all_languages_sequentially.sh mixed 0 capacity_100 ;;
+    17) ./scripts/run_all_languages_sequentially.sh mixed 0 capacity_200 ;;
+    18) ./scripts/run_capacity_battery.sh ;;
     0) break ;;
     *) echo "Opcao invalida" ;;
   esac

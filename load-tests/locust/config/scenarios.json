@@ -1,0 +1,32 @@
+{
+  "aliases": {
+    "warmup": "mixed"
+  },
+  "scenarios": {
+    "read_heavy": [
+      {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 25},
+      {"action": "list_customers", "endpoint": "GET /customers", "weight": 20},
+      {"action": "list_products", "endpoint": "GET /products", "weight": 20},
+      {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 25},
+      {"action": "create_customer", "endpoint": "POST /customers", "weight": 5},
+      {"action": "update_customer", "endpoint": "PUT /customers/{id}", "weight": 5}
+    ],
+    "write_heavy": [
+      {"action": "create_customer", "endpoint": "POST /customers", "weight": 25},
+      {"action": "update_customer", "endpoint": "PUT /customers/{id}", "weight": 25},
+      {"action": "create_order", "endpoint": "POST /orders", "weight": 30},
+      {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 10},
+      {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 10}
+    ],
+    "mixed": [
+      {"action": "get_health", "endpoint": "GET /health", "weight": 5},
+      {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 15},
+      {"action": "list_customers", "endpoint": "GET /customers", "weight": 15},
+      {"action": "list_products", "endpoint": "GET /products", "weight": 15},
+      {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 15},
+      {"action": "create_customer", "endpoint": "POST /customers", "weight": 10},
+      {"action": "update_customer", "endpoint": "PUT /customers/{id}", "weight": 10},
+      {"action": "create_order", "endpoint": "POST /orders", "weight": 15}
+    ]
+  }
+}

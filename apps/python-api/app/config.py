@@ -37,5 +37,5 @@ def load_settings() -> Settings:
         pool_max=_int_env("DB_POOL_MAX", 20),
         pool_acquire_timeout_seconds=_int_env("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10),
         pool_idle_timeout_seconds=_int_env("DB_POOL_IDLE_TIMEOUT_SECONDS", 60),
-        pool_max_lifetime_seconds=_int_env("DB_POOL_MAX_LIFETIME_SECONDS", 300),
+        pool_max_lifetime_seconds=_int_env("DB_POOL_MAX_LIFETIME_SECONDS", 1800),
     )

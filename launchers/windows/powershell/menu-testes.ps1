@@ -33,17 +33,7 @@ function Get-EnvValue([string]$Name, [string]$Default) {
 }
 
 function Invoke-PythonScript([string]$Script) {
-    $py = Get-Command py -ErrorAction SilentlyContinue
-    if ($py) {
-        & py $Script
-        return
-    }
-    $python = Get-Command python -ErrorAction SilentlyContinue
-    if ($python) {
-        & python $Script
-        return
-    }
-    throw "Python nao encontrado no PATH. Instale Python 3 para executar $Script."
+    Invoke-BenchmarkPython @($Script)
 }
 
 function Wait-Postgres {
@@ -87,20 +77,48 @@ function Invoke-Warmup {
     $environment = Get-BenchmarkEnvironment
     $hostUrl = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
     $seconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "180")
-    $users = [int](Get-BenchmarkValue $environment "WARMUP_USERS" "20")
-    $spawnRate = [int](Get-BenchmarkValue $environment "WARMUP_SPAWN_RATE" "5")
-    Invoke-BenchmarkLocust "warmup" $users $spawnRate "${seconds}s" $hostUrl "/mnt/results/raw/warmup/warmup"
+    $retrySeconds = [int](Get-BenchmarkValue $environment "WARMUP_RETRY_DURATION_SECONDS" "300")
+    $windowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_WINDOW_SECONDS" "45")
+    $maxDrift = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
+    $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
+    $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
+    $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
+    $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    Invoke-BenchmarkWarmup `
+        -Environment $environment -Scenario "mixed" -Users $users -SpawnRate $spawnRate `
+        -InitialDurationSeconds $seconds -RetryDurationSeconds $retrySeconds `
+        -StabilityWindowSeconds $windowSeconds -MaxRpsDriftPercent $maxDrift `
+        -WaitSeconds $waitSeconds -HostUrl $hostUrl -ResultRelative "results/raw/warmup/manual_$stamp" | Out-Host
 }
 
-function Invoke-RunAll {
+function Invoke-RunAllProfile([string]$Profile) {
     foreach ($language in @("python", "node", "java", "go", "dotnet")) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language $language -Scenario mixed -RunNumber 1
+        & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" `
+            -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $Profile
         if ($LASTEXITCODE -ne 0) { throw "A rodada $language falhou." }
     }
 }
 
+function Invoke-RunAll {
+    Invoke-RunAllProfile "controlled_50"
+}
+
+function Invoke-CapacityBattery {
+    foreach ($profile in @("controlled_50", "capacity_100", "capacity_200")) {
+        Write-Host "Iniciando perfil $profile para as cinco APIs."
+        Invoke-RunAllProfile $profile
+    }
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/gerar-graficos.ps1" -NoOpen
+    if ($LASTEXITCODE -ne 0) { throw "A geracao final dos resultados falhou." }
+}
+
 function Invoke-Summarize {
     Invoke-PythonScript "scripts/summarize_results.py"
+}
+
+function Invoke-Charts {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/gerar-graficos.ps1"
+    if ($LASTEXITCODE -ne 0) { throw "A geracao dos graficos falhou." }
 }
 
 function Invoke-Action([string]$SelectedAction) {
@@ -111,14 +129,18 @@ function Invoke-Action([string]$SelectedAction) {
         "validate-db" { Invoke-ValidateDatabase }
         "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://127.0.0.1:8000" }
         "warmup" { Invoke-Warmup }
-        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 1 }
-        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 1 }
-        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 1 }
-        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 1 }
-        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 1 }
+        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
+        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
+        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
+        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
+        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
         "all" { Invoke-RunAll }
+        "capacity-100" { Invoke-RunAllProfile "capacity_100" }
+        "capacity-200" { Invoke-RunAllProfile "capacity_200" }
+        "capacity-all" { Invoke-CapacityBattery }
         "summarize" { Invoke-Summarize }
         "verify" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/verificar-projeto.ps1" }
+        "charts" { Invoke-Charts }
         default { throw "Acao desconhecida: $SelectedAction" }
     }
 }
@@ -146,6 +168,10 @@ while ($true) {
     Write-Host "12 Rodar todas sequencialmente"
     Write-Host "13 Resumir resultados"
     Write-Host "14 Verificar projeto completo"
+    Write-Host "15 Gerar graficos e abrir painel"
+    Write-Host "16 Capacidade: todas com 100 usuarios"
+    Write-Host "17 Capacidade: todas com 200 usuarios"
+    Write-Host "18 Bateria completa: 50, 100 e 200"
     Write-Host "0  Sair"
     Write-Host ""
     $choice = Read-Host "Escolha"
@@ -164,6 +190,10 @@ while ($true) {
         "12" { Invoke-Action "all"; Read-Host "Enter para continuar" }
         "13" { Invoke-Action "summarize"; Read-Host "Enter para continuar" }
         "14" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
+        "15" { Invoke-Action "charts"; Read-Host "Enter para continuar" }
+        "16" { Invoke-Action "capacity-100"; Read-Host "Enter para continuar" }
+        "17" { Invoke-Action "capacity-200"; Read-Host "Enter para continuar" }
+        "18" { Invoke-Action "capacity-all"; Read-Host "Enter para continuar" }
         "0" { break }
         default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
     }

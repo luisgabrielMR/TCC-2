@@ -15,6 +15,15 @@ from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 SCENARIO = os.getenv("SCENARIO", "mixed")
 PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", "../../common/payloads"))
 WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
+SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
+
+with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
+    SCENARIO_CONFIG = json.load(scenario_handle)
+
+WORKLOAD_SCENARIO = SCENARIO_CONFIG.get("aliases", {}).get(SCENARIO, SCENARIO)
+SCENARIO_ACTIONS = SCENARIO_CONFIG.get("scenarios", {}).get(WORKLOAD_SCENARIO)
+if SCENARIO != "smoke" and not SCENARIO_ACTIONS:
+    raise RuntimeError(f"Unknown Locust scenario: {SCENARIO}")
 
 
 @events.quitting.add_listener
@@ -124,56 +133,6 @@ class BenchmarkUser(HttpUser):
                 action()
             return
 
-        if SCENARIO == "warmup":
-            random.choice([
-                self.get_health,
-                self.get_customer,
-                self.list_customers,
-                self.list_products,
-                self.get_order,
-            ])()
-            return
-
-        if SCENARIO == "read_heavy":
-            random.choices(
-                [
-                    self.get_customer,
-                    self.list_customers,
-                    self.list_products,
-                    self.get_order,
-                    self.create_customer,
-                    self.update_customer,
-                ],
-                weights=[25, 20, 20, 25, 5, 5],
-                k=1,
-            )[0]()
-            return
-
-        if SCENARIO == "write_heavy":
-            random.choices(
-                [
-                    self.create_customer,
-                    self.update_customer,
-                    self.create_order,
-                    self.get_customer,
-                    self.get_order,
-                ],
-                weights=[25, 25, 30, 10, 10],
-                k=1,
-            )[0]()
-            return
-
-        random.choices(
-            [
-                self.get_health,
-                self.get_customer,
-                self.list_customers,
-                self.list_products,
-                self.get_order,
-                self.create_customer,
-                self.update_customer,
-                self.create_order,
-            ],
-            weights=[5, 15, 15, 15, 15, 10, 10, 15],
-            k=1,
-        )[0]()
+        actions = [getattr(self, item["action"]) for item in SCENARIO_ACTIONS]
+        weights = [item["weight"] for item in SCENARIO_ACTIONS]
+        random.choices(actions, weights=weights, k=1)[0]()

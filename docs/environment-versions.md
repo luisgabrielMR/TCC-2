@@ -36,6 +36,6 @@ Nenhuma API usa ORM. As imagens base de todos os servicos estao fixadas por dige
 | `DB_POOL_MAX` | 20 |
 | `DB_POOL_ACQUIRE_TIMEOUT_SECONDS` | 10 |
 | `DB_POOL_IDLE_TIMEOUT_SECONDS` | 60 |
-| `DB_POOL_MAX_LIFETIME_SECONDS` | 300 |
+| `DB_POOL_MAX_LIFETIME_SECONDS` | 1800 |
 
 As diferencas inevitaveis entre drivers sao registradas no `metadata.json` de cada rodada: `pg` nao preabre o minimo configurado e `database/sql` nao oferece um timeout global por aquisicao equivalente aos demais drivers.

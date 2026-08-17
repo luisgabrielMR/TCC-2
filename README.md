@@ -117,22 +117,23 @@ Configuracao padrao:
 
 ```text
 WARMUP_DURATION_SECONDS=180
-WARMUP_USERS=20
-WARMUP_SPAWN_RATE=5
+WARMUP_RETRY_DURATION_SECONDS=300
+WARMUP_STABILITY_WINDOW_SECONDS=45
+WARMUP_MAX_RPS_DRIFT_PERCENT=10
 ```
 
-O warmup nao entra nos resultados principais. Depois do warmup, o banco deve ser resetado sem reiniciar a API.
+O warmup usa o mesmo cenario, usuarios e spawn rate da rodada principal, incluindo as rotas de escrita. Os dois ultimos intervalos sao comparados e, se a variacao de RPS ultrapassar 10%, ocorre uma tentativa adicional. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
 Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. O Locust roda em container e usa `LOCUST_HOST=http://host.docker.internal:8000`.
 
 ## Rodada principal por linguagem
 
 ```bash
-./scripts/run_one_language.sh python mixed 1
-./scripts/run_one_language.sh node mixed 1
-./scripts/run_one_language.sh java mixed 1
-./scripts/run_one_language.sh go mixed 1
-./scripts/run_one_language.sh dotnet mixed 1
+./scripts/run_one_language.sh python mixed 0 controlled_50
+./scripts/run_one_language.sh node mixed 0 controlled_50
+./scripts/run_one_language.sh java mixed 0 controlled_50
+./scripts/run_one_language.sh go mixed 0 controlled_50
+./scripts/run_one_language.sh dotnet mixed 0 controlled_50
 ```
 
 Cada comando deve:
@@ -152,10 +153,16 @@ Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker es
 ## Executar todas sequencialmente
 
 ```bash
-./scripts/run_all_languages_sequentially.sh mixed 1
+./scripts/run_all_languages_sequentially.sh mixed 0 controlled_50
 ```
 
 Esse script chama uma linguagem por vez. Ele nunca sobe as cinco APIs simultaneamente.
+
+O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. Os testes extras usam os perfis `capacity_100` e `capacity_200`. A bateria completa executa os tres niveis sem sobrescrever rodadas anteriores:
+
+```bash
+./scripts/run_capacity_battery.sh
+```
 
 ## Monitoramento
 
@@ -242,6 +249,10 @@ Os principais atalhos sao:
 - `12_TESTAR_TODAS_SEQUENCIALMENTE.bat`
 - `13_RESUMIR_RESULTADOS.bat`
 - `14_VERIFICAR_PROJETO_COMPLETO.bat`
+- `15_GERAR_GRAFICOS.bat`
+- `16_CAPACIDADE_100_USUARIOS.bat`
+- `17_CAPACIDADE_200_USUARIOS.bat`
+- `18_BATERIA_50_100_200.bat`
 
 O fluxo PowerShell do Windows e nativo e nao depende de Bash ou WSL.
 
@@ -382,7 +393,9 @@ Os resumos ficam em:
 ```text
 results/processed/summary_by_language.csv
 results/processed/summary_by_endpoint.csv
+results/processed/summary_scalability.csv
 results/summaries/final_summary.md
+results/summaries/benchmark_dashboard.html
 ```
 
 Gerar resumos:
@@ -390,6 +403,8 @@ Gerar resumos:
 ```bash
 python scripts/summarize_results.py
 ```
+
+No Windows, `launchers/windows/15_GERAR_GRAFICOS.bat` atualiza os resumos, gera o painel HTML comparativo e o abre no navegador.
 
 No Windows:
 
