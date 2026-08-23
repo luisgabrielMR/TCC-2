@@ -48,7 +48,6 @@ run_attempt() {
     "$attempt_relative/validation.json"
 }
 
-TOTAL_WARMUP_SECONDS="$WARMUP_DURATION_SECONDS"
 attempt_status=0
 run_attempt 1 "$WARMUP_DURATION_SECONDS" || attempt_status=$?
 if [ "$attempt_status" -eq 2 ]; then
@@ -56,16 +55,9 @@ if [ "$attempt_status" -eq 2 ]; then
   exit 1
 fi
 if [ "$attempt_status" -eq 1 ]; then
-  echo "Warmup ainda instavel; restaurando o banco antes da tentativa adicional."
-  "$SCRIPT_DIR/reset_db.sh"
-  retry_status=0
-  run_attempt 2 "$WARMUP_RETRY_DURATION_SECONDS" || retry_status=$?
-  if [ "$retry_status" -ne 0 ]; then
-    echo "Warmup nao estabilizou dentro do limite configurado." >&2
-    exit 1
-  fi
-  TOTAL_WARMUP_SECONDS=$((WARMUP_DURATION_SECONDS + WARMUP_RETRY_DURATION_SECONDS))
+  echo "Warmup nao estabilizou na duracao padronizada; a rodada foi abortada." >&2
+  exit 1
 fi
 
-printf '%s\n' "$TOTAL_WARMUP_SECONDS" > "$RESULT_RELATIVE/warmup/total_duration_seconds.txt"
+printf '%s\n' "$WARMUP_DURATION_SECONDS" > "$RESULT_RELATIVE/warmup/total_duration_seconds.txt"
 echo "Warmup estavel concluido. Seus resultados nao entram na coleta principal."

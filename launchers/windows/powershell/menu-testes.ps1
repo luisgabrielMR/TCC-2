@@ -76,8 +76,7 @@ function Invoke-ValidateDatabase {
 function Invoke-Warmup {
     $environment = Get-BenchmarkEnvironment
     $hostUrl = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
-    $seconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "180")
-    $retrySeconds = [int](Get-BenchmarkValue $environment "WARMUP_RETRY_DURATION_SECONDS" "300")
+    $seconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "300")
     $windowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_WINDOW_SECONDS" "45")
     $maxDrift = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
     $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
@@ -86,15 +85,24 @@ function Invoke-Warmup {
     $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
     Invoke-BenchmarkWarmup `
         -Environment $environment -Scenario "mixed" -Users $users -SpawnRate $spawnRate `
-        -InitialDurationSeconds $seconds -RetryDurationSeconds $retrySeconds `
+        -InitialDurationSeconds $seconds `
         -StabilityWindowSeconds $windowSeconds -MaxRpsDriftPercent $maxDrift `
         -WaitSeconds $waitSeconds -HostUrl $hostUrl -ResultRelative "results/raw/warmup/manual_$stamp" | Out-Host
 }
 
-function Invoke-RunAllProfile([string]$Profile) {
-    foreach ($language in @("python", "node", "java", "go", "dotnet")) {
+function Invoke-RunAllProfile(
+    [string]$Profile,
+    [int]$OrderOffset = 0,
+    [string]$SequenceId = "manual",
+    [ValidateSet("pilot", "official")][string]$RunMode = "pilot"
+) {
+    $languages = @("python", "node", "java", "go", "dotnet")
+    for ($index = 0; $index -lt $languages.Count; $index++) {
+        $language = $languages[($index + $OrderOffset) % $languages.Count]
+        $env:BENCHMARK_SEQUENCE_ID = $SequenceId
+        $env:BENCHMARK_ORDER_POSITION = "$($index + 1)"
         & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" `
-            -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $Profile
+            -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $Profile -RunMode $RunMode
         if ($LASTEXITCODE -ne 0) { throw "A rodada $language falhou." }
     }
 }
@@ -104,10 +112,18 @@ function Invoke-RunAll {
 }
 
 function Invoke-CapacityBattery {
-    foreach ($profile in @("controlled_50", "capacity_100", "capacity_200")) {
-        Write-Host "Iniciando perfil $profile para as cinco APIs."
-        Invoke-RunAllProfile $profile
+    $environment = Get-BenchmarkEnvironment
+    $repetitions = [int](Get-BenchmarkValue $environment "BENCHMARK_REPETITIONS" "3")
+    $profiles = @("controlled_50", "capacity_100", "capacity_200")
+    for ($round = 1; $round -le $repetitions; $round++) {
+        for ($profileIndex = 0; $profileIndex -lt $profiles.Count; $profileIndex++) {
+            $profile = $profiles[$profileIndex]
+            $offset = ($round - 1 + $profileIndex * 2) % 5
+            Write-Host "Iniciando perfil $profile, repeticao $round/$repetitions, ordem deslocada $offset."
+            Invoke-RunAllProfile $profile $offset "${profile}_round_${round}" "official"
+        }
     }
+    Remove-Item Env:BENCHMARK_SEQUENCE_ID, Env:BENCHMARK_ORDER_POSITION -ErrorAction SilentlyContinue
     & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/gerar-graficos.ps1" -NoOpen
     if ($LASTEXITCODE -ne 0) { throw "A geracao final dos resultados falhou." }
 }
@@ -121,6 +137,11 @@ function Invoke-Charts {
     if ($LASTEXITCODE -ne 0) { throw "A geracao dos graficos falhou." }
 }
 
+function Invoke-Grafana {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/abrir-grafana.ps1"
+    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel abrir o Grafana." }
+}
+
 function Invoke-Action([string]$SelectedAction) {
     switch ($SelectedAction) {
         "postgres" { Invoke-Postgres }
@@ -129,11 +150,11 @@ function Invoke-Action([string]$SelectedAction) {
         "validate-db" { Invoke-ValidateDatabase }
         "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://127.0.0.1:8000" }
         "warmup" { Invoke-Warmup }
-        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
-        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
-        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
-        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
-        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 }
+        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
+        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
+        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
+        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
+        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
         "all" { Invoke-RunAll }
         "capacity-100" { Invoke-RunAllProfile "capacity_100" }
         "capacity-200" { Invoke-RunAllProfile "capacity_200" }
@@ -141,6 +162,7 @@ function Invoke-Action([string]$SelectedAction) {
         "summarize" { Invoke-Summarize }
         "verify" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/verificar-projeto.ps1" }
         "charts" { Invoke-Charts }
+        "grafana" { Invoke-Grafana }
         default { throw "Acao desconhecida: $SelectedAction" }
     }
 }
@@ -160,18 +182,19 @@ while ($true) {
     Write-Host "4  Validar banco"
     Write-Host "5  Testar payloads da API ativa"
     Write-Host "6  Rodar warmup da API ativa"
-    Write-Host "7  Rodar Python mixed"
-    Write-Host "8  Rodar Node.js mixed"
-    Write-Host "9  Rodar Java mixed"
-    Write-Host "10 Rodar Go mixed"
-    Write-Host "11 Rodar .NET mixed"
-    Write-Host "12 Rodar todas sequencialmente"
+    Write-Host "7  Piloto Python mixed"
+    Write-Host "8  Piloto Node.js mixed"
+    Write-Host "9  Piloto Java mixed"
+    Write-Host "10 Piloto Go mixed"
+    Write-Host "11 Piloto .NET mixed"
+    Write-Host "12 Piloto de todas sequencialmente"
     Write-Host "13 Resumir resultados"
     Write-Host "14 Verificar projeto completo"
     Write-Host "15 Gerar graficos e abrir painel"
-    Write-Host "16 Capacidade: todas com 100 usuarios"
-    Write-Host "17 Capacidade: todas com 200 usuarios"
-    Write-Host "18 Bateria completa: 50, 100 e 200"
+    Write-Host "16 Piloto de capacidade: 100 usuarios"
+    Write-Host "17 Piloto de capacidade: 200 usuarios"
+    Write-Host "18 Bateria oficial: 3 repeticoes de 50, 100 e 200"
+    Write-Host "19 Abrir Grafana completo"
     Write-Host "0  Sair"
     Write-Host ""
     $choice = Read-Host "Escolha"
@@ -194,6 +217,7 @@ while ($true) {
         "16" { Invoke-Action "capacity-100"; Read-Host "Enter para continuar" }
         "17" { Invoke-Action "capacity-200"; Read-Host "Enter para continuar" }
         "18" { Invoke-Action "capacity-all"; Read-Host "Enter para continuar" }
+        "19" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
         "0" { break }
         default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
     }

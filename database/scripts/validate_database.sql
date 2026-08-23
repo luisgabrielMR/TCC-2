@@ -25,9 +25,15 @@ BEGIN
     IF (SELECT count(*) FROM audit_logs) < 500 THEN RAISE EXCEPTION 'audit_logs seed count is below 500'; END IF;
 
     IF to_regclass('public.idx_customers_created_id') IS NULL THEN RAISE EXCEPTION 'idx_customers_created_id is missing'; END IF;
+    IF to_regclass('public.idx_addresses_customer_default') IS NULL THEN RAISE EXCEPTION 'idx_addresses_customer_default is missing'; END IF;
     IF to_regclass('public.idx_products_category_active') IS NULL THEN RAISE EXCEPTION 'idx_products_category_active is missing'; END IF;
-    IF to_regclass('public.idx_orders_customer_created') IS NULL THEN RAISE EXCEPTION 'idx_orders_customer_created is missing'; END IF;
     IF to_regclass('public.idx_order_items_order') IS NULL THEN RAISE EXCEPTION 'idx_order_items_order is missing'; END IF;
+
+    IF to_regclass('public.idx_customers_status') IS NOT NULL THEN RAISE EXCEPTION 'obsolete index idx_customers_status is still present'; END IF;
+    IF to_regclass('public.idx_orders_customer_created') IS NOT NULL THEN RAISE EXCEPTION 'obsolete index idx_orders_customer_created is still present'; END IF;
+    IF to_regclass('public.idx_order_items_product') IS NOT NULL THEN RAISE EXCEPTION 'obsolete index idx_order_items_product is still present'; END IF;
+    IF to_regclass('public.idx_payments_order') IS NOT NULL THEN RAISE EXCEPTION 'obsolete index idx_payments_order is still present'; END IF;
+    IF to_regclass('public.idx_audit_logs_entity') IS NOT NULL THEN RAISE EXCEPTION 'obsolete index idx_audit_logs_entity is still present'; END IF;
 END $$;
 
 SELECT 'database validation ok' AS validation_result;

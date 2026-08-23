@@ -49,6 +49,24 @@ services:
     networks:
       - benchmark
 
+  benchmark-results-exporter:
+    image: ${PYTHON_IMAGE:-python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65}
+    container_name: tcc_benchmark_results_exporter
+    profiles: ["monitoring"]
+    command: ["python", "/app/results_exporter.py", "--results", "/results", "--port", "9101"]
+    volumes:
+      - ./monitoring/results_exporter.py:/app/results_exporter.py:ro
+      - ./results:/results:ro
+    ports:
+      - "127.0.0.1:9101:9101"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9101/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - benchmark
+
   grafana:
     image: ${GRAFANA_IMAGE:-grafana/grafana:11.3.0@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3}
     container_name: tcc_benchmark_grafana
@@ -56,12 +74,15 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/benchmark-overview.json
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     networks:
       - benchmark
 
@@ -70,6 +91,9 @@ services:
     container_name: tcc_benchmark_cadvisor
     profiles: ["monitoring"]
     privileged: true
+    command:
+      - "--containerd-namespace=moby"
+      - "--docker=unix:///var/run/cadvisor-disabled-docker.sock"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -85,6 +109,8 @@ services:
     container_name: tcc_benchmark_locust
     profiles: ["load"]
     working_dir: /mnt/locust
+    environment:
+      PAYLOAD_DIR: /mnt/payloads
     volumes:
       - ./load-tests/locust:/mnt/locust:ro
       - ./scripts:/mnt/scripts:ro

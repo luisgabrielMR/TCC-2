@@ -2,38 +2,39 @@
   "annotations": {
     "list": []
   },
+  "description": "Indicadores consolidados e comparaveis usados diretamente na analise do TCC.",
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 0,
+  "graphTooltip": 1,
   "id": null,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": false,
+      "title": "Abrir monitoramento e diagnostico",
+      "tooltip": "Ver metricas ao vivo, endpoints e detalhes do PostgreSQL",
+      "type": "link",
+      "url": "/d/tcc-benchmark-extras/tcc-benchmark-monitoramento-e-diagnostico"
+    }
+  ],
+  "liveNow": true,
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percent"
-        },
-        "overrides": []
-      },
+      "collapsed": false,
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 0
       },
-      "id": 1,
-      "targets": [
-        {
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"tcc_benchmark_.*\"}[1m]) * 100",
-          "legendFormat": "{{name}}"
-        }
-      ],
-      "title": "CPU por container",
-      "type": "timeseries"
+      "id": 20,
+      "panels": [],
+      "title": "Resultados oficiais consolidados",
+      "type": "row"
     },
     {
       "datasource": {
@@ -42,6 +43,957 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 2,
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "id": 21,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_throughput_rps{classification=\"official\",methodology=~\"$methodology\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Throughput mediano por linguagem",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 2,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 1
+      },
+      "id": 22,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia P95 por linguagem",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 2,
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 0,
+        "y": 9
+      },
+      "id": 23,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_duration_seconds{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Tempo medido sem warmup",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 2,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 8,
+        "y": 9
+      },
+      "id": 24,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_rps_variability_percent{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Variacao entre rodadas",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 9
+      },
+      "id": 25,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_failures{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Falhas HTTP",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      },
+      "id": 26,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "enablePagination": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_confidence{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Confianca metodologica por resultado",
+      "type": "table"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 40,
+      "panels": [],
+      "title": "Recursos por rodada",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 2,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "id": 41,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU media da API",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 2,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "id": 42,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"locust\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU media do Locust",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 2,
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "id": 43,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"postgres\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "CPU media do PostgreSQL",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "decimals": 2,
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 32
+      },
+      "id": 44,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Memoria media da API",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 40
+      },
+      "id": 45,
+      "panels": [],
+      "title": "Latencia e volume da carga",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 2,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 41
+      },
+      "id": 46,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia media",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 2,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "id": 47,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia P50",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 2,
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "id": 48,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia P99",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 49,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_requests{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Requisicoes por rodada",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-GrYlRd"
+          },
+          "decimals": 3,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 50,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_error_rate{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{users}} usuarios",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Taxa de erro",
+      "type": "bargauge"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 57
+      },
+      "id": 51,
+      "panels": [],
+      "title": "PostgreSQL durante a medicao",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 58
+      },
+      "id": 52,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_postgres_connections{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Conexoes medias",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 58
+      },
+      "id": 53,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_postgres_transactions_per_second{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{transaction}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Transacoes por segundo",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 3,
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 58
+      },
+      "id": 54,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_postgres_cache_hit_ratio{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Cache hit ratio",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 55,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_result_postgres_blocks_total{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}} - {{operation}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Blocos lidos e encontrados em cache",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "decimals": 2,
           "unit": "bytes"
         },
         "overrides": []
@@ -50,74 +1002,175 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 0
+        "y": 66
       },
-      "id": 2,
+      "id": 56,
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "valueMode": "color"
+      },
       "targets": [
         {
-          "expr": "container_memory_usage_bytes{name=~\"tcc_benchmark_.*\"}",
-          "legendFormat": "{{name}}"
+          "editorMode": "code",
+          "expr": "benchmark_result_postgres_database_size_bytes{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "legendFormat": "{{language}}",
+          "range": false,
+          "refId": "A"
         }
       ],
-      "title": "Memória por container",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 3,
-      "targets": [
-        {
-          "expr": "pg_up",
-          "legendFormat": "postgres"
-        }
-      ],
-      "title": "PostgreSQL disponível",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 4,
-      "targets": [
-        {
-          "expr": "up",
-          "legendFormat": "{{job}}"
-        }
-      ],
-      "title": "Targets monitorados",
-      "type": "timeseries"
+      "title": "Tamanho medio do banco",
+      "type": "bargauge"
     }
   ],
   "refresh": "5s",
-  "schemaVersion": 39,
-  "tags": ["tcc", "benchmark", "postgresql"],
+  "schemaVersion": 40,
+  "tags": [
+    "tcc",
+    "benchmark",
+    "resultados-oficiais"
+  ],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "Todos",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\"}, scenario)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Cenario",
+        "multi": true,
+        "name": "scenario",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\"}, scenario)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "Todos",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",scenario=~\"$scenario\"}, load_profile)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Perfil",
+        "multi": true,
+        "name": "load_profile",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",scenario=~\"$scenario\"}, load_profile)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "Todas",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\"}, language)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Linguagem",
+        "multi": true,
+        "name": "language",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\"}, language)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "6",
+          "value": "6"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\"}, methodology)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Metodologia",
+        "multi": false,
+        "name": "methodology",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\"}, methodology)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 4,
+        "type": "query"
+      }
+    ]
   },
   "time": {
     "from": "now-15m",
     "to": "now"
   },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m",
+      "5m"
+    ]
+  },
   "timezone": "browser",
-  "title": "TCC Benchmark Overview",
+  "title": "TCC Benchmark - Resultados Oficiais",
   "uid": "tcc-benchmark-overview",
-  "version": 1,
+  "version": 7,
   "weekStart": ""
 }

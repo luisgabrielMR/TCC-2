@@ -152,7 +152,6 @@ function Invoke-BenchmarkWarmup {
         [int]$Users,
         [int]$SpawnRate,
         [int]$InitialDurationSeconds,
-        [int]$RetryDurationSeconds,
         [int]$StabilityWindowSeconds,
         [double]$MaxRpsDriftPercent,
         [string]$WaitSeconds,
@@ -161,61 +160,41 @@ function Invoke-BenchmarkWarmup {
     )
 
     $attempts = @()
-    foreach ($durationSeconds in @($InitialDurationSeconds, $RetryDurationSeconds)) {
-        if ($durationSeconds -le 0) { continue }
-        $attemptNumber = $attempts.Count + 1
-        $attemptRelative = "$ResultRelative/warmup/attempt_$attemptNumber"
-        $attemptDirectory = Join-Path $script:BenchmarkRoot $attemptRelative
-        New-Item -ItemType Directory -Force $attemptDirectory | Out-Null
-        Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
-        Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds | Out-Host
+    $durationSeconds = $InitialDurationSeconds
+    $attemptNumber = 1
+    $attemptRelative = "$ResultRelative/warmup/attempt_$attemptNumber"
+    $attemptDirectory = Join-Path $script:BenchmarkRoot $attemptRelative
+    New-Item -ItemType Directory -Force $attemptDirectory | Out-Null
+    Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
+    Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds | Out-Host
 
-        $validationPath = Join-Path $attemptDirectory "validation.json"
-        Invoke-BenchmarkPython @(
-            (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
-            "--stats", (Join-Path $attemptDirectory "locust_stats.csv"),
-            "--history", (Join-Path $attemptDirectory "locust_stats_history.csv"),
-            "--scenario", $Scenario,
-            "--expected-users", "$Users",
-            "--window-seconds", "$StabilityWindowSeconds",
-            "--max-rps-drift-percent", "$MaxRpsDriftPercent",
-            "--output", $validationPath
-        ) | Out-Host
-        $validation = Get-Content $validationPath -Raw | ConvertFrom-Json
-        $attempts += [pscustomobject]@{
-            attempt = $attemptNumber
-            duration_seconds = $durationSeconds
-            validation = $validation
-        }
-        if ($validation.stable) {
-            return [pscustomobject]@{
-                stable = $true
-                total_duration_seconds = ($attempts | Measure-Object -Property duration_seconds -Sum).Sum
-                attempts = $attempts
-            }
-        }
-
-        if ($attemptNumber -eq 1 -and $RetryDurationSeconds -gt 0) {
-            Write-Warning "Warmup ainda instavel; o banco sera restaurado antes da tentativa adicional."
-            Reset-BenchmarkDatabase $Environment | Out-Host
+    $validationPath = Join-Path $attemptDirectory "validation.json"
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
+        "--stats", (Join-Path $attemptDirectory "locust_stats.csv"),
+        "--history", (Join-Path $attemptDirectory "locust_stats_history.csv"),
+        "--scenario", $Scenario,
+        "--expected-users", "$Users",
+        "--window-seconds", "$StabilityWindowSeconds",
+        "--max-rps-drift-percent", "$MaxRpsDriftPercent",
+        "--output", $validationPath
+    ) | Out-Host
+    $validation = Get-Content $validationPath -Raw | ConvertFrom-Json
+    $attempts += [pscustomobject]@{
+        attempt = $attemptNumber
+        duration_seconds = $durationSeconds
+        validation = $validation
+    }
+    if ($validation.stable) {
+        return [pscustomobject]@{
+            stable = $true
+            total_duration_seconds = $InitialDurationSeconds
+            attempts = $attempts
         }
     }
 
     $lastReasons = $attempts[-1].validation.reasons -join "; "
-    throw "Warmup nao estabilizou: $lastReasons"
-}
-
-function Get-LanguageMetadata {
-    param([string]$Language)
-
-    switch ($Language) {
-        "python" { return @{ Version = "Python 3.12.14"; Driver = "psycopg 3.2.3"; Framework = "FastAPI 0.115.6 + Uvicorn 0.34.0"; Pool = "psycopg_pool 3.2.4" } }
-        "node" { return @{ Version = "Node.js 22.23.2"; Driver = "pg 8.13.1"; Framework = "Express 4.22.2"; Pool = "pg.Pool: min nao preabre conexoes" } }
-        "java" { return @{ Version = "Java Temurin 21.0.11+10 LTS"; Driver = "PostgreSQL JDBC 42.7.4"; Framework = "JDK HttpServer + Jackson 2.17.2"; Pool = "HikariCP 5.1.0" } }
-        "go" { return @{ Version = "Go 1.23.12"; Driver = "lib/pq 1.10.9"; Framework = "net/http"; Pool = "database/sql nao oferece timeout por aquisicao; valor aplicado ao ping inicial" } }
-        "dotnet" { return @{ Version = ".NET 8.0.30"; Driver = "Npgsql 8.0.5"; Framework = "ASP.NET Core Minimal API"; Pool = "Pooling nativo do Npgsql" } }
-        default { throw "Linguagem invalida: $Language" }
-    }
+    throw "Warmup nao estabilizou na duracao padronizada: $lastReasons"
 }
 
 function Get-BenchmarkPythonCommand {
@@ -244,7 +223,7 @@ function Invoke-BenchmarkPython {
 }
 
 function Start-BenchmarkMeasurements {
-    param([string]$ResultDirectory, [double]$IntervalSeconds = 2)
+    param([string]$ResultDirectory, [string]$BoundsPath, [double]$IntervalSeconds = 2)
     New-Item -ItemType Directory -Force $ResultDirectory | Out-Null
     $python = Get-BenchmarkPythonCommand
     $scriptPath = Join-Path $script:BenchmarkRoot "scripts/collect_docker_stats.py"
@@ -253,7 +232,7 @@ function Start-BenchmarkMeasurements {
     $stdoutPath = Join-Path $ResultDirectory "docker_stats_collector.log"
     $stderrPath = Join-Path $ResultDirectory "docker_stats_collector.error.log"
     Remove-Item $stopPath, $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
-    $arguments = @($python.Prefix) + @($scriptPath, "--output", $outputPath, "--stop-file", $stopPath, "--interval", "$IntervalSeconds")
+    $arguments = @($python.Prefix) + @($scriptPath, "--output", $outputPath, "--stop-file", $stopPath, "--interval", "$IntervalSeconds", "--bounds", $BoundsPath)
     $quotedArguments = $arguments | ForEach-Object { '"' + $_.Replace('"', '\"') + '"' }
     $process = Start-Process -FilePath $python.FilePath -ArgumentList $quotedArguments -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     return [pscustomobject]@{
@@ -283,16 +262,32 @@ function Stop-BenchmarkMeasurements {
 }
 
 function Export-BenchmarkPrometheus {
-    param([string]$ResultDirectory, [hashtable]$Environment, [long]$StartEpoch, [long]$EndEpoch)
+    param(
+        [string]$ResultDirectory,
+        [hashtable]$Environment,
+        [double]$StartEpoch,
+        [double]$EndEpoch,
+        [string]$ApiService,
+        [ValidateSet("pilot", "official")]
+        [string]$RunMode = "pilot"
+    )
     $prometheusPort = Get-BenchmarkValue $Environment "PROMETHEUS_PORT" "9090"
     $prometheusUrl = "http://127.0.0.1:$prometheusPort"
+    $startArgument = $StartEpoch.ToString("R", [Globalization.CultureInfo]::InvariantCulture)
+    $endArgument = $EndEpoch.ToString("R", [Globalization.CultureInfo]::InvariantCulture)
     Invoke-WebRequest -UseBasicParsing -Uri "$prometheusUrl/-/ready" -TimeoutSec 5 | Out-Null
-    Invoke-BenchmarkPython @(
+    $arguments = @(
         (Join-Path $script:BenchmarkRoot "scripts/export_prometheus_data.py"),
         "--url", $prometheusUrl,
         "--output", (Join-Path $ResultDirectory "prometheus_series.json"),
-        "--start", "$StartEpoch",
-        "--end", "$EndEpoch",
-        "--step", "5"
+        "--start", $startArgument,
+        "--end", $endArgument,
+        "--step", "5",
+        "--require-postgres",
+        "--component", "api=$ApiService,tcc_benchmark_$($ApiService.Replace('-', '_'))",
+        "--component", "postgresql=postgres,tcc_benchmark_postgres",
+        "--component", "locust=locust,tcc_benchmark_locust"
     )
+    if ($RunMode -eq "official") { $arguments += "--require-cadvisor" }
+    Invoke-BenchmarkPython $arguments
 }

@@ -15,6 +15,7 @@ def prepare(prefix: Path) -> None:
     prefix.parent.mkdir(parents=True, exist_ok=True)
     for path in prefix.parent.glob(f"{prefix.name}_*.csv"):
         path.unlink()
+    Path(f"{prefix}_measurement_bounds.json").unlink(missing_ok=True)
 
 
 def promote(prefix: Path) -> None:

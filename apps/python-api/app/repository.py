@@ -77,7 +77,7 @@ def create_customer(pool: ConnectionPool, payload: dict[str, Any]) -> dict[str, 
     except UniqueViolation as exc:
         raise ApiError(409, "CONFLICT", "Customer email or document already exists") from exc
     if customer is None:
-        raise ApiError(500, "DATABASE_ERROR", "Customer was created but could not be loaded")
+        raise ApiError(500, "DATABASE_ERROR", "Database error")
     return customer
 
 
@@ -135,7 +135,7 @@ def update_customer(pool: ConnectionPool, customer_id: int, payload: dict[str, A
             )
             customer = _fetch_customer(conn, customer_id)
     if customer is None:
-        raise ApiError(500, "DATABASE_ERROR", "Customer was updated but could not be loaded")
+        raise ApiError(500, "DATABASE_ERROR", "Database error")
     return customer
 
 
@@ -212,5 +212,5 @@ def create_order(pool: ConnectionPool, payload: dict[str, Any]) -> dict[str, Any
             order = _fetch_order(conn, order_id)
 
     if order is None:
-        raise ApiError(500, "DATABASE_ERROR", "Order was created but could not be loaded")
+        raise ApiError(500, "DATABASE_ERROR", "Database error")
     return order

@@ -6,12 +6,14 @@ Esta base prepara o banco, contratos, payloads, scripts de validacao, warmup doc
 
 ## Execucao rapida da base
 
-Requisitos:
+Requisitos para uso local:
 
 - Docker e Docker Compose
 - Python 3 para gerar payloads e resumir resultados
 - `curl` para testes manuais
 - Git
+
+Para uma rodada oficial, o TCC exige Docker Engine 29.5.2 e Docker Compose 5.1.4. O host atualmente verificado usa 29.7.2/5.3.1; portanto, ele permite pilotos, mas o preflight bloqueia oficial. A troca do Docker Desktop deve ser manual.
 
 ## Configurar ambiente
 
@@ -116,24 +118,24 @@ O smoke test chama os endpoints principais com payloads pequenos. `scripts/contr
 Configuracao padrao:
 
 ```text
-WARMUP_DURATION_SECONDS=180
-WARMUP_RETRY_DURATION_SECONDS=300
+WARMUP_DURATION_SECONDS=300
 WARMUP_STABILITY_WINDOW_SECONDS=45
 WARMUP_MAX_RPS_DRIFT_PERCENT=10
+BENCHMARK_REPETITIONS=3
 ```
 
-O warmup usa o mesmo cenario, usuarios e spawn rate da rodada principal, incluindo as rotas de escrita. Os dois ultimos intervalos sao comparados e, se a variacao de RPS ultrapassar 10%, ocorre uma tentativa adicional. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
+O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
 Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. O Locust roda em container e usa `LOCUST_HOST=http://host.docker.internal:8000`.
 
 ## Rodada principal por linguagem
 
 ```bash
-./scripts/run_one_language.sh python mixed 0 controlled_50
-./scripts/run_one_language.sh node mixed 0 controlled_50
-./scripts/run_one_language.sh java mixed 0 controlled_50
-./scripts/run_one_language.sh go mixed 0 controlled_50
-./scripts/run_one_language.sh dotnet mixed 0 controlled_50
+./scripts/run_one_language.sh python mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh node mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh java mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh go mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh dotnet mixed 0 controlled_50 pilot
 ```
 
 Cada comando deve:
@@ -153,23 +155,25 @@ Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker es
 ## Executar todas sequencialmente
 
 ```bash
-./scripts/run_all_languages_sequentially.sh mixed 0 controlled_50
+./scripts/run_all_languages_sequentially.sh mixed 0 controlled_50 0 manual_pilot pilot
 ```
 
 Esse script chama uma linguagem por vez. Ele nunca sobe as cinco APIs simultaneamente.
 
-O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. Os testes extras usam os perfis `capacity_100` e `capacity_200`. A bateria completa executa os tres niveis sem sobrescrever rodadas anteriores:
+O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. Os testes extras usam os perfis `capacity_100` e `capacity_200`. A bateria completa executa, por padrao, tres repeticoes de cada nivel, alterna a ordem inicial das linguagens e nao sobrescreve rodadas anteriores:
 
 ```bash
 ./scripts/run_capacity_battery.sh
 ```
+
+`run_capacity_battery.sh` e o atalho Windows 18 solicitam modo `official`: tres repeticoes, rotacao e bloqueio estrito. Os atalhos 07 a 12, 16 e 17 sao pilotos `non_official`.
 
 ## Monitoramento
 
 Subir Prometheus, Grafana e exportadores:
 
 ```bash
-docker compose --profile monitoring up -d postgres postgres-exporter prometheus grafana cadvisor
+docker compose --profile monitoring up -d postgres postgres-exporter benchmark-results-exporter prometheus grafana cadvisor
 ```
 
 Prometheus:
@@ -190,9 +194,18 @@ Credenciais locais padrao:
 admin / admin
 ```
 
+A visualizacao local abre sem login e possui permissao somente de leitura. Use `admin / admin` apenas quando precisar editar o dashboard.
+
 Grafana e apoio visual. Os dados brutos e consolidados devem ser preservados em `results/`.
 
-Prometheus coleta o PostgreSQL pelo `postgres-exporter`. O cAdvisor fornece visualizacao adicional em hosts compativeis. CPU, memoria e rede oficiais sao amostradas continuamente por `docker stats`, o que tambem funciona no Docker Desktop com containerd. As APIs nao expoem `/metrics`, mantendo o mesmo custo de instrumentacao nas cinco linguagens.
+O Grafana possui dois dashboards provisionados:
+
+- `TCC Benchmark - Resultados Oficiais`, pagina inicial restrita a metodologia 6 e classificacao `official`, com requisicoes, falhas, taxa de erro, throughput, media, P50, P95, P99, duracao sem aquecimento, variacao, confianca, CPU, memoria e o resumo do PostgreSQL por linguagem.
+- `TCC Benchmark - Monitoramento e Diagnostico`, com execucao ao vivo, detalhamento por endpoint e metricas internas do PostgreSQL.
+
+Os dashboards possuem links no topo para alternar entre eles. O `benchmark-results-exporter` converte somente os CSVs e JSONs ja produzidos pelo teste em metricas Prometheus; ele nao instrumenta nem altera as APIs comparadas.
+
+Prometheus coleta o PostgreSQL pelo `postgres-exporter`; cada rodada preserva `postgres_summary.csv` com conexoes, commits, rollbacks, blocos, cache hit ratio e tamanho do banco na janela exata da medicao. O cAdvisor e a fonte de CPU e memoria exigida pelo TCC e identifica API, PostgreSQL e Locust pelos IDs reais do containerd. O servico usa o namespace `moby` porque o factory Docker do cAdvisor 0.49.1 nao reconhece o image store containerd do Docker Desktop atual. Se essas series deixarem de existir, a rodada oficial volta a ser bloqueada. `docker stats` continua sendo coletado como diagnostico complementar de pilotos. As APIs nao expoem `/metrics`, mantendo o mesmo custo de instrumentacao nas cinco linguagens.
 
 ## Coletar versoes
 
@@ -207,7 +220,7 @@ docs/environment-versions.md
 results/summaries/environment-versions.json
 ```
 
-O script atualiza o snapshot JSON; o catalogo Markdown registra as versoes verificadas das imagens e dependencias do projeto.
+O script chama `scripts/preflight.py` e consulta versoes reais, imagens, digests, hardware, alocacao Docker, manifestos e Git. Nao usa uma tabela hardcoded como evidencia da rodada.
 
 ## Encerrar containers
 
@@ -215,13 +228,13 @@ O script atualiza o snapshot JSON; o catalogo Markdown registra as versoes verif
 docker compose down
 ```
 
-Para apagar volumes locais do banco:
+Para restaurar o banco do benchmark, use:
 
 ```bash
-docker compose down -v
+./scripts/reset_db.sh
 ```
 
-Use `-v` somente quando quiser remover o estado local do PostgreSQL.
+Entre rodadas, encerre os containers sem remover volumes. O reset suportado atua somente em `benchmark_db`.
 
 No Windows, voce tambem pode usar o menu por duplo clique:
 
@@ -253,6 +266,7 @@ Os principais atalhos sao:
 - `16_CAPACIDADE_100_USUARIOS.bat`
 - `17_CAPACIDADE_200_USUARIOS.bat`
 - `18_BATERIA_50_100_200.bat`
+- `19_ABRIR_GRAFANA.bat`
 
 O fluxo PowerShell do Windows e nativo e nao depende de Bash ou WSL.
 
@@ -364,6 +378,9 @@ No WSL/Linux:
 
 ```text
 [ ] Docker esta rodando
+[ ] Docker Engine e 29.5.2 e Compose e 5.1.4
+[ ] Git esta limpo e o commit foi revisado
+[ ] A verificacao completa gerou project-verification.json para esse mesmo commit limpo
 [ ] PostgreSQL subiu corretamente
 [ ] Banco foi criado
 [ ] Seed foi carregado
@@ -374,9 +391,12 @@ No WSL/Linux:
 [ ] Warmup esta habilitado
 [ ] Pool de conexoes esta configurado
 [ ] Prometheus esta coletando
+[ ] cAdvisor possui CPU e memoria identificaveis para API, PostgreSQL e Locust
 [ ] Grafana abre corretamente
-[ ] results/raw esta vazio ou preparado para nova rodada
+[ ] O runner selecionara uma nova pasta run_N sem sobrescrever historicos
 ```
+
+O proprio runner executa essas verificacoes. Um piloto pode continuar com bloqueios registrados; `official` falha antes do workload.
 
 ## Onde estao os resultados
 
@@ -385,6 +405,8 @@ Os testes oficiais devem salvar arquivos no padrao:
 ```text
 results/raw/{language}/{scenario}/run_{number}/locust_stats.csv
 results/raw/{language}/{scenario}/run_{number}/locust_failures.csv
+results/raw/{language}/{scenario}/run_{number}/postgres_summary.csv
+results/raw/{language}/{scenario}/run_{number}/cadvisor_summary.csv
 results/raw/{language}/{scenario}/run_{number}/metadata.json
 ```
 
@@ -398,11 +420,15 @@ results/summaries/final_summary.md
 results/summaries/benchmark_dashboard.html
 ```
 
+Resultados retirados da comparacao oficial sao preservados localmente em `results/archive/`. Essa pasta nao entra nos relatorios nem no Git.
+
 Gerar resumos:
 
 ```bash
 python scripts/summarize_results.py
 ```
+
+O consolidado final publica somente `official` por padrao. Para uma inspecao diagnostica separada, use `--classification non_official`, `--classification legacy` ou `--classification all`; esses modos nunca promovem suas linhas ao agregado oficial.
 
 No Windows, `launchers/windows/15_GERAR_GRAFICOS.bat` atualiza os resumos, gera o painel HTML comparativo e o abre no navegador.
 
@@ -438,7 +464,7 @@ PostgreSQL nao sobe:
 Validacao do banco falha:
 
 - Rode `./scripts/setup_database.sh` novamente.
-- Se o volume antigo estiver inconsistente, use `docker compose down -v` e prepare o banco de novo.
+- Use `scripts/reset_db.sh`, que restaura somente `benchmark_db` sem apagar historicos ou volumes de monitoramento.
 
 Payloads nao existem:
 
@@ -451,7 +477,7 @@ API nao responde em `/health`:
 - Confirme se ela expoe `http://127.0.0.1:8000`.
 - Verifique logs com `docker compose logs <servico-da-api>`.
 
-Script de linguagem diz que a API nao foi implementada:
+Script de linguagem informa que o `Dockerfile` esta ausente:
 
 - Confirme se o `Dockerfile` e o codigo da API existem na pasta da linguagem escolhida.
 

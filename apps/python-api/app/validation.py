@@ -10,11 +10,10 @@ VALID_PAYMENT_METHODS = {"credit_card", "debit_card", "pix", "boleto"}
 
 
 def positive_int(value: Any, field: str) -> int:
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
+    if not isinstance(value, str) or not value.isascii() or not value.isdigit():
         raise ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", [{"field": field, "message": "Must be a positive integer"}])
-    if parsed <= 0:
+    parsed = int(value)
+    if parsed <= 0 or parsed > 2_147_483_647:
         raise ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", [{"field": field, "message": "Must be a positive integer"}])
     return parsed
 
@@ -41,11 +40,19 @@ def _required_string(payload: dict[str, Any], key: str, details: list[dict[str, 
     return value.strip()
 
 
-def _optional_string(payload: dict[str, Any], key: str) -> str | None:
+def _optional_string(
+    payload: dict[str, Any],
+    key: str,
+    details: list[dict[str, str]],
+    field: str | None = None,
+) -> str | None:
     value = payload.get(key)
     if value is None:
         return None
-    return str(value).strip()
+    if not isinstance(value, str):
+        details.append({"field": field or key, "message": "Must be a string or null"})
+        return None
+    return value.strip()
 
 
 def _required_bool(payload: dict[str, Any], key: str, field: str, details: list[dict[str, str]]) -> bool:
@@ -58,15 +65,14 @@ def _required_bool(payload: dict[str, Any], key: str, field: str, details: list[
 
 def _positive_int_field(payload: dict[str, Any], key: str, field: str, details: list[dict[str, str]]) -> int:
     value = payload.get(key)
-    if isinstance(value, bool):
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         details.append({"field": field, "message": "Must be a positive integer"})
         return 0
-    try:
-        parsed = int(value)
-    except (TypeError, ValueError):
+    if isinstance(value, float) and not value.is_integer():
         details.append({"field": field, "message": "Must be a positive integer"})
         return 0
-    if parsed <= 0:
+    parsed = int(value)
+    if parsed <= 0 or parsed > 2_147_483_647:
         details.append({"field": field, "message": "Must be a positive integer"})
         return 0
     return parsed
@@ -76,17 +82,22 @@ def _address(payload: Any, prefix: str, details: list[dict[str, str]]) -> dict[s
     if not isinstance(payload, dict):
         details.append({"field": prefix, "message": "Required object"})
         return {}
-    return {
+    result = {
         "label": _required_string(payload, "label", details, f"{prefix}.label"),
         "street": _required_string(payload, "street", details, f"{prefix}.street"),
         "number": _required_string(payload, "number", details, f"{prefix}.number"),
-        "complement": _optional_string(payload, "complement"),
+        "complement": _optional_string(payload, "complement", details, f"{prefix}.complement"),
         "district": _required_string(payload, "district", details, f"{prefix}.district"),
         "city": _required_string(payload, "city", details, f"{prefix}.city"),
         "state": _required_string(payload, "state", details, f"{prefix}.state"),
         "postalCode": _required_string(payload, "postalCode", details, f"{prefix}.postalCode"),
         "isDefault": _required_bool(payload, "isDefault", f"{prefix}.isDefault", details),
     }
+    if result["state"] and (len(result["state"]) != 2 or not result["state"].isascii() or not result["state"].isalpha()):
+        details.append({"field": f"{prefix}.state", "message": "Must contain exactly 2 ASCII letters"})
+    elif result["state"]:
+        result["state"] = result["state"].upper()
+    return result
 
 
 def create_customer(payload: Any) -> dict[str, Any]:
@@ -96,7 +107,7 @@ def create_customer(payload: Any) -> dict[str, Any]:
         "fullName": _required_string(payload, "fullName", details),
         "email": _required_string(payload, "email", details),
         "documentNumber": _required_string(payload, "documentNumber", details),
-        "phone": _optional_string(payload, "phone"),
+        "phone": _optional_string(payload, "phone", details),
         "address": _address(payload.get("address"), "address", details),
     }
     if result["email"] and "@" not in result["email"]:
@@ -115,7 +126,7 @@ def update_customer(payload: Any) -> dict[str, Any]:
         details.append({"field": "status", "message": "Must be active or inactive"})
     result = {
         "fullName": full_name,
-        "phone": _optional_string(payload, "phone"),
+        "phone": _optional_string(payload, "phone", details),
         "status": status,
         "address": _address(payload.get("address"), "address", details),
     }
@@ -152,7 +163,7 @@ def create_order(payload: Any) -> dict[str, Any]:
         details.append({"field": "payment", "message": "Required object"})
         method = ""
     else:
-        method = _required_string(payment, "method", details)
+        method = _required_string(payment, "method", details, "payment.method")
         if method and method not in VALID_PAYMENT_METHODS:
             details.append({"field": "payment.method", "message": "Invalid payment method"})
 

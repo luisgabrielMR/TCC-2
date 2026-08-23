@@ -5,7 +5,8 @@ WORKDIR /src
 COPY go.mod go.sum .
 RUN go mod download
 
-COPY main.go .
+COPY main.go main_test.go .
+RUN go test ./...
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/go-api .
 
 FROM debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241

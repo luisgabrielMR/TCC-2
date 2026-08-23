@@ -9,8 +9,28 @@ import * as validation from "./validation.js";
 const config = loadConfig();
 const pool = createPool(config);
 const app = express();
+const rawBodyBytes = Symbol("rawBodyBytes");
+const jsonBody = [
+  express.json({
+    limit: "1mb",
+    strict: false,
+    type: "*/*",
+    verify: (request, _response, buffer) => {
+      request[rawBodyBytes] = buffer.length;
+    }
+  }),
+  (request, _response, next) => {
+    if (!validation.hasJsonPayload(request[rawBodyBytes])) {
+      next(new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", [
+        { field: "$", message: "Invalid JSON" }
+      ]));
+      return;
+    }
+    next();
+  }
+];
 
-app.use(express.json({ limit: "1mb", strict: false }));
+app.set("strict routing", true);
 
 app.get("/health", (_request, response) => {
   response.json({ status: "ok" });
@@ -25,7 +45,7 @@ app.get("/customers", async (request, response, next) => {
   }
 });
 
-app.post("/customers", async (request, response, next) => {
+app.post("/customers", ...jsonBody, async (request, response, next) => {
   try {
     const payload = validation.createCustomer(request.body);
     response.status(201).json(await repository.createCustomer(pool, payload));
@@ -43,7 +63,7 @@ app.get("/customers/:id", async (request, response, next) => {
   }
 });
 
-app.put("/customers/:id", async (request, response, next) => {
+app.put("/customers/:id", ...jsonBody, async (request, response, next) => {
   try {
     const customerId = validation.positiveInt(request.params.id, "id");
     const payload = validation.updateCustomer(request.body);
@@ -62,7 +82,7 @@ app.get("/products", async (request, response, next) => {
   }
 });
 
-app.post("/orders", async (request, response, next) => {
+app.post("/orders", ...jsonBody, async (request, response, next) => {
   try {
     const payload = validation.createOrder(request.body);
     response.status(201).json(await repository.createOrder(pool, payload));
@@ -86,6 +106,18 @@ app.use((error, _request, response, next) => {
     return;
   }
   next(error);
+});
+
+app.all(["/health", "/customers", "/customers/:id", "/products", "/orders", "/orders/:id"], (_request, response) => {
+  response.status(405).json({
+    error: { code: "METHOD_NOT_ALLOWED", message: "Method not allowed", details: [] }
+  });
+});
+
+app.use((_request, response) => {
+  response.status(404).json({
+    error: { code: "NOT_FOUND", message: "Route not found", details: [] }
+  });
 });
 
 app.use(errorMiddleware);

@@ -77,17 +77,16 @@ Campos principais:
 - `payload`
 - `created_at`
 
+`payload` e `JSONB` e usa as mesmas chaves camelCase do contrato HTTP nas cinco APIs. Sao auditados `create_customer`, `update_customer` e `create_order`; campos desconhecidos ignorados pela validacao nao entram no payload.
+
 ## Índices
 
 - `idx_customers_created_id`: paginação ordenada de clientes.
-- `idx_customers_status`: filtros futuros por status.
 - `idx_addresses_customer_default`: busca do endereço principal.
 - `idx_products_category_active`: busca de produtos por categoria.
-- `idx_orders_customer_created`: histórico de pedidos por cliente.
 - `idx_order_items_order`: itens de um pedido.
-- `idx_order_items_product`: atualização e consulta por produto.
-- `idx_payments_order`: pagamento por pedido.
-- `idx_audit_logs_entity`: auditoria por entidade.
+
+Somente consultas executadas pelos endpoints recebem indices de desempenho explicitos. Chaves primarias e restricoes `UNIQUE`, como `payments.order_id`, criam seus proprios indices. Isso evita custo de manutencao em `POST /customers`, `PUT /customers/{id}` e `POST /orders` sem uma leitura correspondente no experimento.
 
 ## Volume inicial
 
@@ -111,6 +110,8 @@ O script `database/scripts/generate_seed_data.py` reescreve o arquivo de seed de
 ## Reset
 
 O reset fica em `database/reset/reset_database.sql`. Ele executa `TRUNCATE ... RESTART IDENTITY CASCADE` nas tabelas do experimento e recarrega o seed determinístico. Após cada rodada com escrita, o reset deve ser executado antes da próxima rodada oficial.
+
+`database/scripts/capture_contract_state.sql` gera uma fotografia estrutural sem timestamps volateis: registros alterados, estoques, pedidos, itens, pagamentos, auditorias e sequencias. O verificador executa a mesma sequencia por linguagem e compara essa fotografia com Python somente depois que o baseline canonico passa.
 
 ## Validação
 

@@ -49,6 +49,31 @@ def measurement_status(change_percent: float, final_windows_stable: bool, availa
     return "stable"
 
 
+def result_confidence(rows: list[dict]) -> str:
+    if any(row.get("resultClassification") in {"non_official", "legacy"} for row in rows):
+        return "non_official"
+    if any(row["failures"] > 0 for row in rows):
+        return "invalid_failures"
+    if any(not row["resourceMetricsAvailable"] for row in rows):
+        return "invalid_missing_resources"
+    if any(not row["exactMeasurementWindow"] for row in rows):
+        return "invalid_measurement_window"
+    if any(row["locustCpuMax"] >= 90 for row in rows):
+        return "invalid_load_generator"
+    if any(not row["measurementAvailable"] or not row["measurementFinalStable"] or abs(row["measurementRpsChange"]) > 10 for row in rows):
+        return "invalid_instability"
+    if len(rows) < 3:
+        return "preliminary_fewer_than_3_runs"
+    order_positions = {row["executionOrderPosition"] for row in rows}
+    if 0 in order_positions or len(order_positions) < 3:
+        return "invalid_order_bias"
+    rps_values = [row["rps"] for row in rows]
+    rps_median = statistics.median(rps_values) if rps_values else 0
+    if rps_median <= 0 or (max(rps_values) - min(rps_values)) / rps_median * 100 > 10:
+        return "invalid_run_variability"
+    return "adequate"
+
+
 def read_metadata(run_directory: Path) -> dict:
     path = run_directory / "metadata.json"
     if not path.exists():
@@ -56,12 +81,22 @@ def read_metadata(run_directory: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8-sig"))
 
 
-def read_resources(run_directory: Path) -> list[dict[str, str]]:
-    path = run_directory / "docker_stats_summary.csv"
+def read_csv_rows(path: Path) -> list[dict[str, str]]:
     if not path.exists():
         return []
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def use_cadvisor_resources(metadata: dict) -> bool:
+    methodology = int(number(metadata.get("methodology_version")) or 1)
+    return methodology >= 6 and metadata.get("result_classification") == "official"
+
+
+def read_resources(run_directory: Path, metadata: dict) -> tuple[list[dict[str, str]], str]:
+    if use_cadvisor_resources(metadata):
+        return read_csv_rows(run_directory / "cadvisor_summary.csv"), "cadvisor_via_prometheus"
+    return read_csv_rows(run_directory / "docker_stats_summary.csv"), "docker_stats_complementary"
 
 
 def find_resource(rows: list[dict[str, str]], predicate) -> dict[str, str]:
@@ -92,18 +127,27 @@ def collect() -> dict:
             continue
 
         metadata = read_metadata(stats_path.parent)
-        resources = read_resources(stats_path.parent)
+        resources, resource_source = read_resources(stats_path.parent, metadata)
+        cadvisor_rows = read_csv_rows(stats_path.parent / "cadvisor_summary.csv")
         api = find_resource(resources, lambda name: name == f"tcc_benchmark_{language}_api")
         locust = find_resource(resources, lambda name: "locust-run-" in name or name == "tcc_benchmark_locust")
         postgres = find_resource(resources, lambda name: name == "tcc_benchmark_postgres")
+        cadvisor_api = find_resource(cadvisor_rows, lambda name: name == f"tcc_benchmark_{language}_api")
+        cadvisor_locust = find_resource(cadvisor_rows, lambda name: name == "tcc_benchmark_locust")
+        cadvisor_postgres = find_resource(cadvisor_rows, lambda name: name == "tcc_benchmark_postgres")
         locust_metadata = metadata.get("locust", {})
         measurement = metadata.get("measurement_stability", {})
+        methodology_version = int(number(metadata.get("methodology_version")) or 1)
+        classification = metadata.get("result_classification", "legacy")
+        cadvisor_available = bool(cadvisor_api and cadvisor_locust and cadvisor_postgres)
         runs.append({
             "language": language,
             "scenario": scenario,
             "run": run_number,
             "loadProfile": metadata.get("load_profile", "legacy"),
-            "methodologyVersion": int(number(metadata.get("methodology_version")) or 1),
+            "methodologyVersion": methodology_version,
+            "resultClassification": classification,
+            "executionOrderPosition": int(number(metadata.get("execution_order", {}).get("position"))),
             "users": number(locust_metadata.get("users")),
             "testElapsedSeconds": elapsed_seconds(metadata),
             "benchmarkKind": metadata.get("benchmark_kind", "controlled_load"),
@@ -119,7 +163,17 @@ def collect() -> dict:
             "memoryAvgMiB": number(api.get("memory_average_bytes")) / 1024 / 1024,
             "memoryMaxMiB": number(api.get("memory_max_bytes")) / 1024 / 1024,
             "locustCpuAvg": number(locust.get("cpu_average_percent")),
+            "locustCpuMax": number(locust.get("cpu_max_percent")),
             "postgresCpuAvg": number(postgres.get("cpu_average_percent")),
+            "resourceMetricSource": resource_source,
+            "resourceMetricsAvailable": bool(api and locust and postgres) and (
+                not use_cadvisor_resources(metadata)
+                or bool(metadata.get("monitoring_preflight", {}).get("official_eligible"))
+            ),
+            "exactMeasurementWindow": (
+                methodology_version >= 5
+                and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
+            ),
             "measurementAvailable": bool(measurement),
             "measurementFinalStable": bool(measurement.get("stable")),
             "measurementRpsChange": number(measurement.get("first_last_rps_change_percent")),
@@ -132,6 +186,9 @@ def collect() -> dict:
                 "language": language,
                 "scenario": scenario,
                 "run": run_number,
+                "loadProfile": metadata.get("load_profile", "legacy"),
+                "methodologyVersion": methodology_version,
+                "resultClassification": classification,
                 "users": number(locust_metadata.get("users")),
                 "endpoint": row.get("Name", ""),
                 "method": row.get("Type", ""),
@@ -145,36 +202,48 @@ def collect() -> dict:
             })
 
     if not runs:
-        raise RuntimeError("No benchmark runs found in results/raw")
+        return {
+            "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+            "scenarios": {},
+            "scalability": {},
+        }
 
     scenarios: dict[str, dict] = {}
     scenario_names = sorted({row["scenario"] for row in runs})
     for scenario in scenario_names:
-        summary_groups: dict[str, list[dict]] = defaultdict(list)
-        endpoint_groups: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
+        summary_groups: dict[tuple[str, str, int, str], list[dict]] = defaultdict(list)
+        endpoint_groups: dict[tuple[str, str, str, str, int, str], list[dict]] = defaultdict(list)
         for row in runs:
             if row["scenario"] == scenario:
-                summary_groups[row["language"]].append(row)
-        for language, rows in summary_groups.items():
-            summary_groups[language] = comparable_rows(rows)
+                summary_groups[(
+                    row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"]
+                )].append(row)
 
         selected_run_keys = {
-            (row["language"], row["run"])
+            (row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"])
             for rows in summary_groups.values()
             for row in rows
         }
         for row in endpoint_runs:
-            if row["scenario"] == scenario and (row["language"], row["run"]) in selected_run_keys:
-                endpoint_groups[(row["endpoint"], row["method"], row["language"])].append(row)
+            if row["scenario"] == scenario and (
+                row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"]
+            ) in selected_run_keys:
+                endpoint_groups[(
+                    row["endpoint"], row["method"], row["language"], row["loadProfile"],
+                    row["methodologyVersion"], row["resultClassification"],
+                )].append(row)
 
         summary = []
-        for language, rows in summary_groups.items():
+        for (language, load_profile, methodology, classification), rows in summary_groups.items():
             total_requests = sum(row["requests"] for row in rows)
             total_failures = sum(row["failures"] for row in rows)
             trend_rows = [row for row in rows if row["measurementAvailable"]]
             measurement_change = median(trend_rows, "measurementRpsChange")
             summary.append({
                 "language": language,
+                "loadProfile": load_profile,
+                "methodologyVersion": methodology,
+                "resultClassification": classification,
                 "runs": len(rows),
                 "users": median(rows, "users"),
                 "testElapsedSeconds": median(rows, "testElapsedSeconds"),
@@ -199,14 +268,18 @@ def collect() -> dict:
                     all(row["measurementFinalStable"] for row in trend_rows),
                     bool(trend_rows),
                 ),
+                "confidence": result_confidence(rows),
             })
         summary.sort(key=lambda row: LANGUAGE_ORDER.get(row["language"], 99))
 
         endpoints: dict[str, list[dict]] = defaultdict(list)
-        for (endpoint, method, language), rows in endpoint_groups.items():
+        for (endpoint, method, language, load_profile, methodology, classification), rows in endpoint_groups.items():
             label = endpoint if endpoint.upper().startswith(f"{method.upper()} ") else f"{method} {endpoint}"
             endpoints[label].append({
                 "language": language,
+                "loadProfile": load_profile,
+                "methodologyVersion": methodology,
+                "resultClassification": classification,
                 "runs": len(rows),
                 "requests": median(rows, "requests"),
                 "failures": sum(row["failures"] for row in rows),
@@ -224,17 +297,26 @@ def collect() -> dict:
             "endpoints": dict(sorted(endpoints.items())),
         }
 
-    baseline = {row["language"]: row for row in scenarios.get("mixed", {}).get("summary", [])}
+    baseline = {
+        (row["language"], row["methodologyVersion"], row["resultClassification"]): row
+        for row in scenarios.get("mixed", {}).get("summary", [])
+        if row["loadProfile"] == "controlled_50"
+    }
     scalability: dict[str, list[dict]] = defaultdict(list)
     for scenario, scenario_data in scenarios.items():
         if scenario != "mixed" and not scenario.startswith("mixed_capacity_"):
             continue
         for row in scenario_data["summary"]:
-            base = baseline.get(row["language"], row)
+            cohort = (row["language"], row["methodologyVersion"], row["resultClassification"])
+            base = baseline.get(cohort, row)
             base_rps = base["rps"]
             expected_rps = base_rps * row["users"] / base["users"] if base["users"] else 0
             efficiency = row["rps"] / expected_rps * 100 if expected_rps else 0
-            scalability[row["language"]].append({
+            cohort_key = "|".join(map(str, cohort))
+            scalability[cohort_key].append({
+                "language": row["language"],
+                "methodologyVersion": row["methodologyVersion"],
+                "resultClassification": row["resultClassification"],
                 "scenario": scenario,
                 "users": row["users"],
                 "rps": row["rps"],
@@ -266,7 +348,13 @@ def collect() -> dict:
     return {
         "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
         "scenarios": scenarios,
-        "scalability": dict(sorted(scalability.items(), key=lambda item: LANGUAGE_ORDER.get(item[0], 99))),
+        "scalability": dict(sorted(
+            scalability.items(),
+            key=lambda item: (
+                LANGUAGE_ORDER.get(item[1][0]["language"], 99),
+                item[1][0]["methodologyVersion"], item[1][0]["resultClassification"],
+            ),
+        )),
     }
 
 
@@ -381,7 +469,7 @@ def render(data: dict) -> str:
 
     <h2 class="section-title">Valores consolidados</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>Linguagem</th><th>Usuários</th><th>Rodadas</th><th>Tempo</th><th>Tendência RPS</th><th>Req./rodada</th><th>Falhas</th><th>RPS</th><th>Média</th><th>P50</th><th>P95</th><th>P99</th><th>CPU API</th><th>CPU Locust</th><th>CPU PostgreSQL</th><th>Memória média</th></tr></thead>
+      <thead><tr><th>Linguagem</th><th>Usuários</th><th>Rodadas</th><th>Confiança</th><th>Tempo</th><th>Tendência RPS</th><th>Req./rodada</th><th>Falhas</th><th>RPS</th><th>Média</th><th>P50</th><th>P95</th><th>P99</th><th>CPU API</th><th>CPU Locust</th><th>CPU PostgreSQL</th><th>Memória média</th></tr></thead>
       <tbody id="summaryRows"></tbody>
     </table></div>
 
@@ -414,6 +502,7 @@ def render(data: dict) -> str:
     const fmt = new Intl.NumberFormat("pt-BR", {{maximumFractionDigits: 2}});
     const statuses = {{baseline: "base controlada", scaling: "escalando", probable_saturation: "saturação provável", failures_detected: "falhas detectadas", load_generator_limit: "limite do Locust"}};
     const trendStatuses = {{stable: "estável", possible_late_warmup: "possível aquecimento", decreasing_throughput: "queda ao longo do teste", fluctuating: "oscilando", unavailable: "indisponível"}};
+    const confidenceStatuses = {{adequate: "adequada", non_official: "não oficial", preliminary_fewer_than_3_runs: "preliminar (<3)", invalid_failures: "inválida: falhas", invalid_missing_resources: "inválida: métricas ausentes", invalid_measurement_window: "inválida: janela", invalid_load_generator: "inválida: Locust", invalid_instability: "inválida: instável", invalid_order_bias: "inválida: ordem fixa", invalid_run_variability: "inválida: variação"}};
 
     function color(language) {{ return COLORS[language] || "#52606d"; }}
     function displayName(language) {{ return names[language] || language; }}
@@ -433,7 +522,7 @@ def render(data: dict) -> str:
     function levelBars(targetId, rows, key, suffix = "") {{
       const target = document.querySelector(`#${{targetId}}`);
       const max = Math.max(...rows.map(row => row[key]), 1);
-      const language = scalingLanguageSelect.value;
+      const language = rows[0]?.language || "";
       target.innerHTML = rows.map(row => `
         <div class="bar-row">
           <div class="bar-label">${{fmt.format(row.users)}} usr.</div>
@@ -487,7 +576,7 @@ def render(data: dict) -> str:
       document.querySelector("#summaryRows").innerHTML = rows.map(row => `
         <tr>
           <td><span class="language"><span class="swatch" style="--bar:${{color(row.language)}}"></span>${{displayName(row.language)}}</span></td>
-          <td>${{fmt.format(row.users)}}</td><td>${{row.runs}}</td><td>${{value(row.testElapsedSeconds)}} s</td>
+          <td>${{fmt.format(row.users)}}</td><td>${{row.runs}}</td><td>${{confidenceStatuses[row.confidence] || row.confidence}}</td><td>${{value(row.testElapsedSeconds)}} s</td>
           <td>${{value(row.measurementRpsChange, "%")}} (${{trendStatuses[row.measurementStatus] || row.measurementStatus}})</td>
           <td>${{fmt.format(Math.round(row.requests))}}</td><td>${{fmt.format(row.failures)}}</td>
           <td>${{value(row.rps)}}</td><td>${{value(row.avgMs)}} ms</td><td>${{value(row.p50Ms)}} ms</td>
@@ -503,13 +592,24 @@ def render(data: dict) -> str:
     }}
 
     document.querySelector("#generatedAt").textContent = `Gerado em ${{new Date(DATA.generatedAt).toLocaleString("pt-BR")}}`;
-    scenarioSelect.innerHTML = Object.entries(DATA.scenarios).map(([name, scenario]) => `<option value="${{name}}">${{name}} (${{fmt.format(scenario.summary[0]?.users || 0)}} usuários)</option>`).join("");
-    scalingLanguageSelect.innerHTML = Object.keys(DATA.scalability).map(language => `<option value="${{language}}">${{displayName(language)}}</option>`).join("");
+    const availableScenarios = Object.entries(DATA.scenarios);
+    scenarioSelect.innerHTML = availableScenarios.map(([name, scenario]) => `<option value="${{name}}">${{name}} (${{fmt.format(scenario.summary[0]?.users || 0)}} usuários)</option>`).join("");
+    scalingLanguageSelect.innerHTML = Object.entries(DATA.scalability).map(([key, rows]) => {{
+      const row = rows[0];
+      return `<option value="${{key}}">${{displayName(row.language)}} · metodologia ${{row.methodologyVersion}} · ${{row.resultClassification}}</option>`;
+    }}).join("");
     scenarioSelect.addEventListener("change", renderScenario);
     endpointSelect.addEventListener("change", renderEndpoint);
     scalingLanguageSelect.addEventListener("change", renderScaling);
-    renderScenario();
-    renderScaling();
+    if (availableScenarios.length) {{
+      renderScenario();
+      renderScaling();
+    }} else {{
+      scenarioSelect.disabled = true;
+      endpointSelect.disabled = true;
+      scalingLanguageSelect.disabled = true;
+      document.querySelector("#methodNote").textContent = "Nenhuma rodada oficial disponível. Execute a bateria de testes para gerar os resultados.";
+    }}
   </script>
 </body>
 </html>

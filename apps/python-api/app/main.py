@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from json import JSONDecodeError
+from json import JSONDecodeError, loads
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from psycopg import Error as PsycopgError
 from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import repository, validation
 from .config import load_settings
@@ -27,15 +28,41 @@ async def lifespan(_: FastAPI):
         close_pool()
 
 
-app = FastAPI(title="TCC PostgreSQL Benchmark Python API", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="TCC PostgreSQL Benchmark Python API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+    redirect_slashes=False,
+)
 app.add_exception_handler(ApiError, api_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
 
+async def framework_http_error_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    if exc.status_code == 405:
+        return error_response(405, "METHOD_NOT_ALLOWED", "Method not allowed")
+    return error_response(404, "NOT_FOUND", "Route not found")
+
+
+async def database_error_handler(_: Request, __: PsycopgError) -> JSONResponse:
+    return error_response(500, "DATABASE_ERROR", "Database error")
+
+
+app.add_exception_handler(StarletteHTTPException, framework_http_error_handler)
+app.add_exception_handler(PsycopgError, database_error_handler)
+
+
+def reject_nonstandard_json_constant(value: str) -> None:
+    raise ValueError(f"Non-standard JSON constant: {value}")
+
+
 async def read_json(request: Request) -> Any:
     try:
-        return await request.json()
-    except JSONDecodeError as exc:
+        return loads(await request.body(), parse_constant=reject_nonstandard_json_constant)
+    except (JSONDecodeError, UnicodeDecodeError, ValueError) as exc:
         raise ApiError(400, "VALIDATION_ERROR", "Invalid request payload", [{"field": "$", "message": "Invalid JSON"}]) from exc
 
 
@@ -89,7 +116,7 @@ async def update_customer(customer_id: str, request: Request):
 
 
 @app.get("/products")
-def list_products(categoryId: str):
+def list_products(categoryId: str | None = None):
     category_id = validation.positive_int(categoryId, "categoryId")
     try:
         return repository.list_products(get_pool(), category_id)

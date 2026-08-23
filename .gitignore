@@ -44,6 +44,7 @@ prometheus-data/
 results/raw/**
 results/processed/**
 results/summaries/**
+results/archive/**
 !results/raw/.gitkeep
 !results/processed/.gitkeep
 !results/summaries/.gitkeep

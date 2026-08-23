@@ -1,5 +1,6 @@
 package benchmark;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -9,6 +10,7 @@ import com.zaxxer.hikari.HikariDataSource;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.ZoneOffset;
@@ -18,7 +20,8 @@ import java.util.*;
 import java.util.concurrent.Executors;
 
 public class Main {
-    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final ObjectMapper JSON = new ObjectMapper()
+        .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
     private static final DateTimeFormatter INSTANT = DateTimeFormatter.ISO_INSTANT;
     private final HikariDataSource dataSource;
 
@@ -33,7 +36,8 @@ public class Main {
         server.createContext("/customers", app::customers);
         server.createContext("/products", app::products);
         server.createContext("/orders", app::orders);
-        server.setExecutor(Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 2));
+        server.createContext("/", app::routeNotFound);
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         System.out.println("Java API listening on 8000");
     }
@@ -52,8 +56,16 @@ public class Main {
     }
 
     private void health(HttpExchange exchange) throws IOException {
+        if (!exchange.getRequestURI().getPath().equals("/health")) {
+            writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
+            return;
+        }
         if (!method(exchange, "GET")) return;
         write(exchange, 200, Map.of("status", "ok"));
+    }
+
+    private void routeNotFound(HttpExchange exchange) throws IOException {
+        writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
     }
 
     private void customers(HttpExchange exchange) throws IOException {
@@ -63,22 +75,32 @@ public class Main {
                 listCustomers(exchange);
             } else if (path.equals("/customers") && exchange.getRequestMethod().equals("POST")) {
                 createCustomer(exchange);
-            } else if (path.startsWith("/customers/") && exchange.getRequestMethod().equals("GET")) {
-                getCustomer(exchange, pathId(path, "/customers/"));
-            } else if (path.startsWith("/customers/") && exchange.getRequestMethod().equals("PUT")) {
-                updateCustomer(exchange, pathId(path, "/customers/"));
+            } else if (isEntityPath(path, "/customers/")) {
+                if (exchange.getRequestMethod().equals("GET")) {
+                    getCustomer(exchange, pathId(path, "/customers/"));
+                } else if (exchange.getRequestMethod().equals("PUT")) {
+                    updateCustomer(exchange, pathId(path, "/customers/"));
+                } else {
+                    writeError(exchange, new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed"));
+                }
+            } else if (path.equals("/customers")) {
+                writeError(exchange, new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed"));
             } else {
                 writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
             }
         } catch (ApiError error) {
             writeError(exchange, error);
         } catch (Exception error) {
-            writeError(exchange, dbError(error));
+            writeError(exchange, serverError(error));
         }
     }
 
     private void products(HttpExchange exchange) throws IOException {
         try {
+            if (!exchange.getRequestURI().getPath().equals("/products")) {
+                writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
+                return;
+            }
             if (!method(exchange, "GET")) return;
             var categoryId = positiveInt(query(exchange).getOrDefault("categoryId", ""), "categoryId");
             try (var conn = dataSource.getConnection()) {
@@ -110,7 +132,7 @@ public class Main {
         } catch (ApiError error) {
             writeError(exchange, error);
         } catch (Exception error) {
-            writeError(exchange, dbError(error));
+            writeError(exchange, serverError(error));
         }
     }
 
@@ -119,15 +141,21 @@ public class Main {
             var path = exchange.getRequestURI().getPath();
             if (path.equals("/orders") && exchange.getRequestMethod().equals("POST")) {
                 createOrder(exchange);
-            } else if (path.startsWith("/orders/") && exchange.getRequestMethod().equals("GET")) {
-                getOrder(exchange, pathId(path, "/orders/"));
+            } else if (isEntityPath(path, "/orders/")) {
+                if (exchange.getRequestMethod().equals("GET")) {
+                    getOrder(exchange, pathId(path, "/orders/"));
+                } else {
+                    writeError(exchange, new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed"));
+                }
+            } else if (path.equals("/orders")) {
+                writeError(exchange, new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed"));
             } else {
                 writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
             }
         } catch (ApiError error) {
             writeError(exchange, error);
         } catch (Exception error) {
-            writeError(exchange, dbError(error));
+            writeError(exchange, serverError(error));
         }
     }
 
@@ -209,7 +237,8 @@ public class Main {
                     ps.setInt(4, id);
                     if (ps.executeUpdate() == 0) throw new ApiError(404, "NOT_FOUND", "Customer not found");
                 }
-                updateAddress(conn, id, object(payload, "address"));
+                var address = object(payload, "address");
+                if (updateAddress(conn, id, address) == 0) insertAddress(conn, id, address);
                 insertAudit(conn, "customer", id, "update_customer", payload);
                 var customer = fetchCustomer(conn, id);
                 conn.commit();
@@ -386,7 +415,7 @@ public class Main {
         }
     }
 
-    private static void updateAddress(Connection conn, int customerId, Map<String, Object> address) throws SQLException {
+    private static int updateAddress(Connection conn, int customerId, Map<String, Object> address) throws SQLException {
         try (var ps = conn.prepareStatement(UPDATE_ADDRESS)) {
             ps.setString(1, string(address, "label"));
             ps.setString(2, string(address, "street"));
@@ -398,7 +427,7 @@ public class Main {
             ps.setString(8, string(address, "postalCode"));
             ps.setBoolean(9, bool(address, "isDefault"));
             ps.setInt(10, customerId);
-            ps.executeUpdate();
+            return ps.executeUpdate();
         }
     }
 
@@ -437,67 +466,100 @@ public class Main {
 
     private static void validateCreateCustomer(Map<String, Object> payload) {
         var details = new ArrayList<Map<String, String>>();
-        required(details, "fullName", payload.get("fullName"));
-        required(details, "email", payload.get("email"));
-        required(details, "documentNumber", payload.get("documentNumber"));
-        validateAddress(details, payload.get("address"));
-        if (payload.get("email") instanceof String email && !email.contains("@")) details.add(oneDetail("email", "Must be a valid email-like value"));
+        payload.put("fullName", required(details, "fullName", payload.get("fullName")));
+        payload.put("email", required(details, "email", payload.get("email")));
+        payload.put("documentNumber", required(details, "documentNumber", payload.get("documentNumber")));
+        payload.put("phone", optionalString(details, "phone", payload.get("phone")));
+        payload.put("address", validateAddress(details, payload.get("address")));
+        payload.keySet().retainAll(Set.of("fullName", "email", "documentNumber", "phone", "address"));
+        var email = string(payload, "email");
+        if (email != null && !email.isBlank() && !email.contains("@")) details.add(oneDetail("email", "Must be a valid email-like value"));
         if (!details.isEmpty()) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
     }
 
     private static void validateUpdateCustomer(Map<String, Object> payload) {
         var details = new ArrayList<Map<String, String>>();
-        required(details, "fullName", payload.get("fullName"));
-        required(details, "status", payload.get("status"));
+        payload.put("fullName", required(details, "fullName", payload.get("fullName")));
+        payload.put("status", required(details, "status", payload.get("status")));
         var status = string(payload, "status");
         if (status != null && !status.isBlank() && !Set.of("active", "inactive").contains(status)) details.add(oneDetail("status", "Must be active or inactive"));
-        validateAddress(details, payload.get("address"));
+        payload.put("phone", optionalString(details, "phone", payload.get("phone")));
+        payload.put("address", validateAddress(details, payload.get("address")));
+        payload.keySet().retainAll(Set.of("fullName", "phone", "status", "address"));
         if (!details.isEmpty()) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
     }
 
     private static void validateCreateOrder(Map<String, Object> payload) {
         var details = new ArrayList<Map<String, String>>();
-        if (number(payload, "customerId") <= 0) details.add(oneDetail("customerId", "Must be a positive integer"));
-        if (number(payload, "addressId") <= 0) details.add(oneDetail("addressId", "Must be a positive integer"));
-        var items = list(payload, "items");
-        if (items.isEmpty()) details.add(oneDetail("items", "Must contain at least one item"));
-        for (var i = 0; i < items.size(); i++) {
-            if (number(items.get(i), "productId") <= 0) details.add(oneDetail("items[" + i + "].productId", "Must be a positive integer"));
-            if (number(items.get(i), "quantity") <= 0) details.add(oneDetail("items[" + i + "].quantity", "Must be a positive integer"));
+        payload.put("customerId", normalizedNumber(payload.get("customerId"), "customerId", details));
+        payload.put("addressId", normalizedNumber(payload.get("addressId"), "addressId", details));
+
+        var normalizedItems = new ArrayList<Map<String, Object>>();
+        var itemsValue = payload.get("items");
+        if (!(itemsValue instanceof List<?> rawItems) || rawItems.isEmpty()) {
+            details.add(oneDetail("items", "Must contain at least one item"));
+        } else {
+            for (var i = 0; i < rawItems.size(); i++) {
+                var rawItem = rawItems.get(i);
+                if (!(rawItem instanceof Map<?, ?> rawMap)) {
+                    details.add(oneDetail("items[" + i + "]", "Must be an object"));
+                    continue;
+                }
+                var item = castMap(rawMap);
+                item.put("productId", normalizedNumber(item.get("productId"), "items[" + i + "].productId", details));
+                item.put("quantity", normalizedNumber(item.get("quantity"), "items[" + i + "].quantity", details));
+                item.keySet().retainAll(Set.of("productId", "quantity"));
+                normalizedItems.add(item);
+            }
         }
+        payload.put("items", normalizedItems);
+
         var paymentValue = payload.get("payment");
         if (!(paymentValue instanceof Map<?, ?> rawPayment)) {
             details.add(oneDetail("payment", "Required object"));
+            payload.put("payment", new HashMap<String, Object>());
         } else {
             var payment = castMap(rawPayment);
-            required(details, "payment.method", payment.get("method"));
-            var method = string(payment, "method");
+            var method = required(details, "payment.method", payment.get("method"));
+            payment.put("method", method);
+            payment.keySet().retainAll(Set.of("method"));
+            payload.put("payment", payment);
             if (method != null && !method.isBlank() && !Set.of("credit_card", "debit_card", "pix", "boleto").contains(method)) {
                 details.add(oneDetail("payment.method", "Invalid payment method"));
             }
         }
+        payload.keySet().retainAll(Set.of("customerId", "addressId", "items", "payment"));
         if (!details.isEmpty()) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
     }
 
-    private static void validateAddress(List<Map<String, String>> details, Object value) {
+    private static Map<String, Object> validateAddress(List<Map<String, String>> details, Object value) {
         if (!(value instanceof Map<?, ?> raw)) {
             details.add(oneDetail("address", "Required object"));
-            return;
+            return new HashMap<>();
         }
         var address = castMap(raw);
-        required(details, "address.label", address.get("label"));
-        required(details, "address.street", address.get("street"));
-        required(details, "address.number", address.get("number"));
-        required(details, "address.district", address.get("district"));
-        required(details, "address.city", address.get("city"));
-        required(details, "address.state", address.get("state"));
-        required(details, "address.postalCode", address.get("postalCode"));
+        address.put("label", required(details, "address.label", address.get("label")));
+        address.put("street", required(details, "address.street", address.get("street")));
+        address.put("number", required(details, "address.number", address.get("number")));
+        address.put("complement", optionalString(details, "address.complement", address.get("complement")));
+        address.put("district", required(details, "address.district", address.get("district")));
+        address.put("city", required(details, "address.city", address.get("city")));
+        address.put("state", required(details, "address.state", address.get("state")));
+        address.put("postalCode", required(details, "address.postalCode", address.get("postalCode")));
         if (!(address.get("isDefault") instanceof Boolean)) details.add(oneDetail("address.isDefault", "Required boolean"));
+        var state = string(address, "state");
+        if (state != null && !state.isEmpty() && !state.matches("[A-Za-z]{2}")) {
+            details.add(oneDetail("address.state", "Must contain exactly 2 ASCII letters"));
+        } else if (state != null && !state.isEmpty()) {
+            address.put("state", state.toUpperCase(Locale.ROOT));
+        }
+        address.keySet().retainAll(Set.of("label", "street", "number", "complement", "district", "city", "state", "postalCode", "isDefault"));
+        return address;
     }
 
     private static boolean method(HttpExchange exchange, String method) throws IOException {
         if (!exchange.getRequestMethod().equals(method)) {
-            writeError(exchange, new ApiError(404, "NOT_FOUND", "Route not found"));
+            writeError(exchange, new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed"));
             return false;
         }
         return true;
@@ -507,8 +569,14 @@ public class Main {
         return positiveInt(path.substring(prefix.length()), "id");
     }
 
+    private static boolean isEntityPath(String path, String prefix) {
+        if (!path.startsWith(prefix) || path.length() == prefix.length()) return false;
+        return !path.substring(prefix.length()).contains("/");
+    }
+
     private static int positiveInt(String value, String field) {
         try {
+            if (value == null || !value.matches("[0-9]+")) throw new NumberFormatException();
             var parsed = Integer.parseInt(value);
             if (parsed > 0) return parsed;
         } catch (Exception ignored) {
@@ -522,7 +590,9 @@ public class Main {
         if (query == null || query.isBlank()) return result;
         for (var part : query.split("&")) {
             var bits = part.split("=", 2);
-            result.put(bits[0], bits.length > 1 ? bits[1] : "");
+            var key = URLDecoder.decode(bits[0], StandardCharsets.UTF_8);
+            var value = URLDecoder.decode(bits.length > 1 ? bits[1] : "", StandardCharsets.UTF_8);
+            result.put(key, value);
         }
         return result;
     }
@@ -546,18 +616,46 @@ public class Main {
         }
     }
 
-    private static void required(List<Map<String, String>> details, String field, Object value) {
-        if (!(value instanceof String text) || text.isBlank()) details.add(oneDetail(field, "Required non-empty string"));
+    private static String required(List<Map<String, String>> details, String field, Object value) {
+        if (!(value instanceof String text) || text.isBlank()) {
+            details.add(oneDetail(field, "Required non-empty string"));
+            return "";
+        }
+        return text.trim();
+    }
+
+    private static String optionalString(List<Map<String, String>> details, String field, Object value) {
+        if (value == null) return null;
+        if (!(value instanceof String text)) {
+            details.add(oneDetail(field, "Must be a string or null"));
+            return null;
+        }
+        return text.trim();
     }
 
     private static String string(Map<String, Object> map, String key) {
         var value = map.get(key);
-        return value == null ? null : String.valueOf(value);
+        return value instanceof String text ? text : null;
+    }
+
+    private static int normalizedNumber(Object value, String field, List<Map<String, String>> details) {
+        var map = new HashMap<String, Object>();
+        map.put("value", value);
+        var parsed = number(map, "value");
+        if (parsed <= 0) details.add(oneDetail(field, "Must be a positive integer"));
+        return Math.max(parsed, 0);
     }
 
     private static int number(Map<String, Object> map, String key) {
         var value = map.get(key);
-        return value instanceof Number number ? number.intValue() : -1;
+        if (!(value instanceof Number number)) return -1;
+        try {
+            var decimal = new BigDecimal(number.toString()).stripTrailingZeros();
+            if (decimal.scale() > 0 || decimal.compareTo(BigDecimal.ONE) < 0 || decimal.compareTo(BigDecimal.valueOf(Integer.MAX_VALUE)) > 0) return -1;
+            return decimal.intValueExact();
+        } catch (ArithmeticException error) {
+            return -1;
+        }
     }
 
     private static boolean bool(Map<String, Object> map, String key) {
@@ -588,7 +686,7 @@ public class Main {
     }
 
     private static String instant(Timestamp value) {
-        return INSTANT.format(value.toInstant().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
+        return value == null ? null : INSTANT.format(value.toInstant().truncatedTo(ChronoUnit.SECONDS).atOffset(ZoneOffset.UTC));
     }
 
     private static Map<String, String> oneDetail(String field, String message) {
@@ -618,8 +716,13 @@ public class Main {
         write(exchange, error.status, mapOf("error", mapOf("code", error.code, "message", error.message, "details", error.details)));
     }
 
-    private static ApiError dbError(Exception error) {
-        return new ApiError(500, "DATABASE_ERROR", "Database error", detail("message", String.valueOf(error.getMessage())));
+    private static ApiError serverError(Exception error) {
+        for (Throwable current = error; current != null; current = current.getCause()) {
+            if (current instanceof SQLException) {
+                return new ApiError(500, "DATABASE_ERROR", "Database error");
+            }
+        }
+        return new ApiError(500, "INTERNAL_ERROR", "Internal server error");
     }
 
     private static final class ApiError extends RuntimeException {

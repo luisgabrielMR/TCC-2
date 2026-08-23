@@ -35,8 +35,9 @@ curl http://127.0.0.1:8000/health
 Mapeamento:
 
 - `DB_POOL_MAX` -> `SetMaxOpenConns`
-- `DB_POOL_MIN` -> `SetMaxIdleConns`
+- `DB_POOL_MAX` -> `SetMaxIdleConns`
+- `DB_POOL_MIN` -> numero de conexoes preabertas na inicializacao
 - `DB_POOL_IDLE_TIMEOUT_SECONDS` -> `SetConnMaxIdleTime`
 - `DB_POOL_MAX_LIFETIME_SECONDS` -> `SetConnMaxLifetime`
 
-`database/sql` não possui timeout direto de aquisição igual aos demais drivers; o timeout de contexto das requisições é usado para manter intenção equivalente.
+`database/sql` não possui timeout global de aquisição igual aos demais drivers. Cada operacao de banco recebe um contexto de 10 segundos, mantendo o limite tambem durante espera por conexao. O limite ocioso usa o maximo do pool para evitar descarte e recriacao de conexoes sob concorrencia.

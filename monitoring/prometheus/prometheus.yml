@@ -14,3 +14,7 @@ scrape_configs:
   - job_name: cadvisor
     static_configs:
       - targets: ["cadvisor:8080"]
+
+  - job_name: benchmark-results
+    static_configs:
+      - targets: ["benchmark-results-exporter:9101"]

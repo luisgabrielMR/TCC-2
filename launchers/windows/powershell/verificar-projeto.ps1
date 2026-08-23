@@ -10,22 +10,41 @@ $services = $languages | ForEach-Object { "$_-api" }
 $activeService = $null
 $measurement = $null
 $mainRunStarted = $false
-$verificationDirectory = Join-Path $script:BenchmarkRoot "results/raw/verification"
-$contractBaseline = "/mnt/results/raw/verification/contract-baseline.json"
+$locustPreflightStarted = $false
+$verificationId = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssfffZ")
+$verificationRoot = Join-Path $script:BenchmarkRoot "results/raw/verification"
+$verificationDirectory = Join-Path $verificationRoot $verificationId
+$contractBaseline = "/mnt/results/raw/verification/$verificationId/contract-baseline.json"
+$databaseStateBaseline = Join-Path $verificationDirectory "database-state-python.json"
 
 try {
-    Write-Host "[1/7] Validando Docker Compose..."
+    $resolvedVerificationRoot = [IO.Path]::GetFullPath($verificationRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+    $resolvedVerificationDirectory = [IO.Path]::GetFullPath($verificationDirectory)
+    if (-not $resolvedVerificationDirectory.StartsWith(
+        $resolvedVerificationRoot + [IO.Path]::DirectorySeparatorChar,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Diretorio de verificacao inesperado: $verificationDirectory"
+    }
+    New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
+
+    Write-Host "[1/8] Validando Docker Compose..."
     Stop-BenchmarkServices -Services $services
     Invoke-BenchmarkCompose -Arguments @("config", "--quiet")
 
-    Write-Host "[2/7] Construindo as cinco APIs..."
+    Write-Host "[2/8] Construindo as cinco APIs..."
     $buildArguments = @()
     foreach ($language in $languages) { $buildArguments += @("--profile", $language) }
     $buildArguments += "build"
     $buildArguments += $services
     Invoke-BenchmarkCompose -Arguments $buildArguments
+    Invoke-BenchmarkCompose -Arguments @(
+        "--profile", "python", "run", "--rm", "--no-deps", "--entrypoint", "python",
+        "-v", "./scripts:/mnt/scripts:ro", "-v", "./common:/mnt/common:ro",
+        "python-api", "/mnt/scripts/validate_openapi.py", "/mnt/common/openapi/openapi.yaml"
+    )
 
-    Write-Host "[3/7] Resetando e validando o banco..."
+    Write-Host "[3/8] Resetando e validando o banco..."
     Reset-BenchmarkDatabase $environment
     $user = Get-BenchmarkValue $environment "POSTGRES_USER" "benchmark_user"
     $database = Get-BenchmarkValue $environment "POSTGRES_DB" "benchmark_db"
@@ -33,30 +52,109 @@ try {
         "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1",
         "-U", $user, "-d", $database, "-f", "/benchmark/database/scripts/validate_database.sql"
     )
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
+        "--mode", "pilot", "--output", (Join-Path $verificationDirectory "preflight.json")
+    )
 
-    Write-Host "[4/7] Testando os oito endpoints em cada linguagem..."
-    New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
-    Remove-Item (Join-Path $verificationDirectory "contract-baseline.json") -Force -ErrorAction SilentlyContinue
+    Write-Host "[4/8] Testando os oito endpoints em cada linguagem..."
     foreach ($language in $languages) {
         $activeService = "$language-api"
         Reset-BenchmarkDatabase $environment
+        Invoke-BenchmarkCompose -Arguments @(
+            "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-q",
+            "-U", $user, "-d", $database,
+            "-c", "UPDATE payments SET paid_at = NULL WHERE order_id = 1;"
+        )
         Invoke-BenchmarkCompose -Arguments @("--profile", $language, "up", "-d", $activeService)
         Wait-BenchmarkApi $apiBaseUrl
         $contractArguments = @(
             "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
-            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $locustHost
+            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $locustHost, "--label", $language
         )
         if ($language -eq "python") { $contractArguments += @("--snapshot", $contractBaseline) }
         else { $contractArguments += @("--compare", $contractBaseline) }
         Invoke-BenchmarkCompose -Arguments $contractArguments
+
+        $databaseStatePath = Join-Path $verificationDirectory "database-state-$language.json"
+        $stateOutput = Invoke-BenchmarkCompose -Arguments @(
+            "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-Atq",
+            "-U", $user, "-d", $database,
+            "-f", "/benchmark/database/scripts/capture_contract_state.sql"
+        )
+        $stateJson = ($stateOutput | Where-Object { $_.Trim().StartsWith("{") } | Select-Object -Last 1)
+        if (-not $stateJson) { throw "Snapshot do banco nao foi produzido para $language." }
+        $stateJson | Set-Content -LiteralPath $databaseStatePath -Encoding utf8
+        if ($language -ne "python") {
+            Invoke-BenchmarkPython @(
+                (Join-Path $script:BenchmarkRoot "scripts/compare_json.py"),
+                $databaseStateBaseline,
+                $databaseStatePath,
+                "--label", "database state for $language"
+            )
+        }
+
+        Invoke-BenchmarkCompose -Arguments @("stop", "postgres")
+        Start-Sleep -Seconds 2
+        Invoke-BenchmarkCompose -Arguments @(
+            "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
+            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $locustHost,
+            "--label", $language, "--database-error-only"
+        )
+        Reset-BenchmarkDatabase $environment
+        Wait-BenchmarkApi $apiBaseUrl
         & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "testar-payloads.ps1") -BaseUrl $apiBaseUrl
         if ($LASTEXITCODE -ne 0) { throw "Endpoints da API $language falharam." }
         Invoke-BenchmarkCompose -Arguments @("stop", $activeService)
         $activeService = $null
     }
 
-    Write-Host "[5/7] Validando monitoramento..."
-    Invoke-BenchmarkCompose -Arguments @("--profile", "monitoring", "up", "-d", "--force-recreate", "postgres-exporter", "prometheus", "grafana", "cadvisor")
+    Write-Host "[5/8] Validando estabilidade do pool da API Go..."
+    Reset-BenchmarkDatabase $environment
+    $activeService = "go-api"
+    Invoke-BenchmarkCompose -Arguments @("--profile", "go", "up", "-d", $activeService)
+    Wait-BenchmarkApi $apiBaseUrl
+    Invoke-BenchmarkCompose -Arguments @(
+        "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-q",
+        "-U", $user, "-d", $database, "-c", "SELECT pg_stat_reset();"
+    )
+    $goPoolDirectory = Join-Path $verificationDirectory "go-pool"
+    New-Item -ItemType Directory -Force $goPoolDirectory | Out-Null
+    Invoke-BenchmarkLocust "smoke" 20 10 "15s" $locustHost "/mnt/results/raw/verification/$verificationId/go-pool/locust"
+    $goPoolStats = Import-Csv (Join-Path $goPoolDirectory "locust_stats.csv")
+    $goPoolAggregate = $goPoolStats | Where-Object { $_.Name -eq "Aggregated" }
+    if (-not $goPoolAggregate -or [int]$goPoolAggregate."Failure Count" -ne 0) {
+        throw "O diagnostico do pool Go registrou falhas HTTP."
+    }
+    $sessionCount = [int]((Invoke-BenchmarkCompose -Arguments @(
+        "exec", "-T", "postgres", "psql", "-Atq",
+        "-U", $user, "-d", $database,
+        "-c", "SELECT sessions FROM pg_stat_database WHERE datname = current_database();"
+    ) | Select-Object -Last 1).Trim())
+    $backendCount = [int]((Invoke-BenchmarkCompose -Arguments @(
+        "exec", "-T", "postgres", "psql", "-Atq",
+        "-U", $user, "-d", $database,
+        "-c", "SELECT numbackends FROM pg_stat_database WHERE datname = current_database();"
+    ) | Select-Object -Last 1).Trim())
+    $poolMax = [int](Get-BenchmarkValue $environment "DB_POOL_MAX" "20")
+    [pscustomobject]@{
+        sessions_created_after_reset = $sessionCount
+        active_backends = $backendCount
+        configured_pool_max = $poolMax
+        session_limit = 100
+        backend_limit = $poolMax + 2
+    } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $goPoolDirectory "diagnostic.json") -Encoding utf8
+    if ($sessionCount -gt 100) {
+        throw "O pool Go recriou $sessionCount conexoes em 15 segundos; limite de regressao: 100."
+    }
+    if ($backendCount -gt ($poolMax + 2)) {
+        throw "A API Go manteve $backendCount backends para um pool maximo de $poolMax."
+    }
+    Invoke-BenchmarkCompose -Arguments @("stop", $activeService)
+    $activeService = $null
+
+    Write-Host "[6/8] Validando monitoramento..."
+    Invoke-BenchmarkCompose -Arguments @("--profile", "monitoring", "up", "-d", "--force-recreate", "postgres-exporter", "benchmark-results-exporter", "prometheus", "grafana", "cadvisor")
     $prometheusPort = Get-BenchmarkValue $environment "PROMETHEUS_PORT" "9090"
     $prometheusUrl = "http://127.0.0.1:$prometheusPort"
     for ($attempt = 1; $attempt -le 30; $attempt++) {
@@ -74,8 +172,12 @@ try {
         try {
             $targetsResponse = Invoke-RestMethod -Uri "$prometheusUrl/api/v1/targets" -TimeoutSec 10
             $targets = @($targetsResponse.data.activeTargets)
-            $unhealthy = @($targets | Where-Object { $_.health -ne "up" })
-            if ($targets.Count -eq 3 -and $unhealthy.Count -eq 0) {
+            $requiredJobs = @("benchmark-results", "postgres", "prometheus")
+            $unhealthyRequired = @($requiredJobs | Where-Object {
+                $job = $_
+                -not ($targets | Where-Object { $_.labels.job -eq $job -and $_.health -eq "up" })
+            })
+            if ($targets.Count -ge 4 -and $unhealthyRequired.Count -eq 0) {
                 $targetsReady = $true
                 break
             }
@@ -86,7 +188,7 @@ try {
         Start-Sleep -Seconds 2
     }
     if (-not $targetsReady) {
-        throw "Os tres targets Prometheus nao ficaram saudaveis dentro do tempo esperado."
+        throw "Os targets operacionais do Prometheus nao ficaram saudaveis dentro do tempo esperado."
     }
     $grafanaPort = Get-BenchmarkValue $environment "GRAFANA_PORT" "3000"
     $grafanaReady = $false
@@ -107,24 +209,38 @@ try {
         throw "Grafana nao ficou saudavel dentro do tempo esperado."
     }
 
-    Write-Host "[6/7] Executando warmup misto curto pelo Locust..."
+    Write-Host "[7/8] Executando warmup misto curto pelo Locust..."
     Reset-BenchmarkDatabase $environment
     $activeService = "python-api"
     Invoke-BenchmarkCompose -Arguments @("--profile", "python", "up", "-d", $activeService)
     Wait-BenchmarkApi $apiBaseUrl
+    Invoke-BenchmarkCompose -Arguments @("--profile", "load", "up", "-d", "locust")
+    $locustPreflightStarted = $true
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/validate_monitoring.py"),
+        "--prometheus-url", $prometheusUrl,
+        "--grafana-url", "http://127.0.0.1:$grafanaPort",
+        "--api-service", $activeService,
+        "--mode", "pilot",
+        "--output", (Join-Path $verificationDirectory "monitoring-preflight.json")
+    )
+    Invoke-BenchmarkCompose -Arguments @("stop", "locust")
+    $locustPreflightStarted = $false
     New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
-    Get-ChildItem $verificationDirectory -Filter "locust*.csv" -ErrorAction SilentlyContinue | Remove-Item -Force
     $uniquenessCheck = "from locustfile import customers_create; assert len(customers_create._values) >= 75000; rows=[customers_create.next() for _ in range(5000)]; assert len({r['email'] for r in rows}) == 5000; assert len({r['documentNumber'] for r in rows}) == 5000"
     Invoke-BenchmarkCompose -Arguments @(
         "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
         "-e", "PAYLOAD_DIR=/mnt/payloads", "locust", "-c", $uniquenessCheck
     )
-    $measurement = Start-BenchmarkMeasurements $verificationDirectory 1
+    $verificationBounds = Join-Path $verificationDirectory "locust_measurement_bounds.json"
+    $measurement = Start-BenchmarkMeasurements $verificationDirectory $verificationBounds 1
     $mainRunStarted = $true
-    Invoke-BenchmarkLocust "warmup" 20 10 "15s" $locustHost "/mnt/results/raw/verification/locust"
+    Invoke-BenchmarkLocust "warmup" 20 10 "15s" $locustHost "/mnt/results/raw/verification/$verificationId/locust"
+    $loadBounds = Get-Content $verificationBounds -Raw | ConvertFrom-Json
     Stop-BenchmarkMeasurements $measurement
-    $metricsEndEpoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-    Export-BenchmarkPrometheus $verificationDirectory $environment $measurement.StartEpoch $metricsEndEpoch
+    $metricsStartEpoch = [double]$loadBounds.started_epoch
+    $metricsEndEpoch = [double]$loadBounds.finished_epoch
+    Export-BenchmarkPrometheus $verificationDirectory $environment $metricsStartEpoch $metricsEndEpoch $activeService "pilot"
     $stats = Import-Csv (Join-Path $verificationDirectory "locust_stats.csv")
     $aggregate = $stats | Where-Object { $_.Name -eq "Aggregated" }
     if (-not $aggregate -or [int]$aggregate."Failure Count" -ne 0) {
@@ -149,21 +265,50 @@ try {
     Reset-BenchmarkDatabase $environment
     $mainRunStarted = $false
 
-    Write-Host "[7/7] Validando consolidadores e testes automatizados..."
+    Write-Host "[8/8] Validando consolidadores e testes automatizados..."
+    Get-ChildItem (Join-Path $script:BenchmarkRoot "monitoring/grafana/dashboards") -Filter "*.json" |
+        ForEach-Object { Get-Content $_.FullName -Raw | ConvertFrom-Json | Out-Null }
     Invoke-BenchmarkPython @("-m", "unittest", "discover", "-s", "tests", "-v")
-    Invoke-BenchmarkPython @("scripts/summarize_results.py")
-    Invoke-BenchmarkPython @("scripts/generate_results_dashboard.py")
 
-    Write-Host "Verificacao completa concluida: banco, 5 APIs, warmup misto, monitoramento, relatorios e testes aprovados."
+    $finalPreflightPath = Join-Path $verificationDirectory "preflight-final.json"
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
+        "--mode", "pilot", "--output", $finalPreflightPath
+    )
+    $finalPreflight = Get-Content $finalPreflightPath -Raw | ConvertFrom-Json
+    $monitoringEvidence = Get-Content (Join-Path $verificationDirectory "monitoring-preflight.json") -Raw | ConvertFrom-Json
+    $verificationReport = [ordered]@{
+        available = $true
+        completed = $true
+        checked_at = (Get-Date).ToUniversalTime().ToString("o")
+        methodology_version = 6
+        commit_sha = $finalPreflight.git.commit_sha
+        git_dirty = [bool]$finalPreflight.git.git_dirty
+        tracked_diff_sha256 = $finalPreflight.git.tracked_diff_sha256
+        untracked_files_sha256 = $finalPreflight.git.untracked_files_sha256
+        monitoring_official_eligible = [bool]$monitoringEvidence.official_eligible
+        contract_languages = $languages
+        openapi_valid = $true
+        database_state_equivalent = $true
+        all_executable_tests_passed = $true
+        artifact_directory = "results/raw/verification/$verificationId"
+    }
+    $verificationReport | ConvertTo-Json -Depth 6 |
+        Set-Content -Encoding utf8 (Join-Path $script:BenchmarkRoot "results/summaries/project-verification.json")
+
+    Write-Host "Verificacao piloto concluida: banco, 5 APIs, contrato, pool Go, warmup misto, monitoramento e testes com fixtures aprovados. Evidencias: results/raw/verification/$verificationId."
 }
 finally {
+    if ($locustPreflightStarted) {
+        Stop-BenchmarkServices -Services @("locust")
+    }
     if ($measurement -and -not $measurement.Stopped) {
         try { Stop-BenchmarkMeasurements $measurement } catch { Write-Warning $_.Exception.Message }
     }
     if ($activeService) {
         Stop-BenchmarkServices -Services @($activeService)
     }
-    Stop-BenchmarkServices -Profiles @("monitoring") -Services @("postgres-exporter", "prometheus", "grafana", "cadvisor")
+    Stop-BenchmarkServices -Profiles @("monitoring") -Services @("postgres-exporter", "benchmark-results-exporter", "prometheus", "grafana", "cadvisor")
     try {
         Reset-BenchmarkDatabase $environment
         $mainRunStarted = $false

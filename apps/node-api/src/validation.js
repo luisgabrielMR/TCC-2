@@ -3,9 +3,14 @@ import { ApiError } from "./errors.js";
 const VALID_STATUSES = new Set(["active", "inactive"]);
 const VALID_PAYMENT_METHODS = new Set(["credit_card", "debit_card", "pix", "boleto"]);
 
+export function hasJsonPayload(rawBodyBytes) {
+  return Number.isInteger(rawBodyBytes) && rawBodyBytes > 0;
+}
+
 export function positiveInt(value, field) {
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isInteger(parsed) || parsed <= 0 || String(value).trim() === "") {
+  const text = typeof value === "string" ? value : "";
+  const parsed = Number(text);
+  if (!/^[0-9]+$/.test(text) || !Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 2147483647) {
     throw new ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", [
       { field, message: "Must be a positive integer" }
     ]);
@@ -42,12 +47,16 @@ function requiredString(payload, key, details, field = key) {
   return value.trim();
 }
 
-function optionalString(payload, key) {
+function optionalString(payload, key, details, field = key) {
   const value = payload[key];
   if (value === null || value === undefined) {
     return null;
   }
-  return String(value).trim();
+  if (typeof value !== "string") {
+    details.push({ field, message: "Must be a string or null" });
+    return null;
+  }
+  return value.trim();
 }
 
 function requiredBool(payload, key, details, field = key) {
@@ -60,12 +69,11 @@ function requiredBool(payload, key, details, field = key) {
 }
 
 function positiveIntField(value, field, details) {
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed <= 0) {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value <= 0 || value > 2147483647) {
     details.push({ field, message: "Must be a positive integer" });
     return 0;
   }
-  return parsed;
+  return value;
 }
 
 function address(payload, details) {
@@ -73,17 +81,23 @@ function address(payload, details) {
     details.push({ field: "address", message: "Required object" });
     return {};
   }
-  return {
+  const result = {
     label: requiredString(payload, "label", details, "address.label"),
     street: requiredString(payload, "street", details, "address.street"),
     number: requiredString(payload, "number", details, "address.number"),
-    complement: optionalString(payload, "complement"),
+    complement: optionalString(payload, "complement", details, "address.complement"),
     district: requiredString(payload, "district", details, "address.district"),
     city: requiredString(payload, "city", details, "address.city"),
     state: requiredString(payload, "state", details, "address.state"),
     postalCode: requiredString(payload, "postalCode", details, "address.postalCode"),
     isDefault: requiredBool(payload, "isDefault", details, "address.isDefault")
   };
+  if (result.state && !/^[A-Za-z]{2}$/.test(result.state)) {
+    details.push({ field: "address.state", message: "Must contain exactly 2 ASCII letters" });
+  } else if (result.state) {
+    result.state = result.state.toUpperCase();
+  }
+  return result;
 }
 
 export function createCustomer(payload) {
@@ -93,7 +107,7 @@ export function createCustomer(payload) {
     fullName: requiredString(payload, "fullName", details),
     email: requiredString(payload, "email", details),
     documentNumber: requiredString(payload, "documentNumber", details),
-    phone: optionalString(payload, "phone"),
+    phone: optionalString(payload, "phone", details),
     address: address(payload.address, details)
   };
   if (result.email && !result.email.includes("@")) {
@@ -115,7 +129,7 @@ export function updateCustomer(payload) {
   }
   const result = {
     fullName,
-    phone: optionalString(payload, "phone"),
+    phone: optionalString(payload, "phone", details),
     status,
     address: address(payload.address, details)
   };
@@ -151,7 +165,7 @@ export function createOrder(payload) {
   if (payload.payment === null || typeof payload.payment !== "object" || Array.isArray(payload.payment)) {
     details.push({ field: "payment", message: "Required object" });
   } else {
-    method = requiredString(payload.payment, "method", details);
+    method = requiredString(payload.payment, "method", details, "payment.method");
     if (method && !VALID_PAYMENT_METHODS.has(method)) {
       details.push({ field: "payment.method", message: "Invalid payment method" });
     }

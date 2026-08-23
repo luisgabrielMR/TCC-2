@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Npgsql;
 using NpgsqlTypes;
 
@@ -15,6 +16,47 @@ var dataSourceBuilder = new NpgsqlDataSourceBuilder(settings.ConnectionString);
 await using var dataSource = dataSourceBuilder.Build();
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    if (context.Request.Path.Value is { Length: > 1 } path && path.EndsWith('/'))
+    {
+        await Error(new ApiError(404, "NOT_FOUND", "Route not found")).ExecuteAsync(context);
+        return;
+    }
+    try
+    {
+        await next();
+    }
+    catch (NpgsqlException)
+    {
+        if (!context.Response.HasStarted)
+        {
+            await Error(new ApiError(500, "DATABASE_ERROR", "Database error")).ExecuteAsync(context);
+            return;
+        }
+        throw;
+    }
+    catch (Exception)
+    {
+        if (!context.Response.HasStarted)
+        {
+            await Error(new ApiError(500, "INTERNAL_ERROR", "Internal server error")).ExecuteAsync(context);
+            return;
+        }
+        throw;
+    }
+});
+
+app.UseStatusCodePages(async statusContext =>
+{
+    var status = statusContext.HttpContext.Response.StatusCode;
+    if (status is not (StatusCodes.Status404NotFound or StatusCodes.Status405MethodNotAllowed)) return;
+    var error = status == StatusCodes.Status405MethodNotAllowed
+        ? new ApiError(405, "METHOD_NOT_ALLOWED", "Method not allowed")
+        : new ApiError(404, "NOT_FOUND", "Route not found");
+    await Error(error).ExecuteAsync(statusContext.HttpContext);
+});
 
 app.MapGet("/health", () => Results.Json(new Dictionary<string, object?> { ["status"] = "ok" }));
 
@@ -56,10 +98,10 @@ app.MapGet("/customers/{id}", async (string id) =>
 
 app.MapPost("/customers", async (HttpRequest request) =>
 {
-    var body = await ReadJson<CreateCustomerRequest>(request);
+    var json = await ReadJson(request);
+    if (json.Error is not null) return Error(json.Error);
+    var body = ValidateCreateCustomer(json.Value);
     if (body.Error is not null) return Error(body.Error);
-    var validation = ValidateCreateCustomer(body.Value!);
-    if (validation is not null) return Error(validation);
 
     await using var conn = await dataSource.OpenConnectionAsync();
     await using var tx = await conn.BeginTransactionAsync();
@@ -83,39 +125,53 @@ app.MapPost("/customers", async (HttpRequest request) =>
         await tx.RollbackAsync();
         return Error(new ApiError(409, "CONFLICT", "Customer email or document already exists"));
     }
+    catch
+    {
+        await tx.RollbackAsync();
+        throw;
+    }
 });
 
 app.MapPut("/customers/{id}", async (string id, HttpRequest request) =>
 {
     var parsed = PositiveInt(id, "id");
     if (parsed.Error is not null) return Error(parsed.Error);
-    var body = await ReadJson<UpdateCustomerRequest>(request);
+    var json = await ReadJson(request);
+    if (json.Error is not null) return Error(json.Error);
+    var body = ValidateUpdateCustomer(json.Value);
     if (body.Error is not null) return Error(body.Error);
-    var validation = ValidateUpdateCustomer(body.Value!);
-    if (validation is not null) return Error(validation);
 
     await using var conn = await dataSource.OpenConnectionAsync();
     await using var tx = await conn.BeginTransactionAsync();
-    await using var update = new NpgsqlCommand(Sql.UpdateCustomer, conn, tx);
-    update.Parameters.AddWithValue("fullName", body.Value!.FullName!);
-    update.Parameters.AddWithValue("phone", (object?)body.Value.Phone ?? DBNull.Value);
-    update.Parameters.AddWithValue("status", body.Value.Status!);
-    update.Parameters.AddWithValue("id", parsed.Value);
-    var changed = await update.ExecuteNonQueryAsync();
-    if (changed == 0)
+    try
+    {
+        await using var update = new NpgsqlCommand(Sql.UpdateCustomer, conn, tx);
+        update.Parameters.AddWithValue("fullName", body.Value!.FullName!);
+        update.Parameters.AddWithValue("phone", (object?)body.Value.Phone ?? DBNull.Value);
+        update.Parameters.AddWithValue("status", body.Value.Status!);
+        update.Parameters.AddWithValue("id", parsed.Value);
+        var changed = await update.ExecuteNonQueryAsync();
+        if (changed == 0)
+        {
+            await tx.RollbackAsync();
+            return Error(NotFound("Customer not found"));
+        }
+
+        await using var updateAddress = new NpgsqlCommand(Sql.UpdateAddress, conn, tx);
+        AddAddressParameters(updateAddress, body.Value.Address!);
+        updateAddress.Parameters.AddWithValue("customerId", parsed.Value);
+        var changedAddress = await updateAddress.ExecuteNonQueryAsync();
+        if (changedAddress == 0) await InsertAddress(conn, tx, parsed.Value, body.Value.Address!);
+        await InsertAudit(conn, tx, "customer", parsed.Value, "update_customer", body.Value);
+        var customer = await FetchCustomerFromConnection(conn, tx, parsed.Value);
+        await tx.CommitAsync();
+        return Results.Json(customer);
+    }
+    catch
     {
         await tx.RollbackAsync();
-        return Error(NotFound("Customer not found"));
+        throw;
     }
-
-    await using var updateAddress = new NpgsqlCommand(Sql.UpdateAddress, conn, tx);
-    AddAddressParameters(updateAddress, body.Value.Address!);
-    updateAddress.Parameters.AddWithValue("customerId", parsed.Value);
-    await updateAddress.ExecuteNonQueryAsync();
-    await InsertAudit(conn, tx, "customer", parsed.Value, "update_customer", body.Value);
-    var customer = await FetchCustomerFromConnection(conn, tx, parsed.Value);
-    await tx.CommitAsync();
-    return Results.Json(customer);
 });
 
 app.MapGet("/products", async (HttpRequest request) =>
@@ -150,65 +206,90 @@ app.MapGet("/products", async (HttpRequest request) =>
 
 app.MapPost("/orders", async (HttpRequest request) =>
 {
-    var body = await ReadJson<CreateOrderRequest>(request);
+    var json = await ReadJson(request);
+    if (json.Error is not null) return Error(json.Error);
+    var body = ValidateCreateOrder(json.Value);
     if (body.Error is not null) return Error(body.Error);
-    var validation = ValidateCreateOrder(body.Value!);
-    if (validation is not null) return Error(validation);
 
     await using var conn = await dataSource.OpenConnectionAsync();
     await using var tx = await conn.BeginTransactionAsync();
-    var customerExists = await ScalarExists(conn, tx, "SELECT id FROM customers WHERE id = @id AND status = 'active'", ("id", body.Value!.CustomerId));
-    if (!customerExists) return Error(NotFound("Customer not found"));
-    var addressExists = await ScalarExists(conn, tx, "SELECT id FROM addresses WHERE id = @id AND customer_id = @customerId", ("id", body.Value.AddressId), ("customerId", body.Value.CustomerId));
-    if (!addressExists) return Error(NotFound("Address not found"));
-
-    await using var insertOrder = new NpgsqlCommand("INSERT INTO orders (customer_id, address_id, status, total_amount) VALUES (@customerId, @addressId, 'created', 0) RETURNING id", conn, tx);
-    insertOrder.Parameters.AddWithValue("customerId", body.Value.CustomerId);
-    insertOrder.Parameters.AddWithValue("addressId", body.Value.AddressId);
-    var orderId = Convert.ToInt32(await insertOrder.ExecuteScalarAsync());
-
-    foreach (var item in body.Value.Items!)
+    try
     {
-        await using var lockProduct = new NpgsqlCommand("SELECT id, unit_price, stock_quantity FROM products WHERE id = @id AND active = true FOR UPDATE", conn, tx);
-        lockProduct.Parameters.AddWithValue("id", item.ProductId);
-        await using var reader = await lockProduct.ExecuteReaderAsync();
-        if (!await reader.ReadAsync())
+        var customerExists = await ScalarExists(conn, tx, "SELECT id FROM customers WHERE id = @id AND status = 'active'", ("id", body.Value!.CustomerId.Value));
+        if (!customerExists)
         {
-            await reader.DisposeAsync();
-            return Error(NotFound("Product not found"));
+            await tx.RollbackAsync();
+            return Error(NotFound("Customer not found"));
         }
-        var price = reader.GetDecimal(1);
-        var stock = reader.GetInt32(2);
-        await reader.DisposeAsync();
-        if (stock < item.Quantity) return Error(new ApiError(409, "CONFLICT", "Insufficient stock"));
+        var addressExists = await ScalarExists(conn, tx, "SELECT id FROM addresses WHERE id = @id AND customer_id = @customerId", ("id", body.Value.AddressId.Value), ("customerId", body.Value.CustomerId.Value));
+        if (!addressExists)
+        {
+            await tx.RollbackAsync();
+            return Error(NotFound("Address not found"));
+        }
 
-        await using var stockCmd = new NpgsqlCommand("UPDATE products SET stock_quantity = stock_quantity - @quantity WHERE id = @id AND stock_quantity >= @quantity", conn, tx);
-        stockCmd.Parameters.AddWithValue("quantity", item.Quantity);
-        stockCmd.Parameters.AddWithValue("id", item.ProductId);
-        if (await stockCmd.ExecuteNonQueryAsync() == 0) return Error(new ApiError(409, "CONFLICT", "Insufficient stock"));
+        await using var insertOrder = new NpgsqlCommand("INSERT INTO orders (customer_id, address_id, status, total_amount) VALUES (@customerId, @addressId, 'created', 0) RETURNING id", conn, tx);
+        insertOrder.Parameters.AddWithValue("customerId", body.Value.CustomerId.Value);
+        insertOrder.Parameters.AddWithValue("addressId", body.Value.AddressId.Value);
+        var orderId = Convert.ToInt32(await insertOrder.ExecuteScalarAsync());
 
-        await using var insertItem = new NpgsqlCommand("INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (@orderId, @productId, @quantity, @price)", conn, tx);
-        insertItem.Parameters.AddWithValue("orderId", orderId);
-        insertItem.Parameters.AddWithValue("productId", item.ProductId);
-        insertItem.Parameters.AddWithValue("quantity", item.Quantity);
-        insertItem.Parameters.AddWithValue("price", price);
-        await insertItem.ExecuteNonQueryAsync();
+        foreach (var item in body.Value.Items!)
+        {
+            await using var lockProduct = new NpgsqlCommand("SELECT id, unit_price, stock_quantity FROM products WHERE id = @id AND active = true FOR UPDATE", conn, tx);
+            lockProduct.Parameters.AddWithValue("id", item.ProductId.Value);
+            await using var reader = await lockProduct.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+            {
+                await reader.DisposeAsync();
+                await tx.RollbackAsync();
+                return Error(NotFound("Product not found"));
+            }
+            var price = reader.GetDecimal(1);
+            var stock = reader.GetInt32(2);
+            await reader.DisposeAsync();
+            if (stock < item.Quantity.Value)
+            {
+                await tx.RollbackAsync();
+                return Error(new ApiError(409, "CONFLICT", "Insufficient stock"));
+            }
+
+            await using var stockCmd = new NpgsqlCommand("UPDATE products SET stock_quantity = stock_quantity - @quantity WHERE id = @id AND stock_quantity >= @quantity", conn, tx);
+            stockCmd.Parameters.AddWithValue("quantity", item.Quantity.Value);
+            stockCmd.Parameters.AddWithValue("id", item.ProductId.Value);
+            if (await stockCmd.ExecuteNonQueryAsync() == 0)
+            {
+                await tx.RollbackAsync();
+                return Error(new ApiError(409, "CONFLICT", "Insufficient stock"));
+            }
+
+            await using var insertItem = new NpgsqlCommand("INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (@orderId, @productId, @quantity, @price)", conn, tx);
+            insertItem.Parameters.AddWithValue("orderId", orderId);
+            insertItem.Parameters.AddWithValue("productId", item.ProductId.Value);
+            insertItem.Parameters.AddWithValue("quantity", item.Quantity.Value);
+            insertItem.Parameters.AddWithValue("price", price);
+            await insertItem.ExecuteNonQueryAsync();
+        }
+
+        await using var totalCmd = new NpgsqlCommand("UPDATE orders SET total_amount = (SELECT sum(total_price)::numeric(12, 2) FROM order_items WHERE order_id = @id), status = 'paid', updated_at = now() WHERE id = @id RETURNING total_amount", conn, tx);
+        totalCmd.Parameters.AddWithValue("id", orderId);
+        var total = (decimal)(await totalCmd.ExecuteScalarAsync() ?? 0m);
+
+        await using var paymentCmd = new NpgsqlCommand("INSERT INTO payments (order_id, method, status, amount, paid_at) VALUES (@orderId, @method, 'paid', @amount, now())", conn, tx);
+        paymentCmd.Parameters.AddWithValue("orderId", orderId);
+        paymentCmd.Parameters.AddWithValue("method", body.Value.Payment!.Method!);
+        paymentCmd.Parameters.AddWithValue("amount", total);
+        await paymentCmd.ExecuteNonQueryAsync();
+
+        await InsertAudit(conn, tx, "order", orderId, "create_order", body.Value);
+        var order = await FetchOrderFromConnection(conn, tx, orderId);
+        await tx.CommitAsync();
+        return Results.Json(order, statusCode: StatusCodes.Status201Created);
     }
-
-    await using var totalCmd = new NpgsqlCommand("UPDATE orders SET total_amount = (SELECT sum(total_price)::numeric(12, 2) FROM order_items WHERE order_id = @id), status = 'paid', updated_at = now() WHERE id = @id RETURNING total_amount", conn, tx);
-    totalCmd.Parameters.AddWithValue("id", orderId);
-    var total = (decimal)(await totalCmd.ExecuteScalarAsync() ?? 0m);
-
-    await using var paymentCmd = new NpgsqlCommand("INSERT INTO payments (order_id, method, status, amount, paid_at) VALUES (@orderId, @method, 'paid', @amount, now())", conn, tx);
-    paymentCmd.Parameters.AddWithValue("orderId", orderId);
-    paymentCmd.Parameters.AddWithValue("method", body.Value.Payment!.Method!);
-    paymentCmd.Parameters.AddWithValue("amount", total);
-    await paymentCmd.ExecuteNonQueryAsync();
-
-    await InsertAudit(conn, tx, "order", orderId, "create_order", body.Value);
-    var order = await FetchOrderFromConnection(conn, tx, orderId);
-    await tx.CommitAsync();
-    return Results.Json(order, statusCode: StatusCodes.Status201Created);
+    catch
+    {
+        await tx.RollbackAsync();
+        throw;
+    }
 });
 
 app.MapGet("/orders/{id}", async (string id) =>
@@ -323,7 +404,7 @@ static async Task<Dictionary<string, object?>?> FetchOrderFromConnection(NpgsqlC
                 ["method"] = reader.GetString(36),
                 ["status"] = reader.GetString(37),
                 ["amount"] = Money(reader.GetDecimal(38)),
-                ["paidAt"] = Instant(reader.GetDateTime(39))
+                ["paidAt"] = DbNull(reader, 39) ? null : Instant(reader.GetDateTime(39))
             },
             ["createdAt"] = Instant(reader.GetDateTime(3)),
             ["updatedAt"] = Instant(reader.GetDateTime(4))
@@ -377,7 +458,7 @@ static async Task InsertAudit(NpgsqlConnection conn, NpgsqlTransaction tx, strin
     cmd.Parameters.AddWithValue("entityType", entityType);
     cmd.Parameters.AddWithValue("entityId", entityId);
     cmd.Parameters.AddWithValue("action", action);
-    cmd.Parameters.Add("payload", NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(payload);
+    cmd.Parameters.Add("payload", NpgsqlDbType.Jsonb).Value = JsonSerializer.Serialize(payload, JsonDefaults.Audit);
     await cmd.ExecuteNonQueryAsync();
 }
 
@@ -388,102 +469,193 @@ static async Task<bool> ScalarExists(NpgsqlConnection conn, NpgsqlTransaction tx
     return await cmd.ExecuteScalarAsync() is not null;
 }
 
-static async Task<JsonRead<T>> ReadJson<T>(HttpRequest request)
+static async Task<JsonObjectRead> ReadJson(HttpRequest request)
 {
     try
     {
-        var value = await request.ReadFromJsonAsync<T>();
-        return value is null
-            ? new JsonRead<T>(default, new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", Detail("$", "Must be a JSON object")))
-            : new JsonRead<T>(value, null);
+        using var document = await JsonDocument.ParseAsync(request.Body);
+        var value = document.RootElement.Clone();
+        return value.ValueKind == JsonValueKind.Object
+            ? new JsonObjectRead(value, null)
+            : new JsonObjectRead(default, new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", Detail("$", "Must be a JSON object")));
     }
     catch (JsonException)
     {
-        return new JsonRead<T>(default, new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", Detail("$", "Invalid JSON")));
+        return new JsonObjectRead(default, new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", Detail("$", "Invalid JSON")));
     }
 }
 
-static ApiError? ValidateCreateCustomer(CreateCustomerRequest request)
+static ValidationResult<CreateCustomerRequest> ValidateCreateCustomer(JsonElement raw)
 {
     var details = new List<Dictionary<string, string>>();
-    Required(details, "fullName", request.FullName);
-    Required(details, "email", request.Email);
-    Required(details, "documentNumber", request.DocumentNumber);
-    ValidateAddress(details, request.Address);
-    if (!string.IsNullOrWhiteSpace(request.Email) && !request.Email.Contains('@')) details.Add(OneDetail("email", "Must be a valid email-like value"));
-    return details.Count == 0 ? null : new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
+    var request = new CreateCustomerRequest(
+        RequiredString(raw, "fullName", "fullName", details),
+        RequiredString(raw, "email", "email", details),
+        RequiredString(raw, "documentNumber", "documentNumber", details),
+        OptionalString(raw, "phone", "phone", details),
+        ValidateAddress(raw, details)
+    );
+    if (request.Email is { Length: > 0 } && !request.Email.Contains('@')) details.Add(OneDetail("email", "Must be a valid email-like value"));
+    return Validated(request, details);
 }
 
-static ApiError? ValidateUpdateCustomer(UpdateCustomerRequest request)
+static ValidationResult<UpdateCustomerRequest> ValidateUpdateCustomer(JsonElement raw)
 {
     var details = new List<Dictionary<string, string>>();
-    Required(details, "fullName", request.FullName);
-    Required(details, "status", request.Status);
-    if (!string.IsNullOrWhiteSpace(request.Status) && request.Status is not ("active" or "inactive")) details.Add(OneDetail("status", "Must be active or inactive"));
-    ValidateAddress(details, request.Address);
-    return details.Count == 0 ? null : new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
+    var fullName = RequiredString(raw, "fullName", "fullName", details);
+    var status = RequiredString(raw, "status", "status", details);
+    if (status.Length > 0 && status is not ("active" or "inactive")) details.Add(OneDetail("status", "Must be active or inactive"));
+    var request = new UpdateCustomerRequest(
+        fullName,
+        OptionalString(raw, "phone", "phone", details),
+        status,
+        ValidateAddress(raw, details)
+    );
+    return Validated(request, details);
 }
 
-static ApiError? ValidateCreateOrder(CreateOrderRequest request)
+static ValidationResult<CreateOrderRequest> ValidateCreateOrder(JsonElement raw)
 {
     var details = new List<Dictionary<string, string>>();
-    if (request.CustomerId <= 0) details.Add(OneDetail("customerId", "Must be a positive integer"));
-    if (request.AddressId <= 0) details.Add(OneDetail("addressId", "Must be a positive integer"));
-    if (request.Items is null or { Count: 0 }) details.Add(OneDetail("items", "Must contain at least one item"));
-    for (var i = 0; i < (request.Items?.Count ?? 0); i++)
+    var customerId = IntegerField(raw, "customerId", "customerId", details);
+    var addressId = IntegerField(raw, "addressId", "addressId", details);
+    var items = new List<OrderItemInput>();
+    if (!raw.TryGetProperty("items", out var rawItems) || rawItems.ValueKind != JsonValueKind.Array || rawItems.GetArrayLength() == 0)
     {
-        if (request.Items![i].ProductId <= 0) details.Add(OneDetail($"items[{i}].productId", "Must be a positive integer"));
-        if (request.Items[i].Quantity <= 0) details.Add(OneDetail($"items[{i}].quantity", "Must be a positive integer"));
+        details.Add(OneDetail("items", "Must contain at least one item"));
     }
-    if (request.Payment is null)
+    else
+    {
+        var index = 0;
+        foreach (var rawItem in rawItems.EnumerateArray())
+        {
+            if (rawItem.ValueKind != JsonValueKind.Object)
+            {
+                details.Add(OneDetail($"items[{index}]", "Must be an object"));
+            }
+            else
+            {
+                items.Add(new OrderItemInput(
+                    IntegerField(rawItem, "productId", $"items[{index}].productId", details),
+                    IntegerField(rawItem, "quantity", $"items[{index}].quantity", details)
+                ));
+            }
+            index++;
+        }
+    }
+
+    PaymentInput? payment = null;
+    if (!raw.TryGetProperty("payment", out var rawPayment) || rawPayment.ValueKind != JsonValueKind.Object)
     {
         details.Add(OneDetail("payment", "Required object"));
     }
-    else if (string.IsNullOrWhiteSpace(request.Payment.Method))
+    else
     {
-        details.Add(OneDetail("payment.method", "Required non-empty string"));
+        var method = RequiredString(rawPayment, "method", "payment.method", details);
+        payment = new PaymentInput(method);
+        if (method.Length > 0 && method is not ("credit_card" or "debit_card" or "pix" or "boleto"))
+        {
+            details.Add(OneDetail("payment.method", "Invalid payment method"));
+        }
     }
-    else if (request.Payment.Method is not ("credit_card" or "debit_card" or "pix" or "boleto"))
-    {
-        details.Add(OneDetail("payment.method", "Invalid payment method"));
-    }
-    return details.Count == 0 ? null : new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details);
+
+    return Validated(new CreateOrderRequest(customerId, addressId, items, payment), details);
 }
 
-static void ValidateAddress(List<Dictionary<string, string>> details, AddressInput? address)
+static AddressInput? ValidateAddress(JsonElement raw, List<Dictionary<string, string>> details)
 {
-    if (address is null)
+    if (!raw.TryGetProperty("address", out var address) || address.ValueKind != JsonValueKind.Object)
     {
         details.Add(OneDetail("address", "Required object"));
-        return;
+        return null;
     }
-    Required(details, "address.label", address.Label);
-    Required(details, "address.street", address.Street);
-    Required(details, "address.number", address.Number);
-    Required(details, "address.district", address.District);
-    Required(details, "address.city", address.City);
-    Required(details, "address.state", address.State);
-    Required(details, "address.postalCode", address.PostalCode);
-    if (address.IsDefault is null) details.Add(OneDetail("address.isDefault", "Required boolean"));
+    bool? isDefault = null;
+    if (address.TryGetProperty("isDefault", out var rawDefault) && rawDefault.ValueKind is JsonValueKind.True or JsonValueKind.False)
+    {
+        isDefault = rawDefault.GetBoolean();
+    }
+    var label = RequiredString(address, "label", "address.label", details);
+    var street = RequiredString(address, "street", "address.street", details);
+    var number = RequiredString(address, "number", "address.number", details);
+    var complement = OptionalString(address, "complement", "address.complement", details);
+    var district = RequiredString(address, "district", "address.district", details);
+    var city = RequiredString(address, "city", "address.city", details);
+    var state = RequiredString(address, "state", "address.state", details);
+    if (!string.IsNullOrEmpty(state) && (state.Length != 2 || !state.All(character => character is >= 'A' and <= 'Z' or >= 'a' and <= 'z')))
+    {
+        details.Add(OneDetail("address.state", "Must contain exactly 2 ASCII letters"));
+    }
+    else if (!string.IsNullOrEmpty(state))
+    {
+        state = state.ToUpperInvariant();
+    }
+    var postalCode = RequiredString(address, "postalCode", "address.postalCode", details);
+    var result = new AddressInput(
+        label,
+        street,
+        number,
+        complement,
+        district,
+        city,
+        state,
+        postalCode,
+        isDefault
+    );
+    if (isDefault is null) details.Add(OneDetail("address.isDefault", "Required boolean"));
+    return result;
 }
 
-static void Required(List<Dictionary<string, string>> details, string field, string? value)
+static string RequiredString(JsonElement raw, string key, string field, List<Dictionary<string, string>> details)
 {
-    if (string.IsNullOrWhiteSpace(value)) details.Add(OneDetail(field, "Required non-empty string"));
+    if (!raw.TryGetProperty(key, out var value) || value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
+    {
+        details.Add(OneDetail(field, "Required non-empty string"));
+        return "";
+    }
+    return value.GetString()!.Trim();
+}
+
+static string? OptionalString(JsonElement raw, string key, string field, List<Dictionary<string, string>> details)
+{
+    if (!raw.TryGetProperty(key, out var value) || value.ValueKind == JsonValueKind.Null) return null;
+    if (value.ValueKind != JsonValueKind.String)
+    {
+        details.Add(OneDetail(field, "Must be a string or null"));
+        return null;
+    }
+    return value.GetString()!.Trim();
+}
+
+static IntegerInput IntegerField(JsonElement raw, string key, string field, List<Dictionary<string, string>> details)
+{
+    if (raw.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.Number &&
+        value.TryGetDecimal(out var number) && number >= 1 && number <= int.MaxValue && decimal.Truncate(number) == number)
+    {
+        return new IntegerInput((int)number, true);
+    }
+    details.Add(OneDetail(field, "Must be a positive integer"));
+    return new IntegerInput(0, false);
+}
+
+static ValidationResult<T> Validated<T>(T value, List<Dictionary<string, string>> details)
+{
+    return details.Count == 0
+        ? new ValidationResult<T>(value, null)
+        : new ValidationResult<T>(default, new ApiError(400, "VALIDATION_ERROR", "Invalid request payload", details));
 }
 
 static ParseResult PositiveInt(string value, string field)
 {
-    return int.TryParse(value, out var parsed) && parsed > 0
+    return value.Length > 0 && value.All(character => character is >= '0' and <= '9') && int.TryParse(value, out var parsed) && parsed > 0
         ? new ParseResult(parsed, null)
         : new ParseResult(0, new ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", Detail(field, "Must be a positive integer")));
 }
 
 static PaginationResult ParsePagination(HttpRequest request)
 {
-    var page = PositiveInt(string.IsNullOrWhiteSpace(request.Query["page"]) ? "1" : request.Query["page"].ToString(), "page");
+    var page = PositiveInt(request.Query.ContainsKey("page") ? request.Query["page"].ToString() : "1", "page");
     if (page.Error is not null) return new PaginationResult(0, 0, page.Error);
-    var pageSize = PositiveInt(string.IsNullOrWhiteSpace(request.Query["pageSize"]) ? "50" : request.Query["pageSize"].ToString(), "pageSize");
+    var pageSize = PositiveInt(request.Query.ContainsKey("pageSize") ? request.Query["pageSize"].ToString() : "50", "pageSize");
     if (pageSize.Error is not null) return new PaginationResult(0, 0, pageSize.Error);
     if (pageSize.Value > 100) return new PaginationResult(0, 0, new ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", Detail("pageSize", "Must be between 1 and 100")));
     return new PaginationResult(page.Value, pageSize.Value, null);
@@ -607,10 +779,49 @@ record Settings(string ConnectionString)
 record ApiError(int Status, string Code, string Message, List<Dictionary<string, string>>? Details = null);
 record ParseResult(int Value, ApiError? Error);
 record PaginationResult(int Page, int PageSize, ApiError? Error);
-record JsonRead<T>(T? Value, ApiError? Error);
+record JsonObjectRead(JsonElement Value, ApiError? Error);
+record ValidationResult<T>(T? Value, ApiError? Error);
 record AddressInput(string? Label, string? Street, string? Number, string? Complement, string? District, string? City, string? State, string? PostalCode, bool? IsDefault);
 record CreateCustomerRequest(string? FullName, string? Email, string? DocumentNumber, string? Phone, AddressInput? Address);
 record UpdateCustomerRequest(string? FullName, string? Phone, string? Status, AddressInput? Address);
-record OrderItemInput(int ProductId, int Quantity);
+readonly record struct IntegerInput(int Value, bool Valid);
+
+sealed class IntegerInputJsonConverter : JsonConverter<IntegerInput>
+{
+    public override IntegerInput Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number && reader.TryGetDecimal(out var value) &&
+            value >= 1 && value <= int.MaxValue && decimal.Truncate(value) == value)
+        {
+            return new IntegerInput((int)value, true);
+        }
+        if (reader.TokenType is JsonTokenType.StartArray or JsonTokenType.StartObject)
+        {
+            using var ignored = JsonDocument.ParseValue(ref reader);
+        }
+        return new IntegerInput(0, false);
+    }
+
+    public override void Write(Utf8JsonWriter writer, IntegerInput value, JsonSerializerOptions options) =>
+        writer.WriteNumberValue(value.Value);
+}
+
+record OrderItemInput(
+    [property: JsonConverter(typeof(IntegerInputJsonConverter))] IntegerInput ProductId,
+    [property: JsonConverter(typeof(IntegerInputJsonConverter))] IntegerInput Quantity
+);
 record PaymentInput(string? Method);
-record CreateOrderRequest(int CustomerId, int AddressId, List<OrderItemInput>? Items, PaymentInput? Payment);
+record CreateOrderRequest(
+    [property: JsonConverter(typeof(IntegerInputJsonConverter))] IntegerInput CustomerId,
+    [property: JsonConverter(typeof(IntegerInputJsonConverter))] IntegerInput AddressId,
+    List<OrderItemInput>? Items,
+    PaymentInput? Payment
+);
+
+static class JsonDefaults
+{
+    public static readonly JsonSerializerOptions Audit = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+}

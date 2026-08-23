@@ -69,6 +69,24 @@ def sample() -> list[dict[str, object]]:
     return rows
 
 
+def timestamp_epoch(value: object) -> float:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+
+
+def measured_rows(rows: list[dict[str, object]], bounds_path: Path | None) -> list[dict[str, object]]:
+    if bounds_path is None:
+        return rows
+    if not bounds_path.exists():
+        raise RuntimeError(f"Measurement bounds were not produced: {bounds_path}")
+    bounds = json.loads(bounds_path.read_text(encoding="utf-8"))
+    start = float(bounds["started_epoch"])
+    end = float(bounds["finished_epoch"])
+    selected = [row for row in rows if start <= timestamp_epoch(row["timestamp_utc"]) <= end]
+    if not selected:
+        raise RuntimeError(f"No Docker statistics inside measurement bounds: {start}..{end}")
+    return selected
+
+
 def write_summary(path: Path, rows: list[dict[str, object]]) -> None:
     grouped: dict[str, list[dict[str, object]]] = defaultdict(list)
     for row in rows:
@@ -104,6 +122,7 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--stop-file", required=True)
     parser.add_argument("--interval", type=float, default=2.0)
+    parser.add_argument("--bounds")
     args = parser.parse_args()
     output = Path(args.output)
     stop_file = Path(args.stop_file)
@@ -125,8 +144,9 @@ def main() -> int:
 
     if not rows:
         raise RuntimeError("No Docker statistics were collected")
-    write_summary(output.with_name("docker_stats_summary.csv"), rows)
-    print(f"docker stats samples={len(rows)} output={output}")
+    selected = measured_rows(rows, Path(args.bounds) if args.bounds else None)
+    write_summary(output.with_name("docker_stats_summary.csv"), selected)
+    print(f"docker stats samples={len(rows)} measured_samples={len(selected)} output={output}")
     return 0
 
 

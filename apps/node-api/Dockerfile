@@ -9,6 +9,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY test ./test
+RUN npm test
 
 EXPOSE 8000
 

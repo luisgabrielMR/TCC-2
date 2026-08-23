@@ -10,6 +10,7 @@ COPY requirements.txt requirements.lock ./
 RUN pip install --no-cache-dir -r requirements.lock
 
 COPY app ./app
+RUN python -m compileall -q app
 
 EXPOSE 8000
 

@@ -5,6 +5,7 @@ import json
 import os
 import random
 import threading
+import time
 from itertools import cycle
 from pathlib import Path
 
@@ -13,7 +14,8 @@ from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
-PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", "../../common/payloads"))
+LOCAL_PAYLOAD_DIR = Path(__file__).resolve().parents[2] / "common" / "payloads"
+PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", str(LOCAL_PAYLOAD_DIR)))
 WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
 
@@ -24,6 +26,39 @@ WORKLOAD_SCENARIO = SCENARIO_CONFIG.get("aliases", {}).get(SCENARIO, SCENARIO)
 SCENARIO_ACTIONS = SCENARIO_CONFIG.get("scenarios", {}).get(WORKLOAD_SCENARIO)
 if SCENARIO != "smoke" and not SCENARIO_ACTIONS:
     raise RuntimeError(f"Unknown Locust scenario: {SCENARIO}")
+
+measurement_started_epoch: float | None = None
+
+
+def measurement_bounds_path(environment) -> Path | None:
+    options = environment.parsed_options
+    prefix = getattr(options, "csv_prefix", None) if options else None
+    return Path(f"{prefix}_measurement_bounds.json") if prefix else None
+
+
+@events.test_start.add_listener
+def record_measurement_start(environment, **_kwargs) -> None:
+    global measurement_started_epoch
+    measurement_started_epoch = time.time()
+    path = measurement_bounds_path(environment)
+    if path:
+        path.write_text(json.dumps({"started_epoch": measurement_started_epoch, "finished_epoch": None}), encoding="utf-8")
+
+
+@events.test_stop.add_listener
+def record_measurement_stop(environment, **_kwargs) -> None:
+    finished_epoch = time.time()
+    path = measurement_bounds_path(environment)
+    if not path or measurement_started_epoch is None:
+        return
+    path.write_text(
+        json.dumps({
+            "started_epoch": measurement_started_epoch,
+            "finished_epoch": finished_epoch,
+            "elapsed_seconds": finished_epoch - measurement_started_epoch,
+        }, separators=(",", ":")),
+        encoding="utf-8",
+    )
 
 
 @events.quitting.add_listener

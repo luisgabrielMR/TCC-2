@@ -33,9 +33,4 @@ async def api_error_handler(_: Request, exc: ApiError) -> JSONResponse:
 
 
 async def generic_error_handler(_: Request, exc: Exception) -> JSONResponse:
-    return error_response(
-        500,
-        "INTERNAL_ERROR",
-        "Internal server error",
-        [{"message": str(exc)}],
-    )
+    return error_response(500, "INTERNAL_ERROR", "Internal server error")

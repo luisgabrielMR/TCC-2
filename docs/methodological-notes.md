@@ -29,26 +29,26 @@ Cada ecossistema implementa pooling de modo diferente. A comparacao preserva a m
 - Python/psycopg_pool: aplica minimo, maximo, espera de aquisicao, ociosidade e vida maxima.
 - Node.js/pg: aplica maximo, espera, ociosidade e vida maxima; `min` nao preabre conexoes.
 - Java/HikariCP: aplica todos os cinco parametros diretamente.
-- Go/database/sql: aplica maximo, minimo ocioso, ociosidade e vida maxima; o tempo de aquisicao e usado no `PingContext` inicial porque nao ha opcao global equivalente por aquisicao.
+- Go/database/sql: aplica o maximo a conexoes abertas e ociosas, preabre o minimo e limita cada operacao de banco por contexto; isso evita churn de conexoes e cobre a espera por aquisicao.
 - .NET/Npgsql: aplica todos os cinco parametros na connection string.
 
 ## Warmup
 
 O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada principal:
 
-- duracao inicial: 180 segundos
+- duracao fixa: 300 segundos para todas as linguagens
 - usuarios e spawn rate: iguais aos da medicao (50/10, 100/20 ou 200/40)
 - cobertura: mesmas leituras, escritas e pesos do cenario medido
 - estabilidade: variacao maxima de 10% entre cada par das tres ultimas janelas de 45 segundos com a concorrencia completa
 - concorrencia: o pico observado deve ser exatamente o numero de usuarios configurado para o perfil
-- tentativa adicional: 300 segundos, ou 600 segundos no Java, com banco resetado e API mantida ativa
+- falha de estabilidade: interrompe a rodada; nao existe duracao especial ou repeticao automatica por linguagem
 - resultado fora da coleta principal
 - API nao reiniciada entre warmup e teste principal
 - banco resetado depois do warmup sem derrubar a API
 - banco resetado novamente depois da coleta principal
-- `ANALYZE` executado em cada reset para que o PostgreSQL nao atualize estatisticas do planejador no meio da medicao
+- `VACUUM (ANALYZE)`, `CHECKPOINT` e `pg_stat_reset()` executados em cada reset para iniciar a medicao com planos, tuplas mortas, escrita pendente e contadores cumulativos estabilizados
 
-Se o aquecimento continuar instavel ou alguma rota esperada nao for chamada, a medicao principal nao comeca. Isso evita que o JIT do Java ou caminhos de escrita ainda frios sejam medidos como estado estacionario.
+Se o aquecimento estiver instavel ou alguma rota esperada nao for chamada, a medicao principal nao comeca. Isso evita que o JIT do Java ou caminhos de escrita ainda frios sejam medidos como estado estacionario sem favorecer uma implementacao com tempo adicional.
 
 ## Payloads e estoque
 
@@ -56,23 +56,33 @@ Os arquivos JSONL em `common/payloads/` sao gerados antes da coleta e lidos sequ
 
 O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir. Assim, esgotamento de produto nao favorece APIs mais lentas nem penaliza APIs mais rapidas.
 
-O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark durante a carga. Cada reset usa `TRUNCATE`, que remove tuplas mortas, e executa `ANALYZE` de forma explicita. Isso evita que manutencao em segundo plano ocorra em instantes diferentes para cada linguagem.
+O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark durante a carga. Cada reset usa `TRUNCATE`, repoe o seed, executa `VACUUM (ANALYZE)` e `CHECKPOINT` e zera as estatisticas cumulativas do banco. Isso evita que manutencao em segundo plano, a escrita inicial do seed ou contadores herdados ocorram em instantes diferentes para cada linguagem.
 
 ## Metricas comparaveis
 
-Latencia, throughput e falhas HTTP sao medidos pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`. CPU, memoria e rede dos containers sao amostradas continuamente por `docker stats` e preservadas em CSV bruto e consolidado.
+Latencia, throughput e falhas HTTP sao medidos pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. O proprio Locust grava os instantes exatos de `test_start` e `test_stop`. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`; disponibilidade, conexoes, transacoes, blocos, cache hit ratio e tamanho do banco sao reduzidos para `postgres_summary.csv` na mesma janela. Pela especificacao do TCC, cAdvisor e a fonte primaria de CPU e memoria da API, PostgreSQL e Locust. `docker stats` e coletado na mesma janela apenas como evidencia complementar ou contingencial.
 
-O tempo total medido comeca imediatamente antes da preparacao da execucao principal do Locust e termina depois da fotografia final. Build, contrato, warmup, resets e exportacao posterior ficam fora de `test_phase.elapsed_seconds`. Rodadas antigas usam a janela da coleta de recursos como aproximacao e sao identificadas como `metrics_window_legacy`.
+Para CPU oficial, o exportador consulta o contador bruto `container_cpu_usage_seconds_total` e calcula os deltas somente entre amostras contidas nos limites `test_start`/`test_stop`. Isso impede que uma janela retrospectiva de `rate()` incorpore CPU do aquecimento. IDs observados pelo coletor continuo identificam inclusive o container Locust transitorio; labels/nome sao apenas fallback.
+
+O `benchmark-results-exporter` e um componente proprio em Python, sem framework web ou dependencias externas. Ele le os CSVs e JSONs ja produzidos por Locust, cAdvisor/Prometheus, postgres-exporter e `docker stats` e os publica em `/metrics` para os dashboards do Grafana. Para metodologia 6 oficial, CPU e memoria sao aceitas somente de `cadvisor_summary.csv`, e recursos so ficam disponiveis quando `postgres_summary.csv` tambem existe; `docker_stats_summary.csv` permanece diagnostico de pilotos e legado. Ele nao instrumenta as APIs, nao substitui os arquivos oficiais e permanece ativo sob a mesma configuracao em todas as linguagens.
+
+`test_phase.elapsed_seconds` e calculado exclusivamente entre `test_start` e `test_stop`. O tempo total do processo Locust e preservado separadamente como `runner_elapsed_seconds`. Build, contrato, warmup, resets, inicializacao do runner e exportacao posterior ficam fora da duracao oficial.
 
 Cada rodada tambem registra `measurement_stability`: RPS da primeira e da ultima janela, mudanca percentual assinada e variacao entre as tres janelas finais. Janelas finais instaveis sao classificadas primeiro como oscilacao. Quando elas estao estaveis, crescimento acima de 10% durante a fase medida e marcado como possivel aquecimento tardio; queda acima de 10% permanece visivel para distinguir aquecimento, saturacao e instabilidade.
 
-O cAdvisor permanece disponivel para Linux. No Docker Desktop com armazenamento containerd, ele pode nao publicar series por container; por isso, o resultado oficial de recursos usa a coleta continua de `docker stats`, igual para as cinco APIs. As APIs nao expoem `/metrics`, evitando instrumentacao e custo diferentes entre linguagens.
+Se o target cAdvisor responder sem publicar series identificaveis por container, a limitacao nao e mascarada: `scripts/validate_monitoring.py` bloqueia `official` e registra separadamente API, PostgreSQL e Locust ausentes. O resultado de `docker stats` pode ser analisado em pilotos, mas nao recebe classificacao oficial enquanto o TCC mantiver cAdvisor como requisito. As APIs nao expoem `/metrics`, evitando instrumentacao e custo diferentes entre linguagens.
 
 O percentual de CPU do `docker stats` e expresso por nucleo logico: aproximadamente 100% representa um nucleo totalmente utilizado. Em uma maquina com varios nucleos, um container multithread pode ultrapassar 100% sem exceder a capacidade total disponivel.
 
 ## Execucao separada
 
 A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma linguagem, aquece, coleta, encerra e somente entao inicia a proxima.
+
+Cada perfil executa tres repeticoes por padrao. A ordem das linguagens e rotacionada entre repeticoes para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; uma combinacao linguagem/perfil com menos de tres rodadas e marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, ordem nao rotacionada, variacao de RPS acima de 10%, instabilidade interna ou saturacao do gerador de carga invalidam a combinacao.
+
+## Proveniencia e classificacao
+
+A metodologia atual e `6`. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo e cAdvisor validado. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 

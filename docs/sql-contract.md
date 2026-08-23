@@ -11,6 +11,8 @@ Todas as APIs devem usar SQL direto, parametrizado e logicamente equivalente. A 
 - Não adicionar cache de aplicação durante a coleta principal.
 - Não mudar o estado do banco fora dos endpoints definidos.
 - Implementar `POST /orders` em transação.
+- Implementar `POST /customers` e `PUT /customers/{id}` em transacao.
+- Reverter a transacao em qualquer erro, inclusive `404`, `409` e falha do driver.
 - Registrar diferenças inevitáveis de sintaxe no README da API correspondente.
 
 ## GET /customers/{id}
@@ -28,7 +30,8 @@ Parâmetros:
 
 ## GET /customers
 
-Consulta paginada com ordenação estável.
+Consulta paginada com ordenação estável e o mesmo `LEFT JOIN` do endereco padrao
+usado na consulta individual. Cliente sem endereco padrao retorna `address: null`.
 
 Parâmetros:
 
@@ -41,7 +44,7 @@ Parâmetros:
 
 ## POST /customers
 
-Transação recomendada:
+Transação obrigatória:
 
 1. Inserir cliente.
 2. Inserir endereço.
@@ -52,10 +55,11 @@ Erros de unicidade devem ser convertidos para `409 CONFLICT`.
 
 ## PUT /customers/{id}
 
-Transação recomendada:
+Transação obrigatória:
 
 1. Atualizar cliente.
-2. Atualizar endereço principal.
+2. Atualizar endereço principal; inserir o endereco recebido se nenhum endereco
+   padrao existir.
 3. Inserir audit log.
 4. Retornar cliente atualizado.
 
@@ -91,6 +95,10 @@ Transação obrigatória:
 
 Estoque insuficiente deve retornar `409 CONFLICT`.
 
+Indice usado:
+
+- `idx_order_items_order` no calculo do total do pedido.
+
 ## GET /orders/{id}
 
 Consulta pedido completo com joins entre:
@@ -104,3 +112,19 @@ Consulta pedido completo com joins entre:
 - `payments`
 
 O formato JSON final pode ser montado na aplicação para manter equivalência entre linguagens.
+A consulta deve selecionar todos os campos usados nos objetos de pedido, cliente,
+endereco, item, produto, categoria e pagamento.
+
+## Estado final e auditoria
+
+`database/scripts/capture_contract_state.sql` produz o snapshot canonico usado
+pelos testes entre linguagens. Ele compara contagens, registros alterados, estoque,
+sequencias e payloads JSONB de `audit_logs`; apenas timestamps gerados durante a
+execucao sao excluidos. Os payloads de criacao de cliente, atualizacao de cliente
+e criacao de pedido usam as mesmas chaves `camelCase` nas cinco APIs.
+
+Indices usados:
+
+- chave primaria de `orders`.
+- `idx_order_items_order`.
+- indice `UNIQUE` de `payments.order_id`.
