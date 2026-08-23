@@ -18,6 +18,7 @@ Abra `launchers/windows/00_MENU_TESTES.bat` e escolha uma opcao pelo numero. Os 
 - `16_CAPACIDADE_100_USUARIOS.bat`: piloto das cinco APIs com 100 usuarios.
 - `17_CAPACIDADE_200_USUARIOS.bat`: piloto das cinco APIs com 200 usuarios.
 - `18_BATERIA_50_100_200.bat`: solicita bateria oficial, tres repeticoes, rotacao e preflight estrito.
+- `19_ABRIR_GRAFANA.bat`: abre o Grafana no navegador.
 
 Os atalhos `07` a `12`, `16` e `17` gravam `non_official`. O atalho `18` so inicia com Docker 29.7.2, Compose 5.3.1, Git limpo e cAdvisor validado. Todos selecionam uma nova pasta `run_N` automaticamente.
 
@@ -38,4 +39,4 @@ Use `./launchers/linux-wsl/menu-testes.sh` ou os atalhos individuais:
 ./scripts/run_capacity_battery.sh
 ```
 
-Abra o Docker Desktop antes dos atalhos Windows. O cAdvisor ja foi validado por ID real, mas o estado atual deste host ainda nao atende as versoes Docker/Compose nem o Git limpo exigidos para oficial; use pilotos ate corrigir o ambiente externamente e versionar as mudancas.
+Abra o Docker Desktop antes dos atalhos Windows. O cAdvisor ja foi validado por ID real e as versoes de Docker e Compose deste host sao as registradas pelo experimento. A bateria oficial exige apenas que a arvore Git esteja limpa e que a verificacao completa e o preflight oficial tenham sido reexecutados nesse mesmo commit.
