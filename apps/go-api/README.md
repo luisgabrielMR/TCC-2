@@ -8,6 +8,7 @@ API Go do experimento, implementada com uso mínimo de framework.
 - PostgreSQL: `database/sql` com driver `github.com/lib/pq`.
 - Pool: configuração explícita do próprio `sql.DB`.
 - ORM: não usado.
+- Valores monetários: `numeric` chega como texto pelo `lib/pq` e é normalizado para duas casas na aplicação, sem cast no SQL.
 
 ## Executar via Docker Compose
 

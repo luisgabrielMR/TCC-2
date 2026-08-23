@@ -32,6 +32,10 @@ Cada ecossistema implementa pooling de modo diferente. A comparacao preserva a m
 - Go/database/sql: aplica o maximo a conexoes abertas e ociosas, preabre o minimo e limita cada operacao de banco por contexto; isso evita churn de conexoes e cobre a espera por aquisicao.
 - .NET/Npgsql: aplica todos os cinco parametros na connection string.
 
+## Tipos numericos e formatacao monetaria
+
+Valores `numeric` chegam como texto nos drivers `lib/pq` (Go) e `pg` (Node.js), e como tipo decimal em psycopg (`Decimal`), JDBC (`BigDecimal`) e Npgsql (`decimal`). Essa diferenca e do driver, nao do SQL: as cinco APIs enviam exatamente o mesmo texto de consulta ao PostgreSQL, sem cast de conversao, e normalizam o valor para string de duas casas na camada de aplicacao antes de serializar o JSON. Nenhuma implementacao delega a formatacao decimal ao banco.
+
 ## Warmup
 
 O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada principal:

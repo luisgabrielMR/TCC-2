@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"math"
+	"math/big"
 	"net/http"
 	"os"
 	"runtime"
@@ -335,7 +336,7 @@ func (a *app) products(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, map[string]any{
 			"id": id, "categoryId": catID, "sku": sku, "name": name,
-			"unitPrice": price, "stockQuantity": stock, "active": active,
+			"unitPrice": money(price), "stockQuantity": stock, "active": active,
 		})
 	}
 	if err := rows.Err(); err != nil {
@@ -559,7 +560,7 @@ func (a *app) createOrder(w http.ResponseWriter, r *http.Request) {
 	for _, item := range payload.Items {
 		var productID, stock int
 		var price string
-		if err := tx.QueryRowContext(r.Context(), "SELECT id, unit_price::text, stock_quantity FROM products WHERE id = $1 AND active = true FOR UPDATE", item.ProductID.Value).Scan(&productID, &price, &stock); err != nil {
+		if err := tx.QueryRowContext(r.Context(), "SELECT id, unit_price, stock_quantity FROM products WHERE id = $1 AND active = true FOR UPDATE", item.ProductID.Value).Scan(&productID, &price, &stock); err != nil {
 			writeError(w, notFoundOrDB(err, "Product not found"))
 			return
 		}
@@ -583,7 +584,7 @@ func (a *app) createOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var total string
-	if err := tx.QueryRowContext(r.Context(), "UPDATE orders SET total_amount = (SELECT sum(total_price)::numeric(12, 2) FROM order_items WHERE order_id = $1), status = 'paid', updated_at = now() WHERE id = $2 RETURNING total_amount::text", orderID, orderID).Scan(&total); err != nil {
+	if err := tx.QueryRowContext(r.Context(), "UPDATE orders SET total_amount = (SELECT sum(total_price)::numeric(12, 2) FROM order_items WHERE order_id = $1), status = 'paid', updated_at = now() WHERE id = $2 RETURNING total_amount", orderID, orderID).Scan(&total); err != nil {
 		writeError(w, dbError(err))
 		return
 	}
@@ -700,18 +701,18 @@ func addressJSON(row customerRow) map[string]any {
 func orderBaseJSON(r orderRow) map[string]any {
 	addr := map[string]any{"id": r.AddressID, "label": r.Label.String, "street": r.Street.String, "number": r.Number.String, "complement": nullableString(r.Complement), "district": r.District.String, "city": r.City.String, "state": r.State.String, "postalCode": r.PostalCode.String, "isDefault": r.IsDefault}
 	return map[string]any{
-		"id": r.OrderID, "status": r.OrderStatus, "totalAmount": r.TotalAmount,
+		"id": r.OrderID, "status": r.OrderStatus, "totalAmount": money(r.TotalAmount),
 		"customer":  map[string]any{"id": r.CustomerID, "fullName": r.FullName, "email": r.Email, "documentNumber": r.DocumentNumber, "phone": nullableString(r.Phone), "status": r.CustomerStatus, "address": addr, "createdAt": r.CustomerCreatedAt.UTC().Format(time.RFC3339), "updatedAt": r.CustomerUpdatedAt.UTC().Format(time.RFC3339)},
 		"address":   addr,
-		"payment":   map[string]any{"id": r.PaymentID, "method": r.PaymentMethod, "status": r.PaymentStatus, "amount": r.PaymentAmount, "paidAt": nullableInstant(r.PaidAt)},
+		"payment":   map[string]any{"id": r.PaymentID, "method": r.PaymentMethod, "status": r.PaymentStatus, "amount": money(r.PaymentAmount), "paidAt": nullableInstant(r.PaidAt)},
 		"createdAt": r.OrderCreatedAt.UTC().Format(time.RFC3339), "updatedAt": r.OrderUpdatedAt.UTC().Format(time.RFC3339),
 	}
 }
 
 func itemJSON(r orderRow) map[string]any {
 	return map[string]any{
-		"id": r.ItemID, "quantity": r.Quantity, "unitPrice": r.ItemUnitPrice, "totalPrice": r.ItemTotalPrice,
-		"product": map[string]any{"id": r.ProductID, "categoryId": r.CategoryID, "categoryName": r.CategoryName, "sku": r.SKU, "name": r.ProductName, "unitPrice": r.ProductUnitPrice, "stockQuantity": r.StockQuantity, "active": r.Active},
+		"id": r.ItemID, "quantity": r.Quantity, "unitPrice": money(r.ItemUnitPrice), "totalPrice": money(r.ItemTotalPrice),
+		"product": map[string]any{"id": r.ProductID, "categoryId": r.CategoryID, "categoryName": r.CategoryName, "sku": r.SKU, "name": r.ProductName, "unitPrice": money(r.ProductUnitPrice), "stockQuantity": r.StockQuantity, "active": r.Active},
 	}
 }
 
@@ -941,6 +942,14 @@ func positiveInt(value, field string) (int, error) {
 	return parsed, nil
 }
 
+func money(raw string) string {
+	value, ok := new(big.Rat).SetString(raw)
+	if !ok {
+		return raw
+	}
+	return value.FloatString(2)
+}
+
 func notFoundOrDB(err error, message string) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return apiError{Status: 404, Code: "NOT_FOUND", Message: message}
@@ -994,7 +1003,7 @@ ORDER BY c.created_at, c.id
 LIMIT $1 OFFSET $2`
 
 const listProductsSQL = `
-SELECT id, category_id, sku, name, unit_price::text, stock_quantity, active
+SELECT id, category_id, sku, name, unit_price, stock_quantity, active
 FROM products
 WHERE category_id = $1 AND active = true
 ORDER BY id`
@@ -1022,13 +1031,13 @@ SET label = $1, street = $2, number = $3, complement = $4, district = $5, city =
 WHERE customer_id = $10 AND is_default = true`
 
 const getOrderSQL = `
-SELECT o.id, o.status, o.total_amount::text, o.created_at, o.updated_at,
+SELECT o.id, o.status, o.total_amount, o.created_at, o.updated_at,
        c.id, c.full_name, c.email, c.document_number, c.phone, c.status, c.created_at, c.updated_at,
        a.id, a.label, a.street, a.number, a.complement, a.district, a.city, a.state, a.postal_code, a.is_default,
-       oi.id, oi.quantity, oi.unit_price::text, oi.total_price::text,
-       p.id, p.sku, p.name, p.unit_price::text, p.stock_quantity, p.active,
+       oi.id, oi.quantity, oi.unit_price, oi.total_price,
+       p.id, p.sku, p.name, p.unit_price, p.stock_quantity, p.active,
        cat.id, cat.name,
-       pay.id, pay.method, pay.status, pay.amount::text, pay.paid_at
+       pay.id, pay.method, pay.status, pay.amount, pay.paid_at
 FROM orders o
 JOIN customers c ON c.id = o.customer_id
 JOIN addresses a ON a.id = o.address_id

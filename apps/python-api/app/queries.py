@@ -23,7 +23,7 @@ LEFT JOIN addresses a ON a.customer_id = c.id AND a.is_default = true
 WHERE c.id = %s
 """
 
-COUNT_CUSTOMERS = "SELECT count(*) AS total FROM customers"
+COUNT_CUSTOMERS = "SELECT count(*)::int AS total FROM customers"
 
 LIST_CUSTOMERS = """
 SELECT
