@@ -37,13 +37,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell
 
 Pilotos geram `result_classification=non_official`. Eles podem validar fluxo e observar valores, mas nao entram no dashboard oficial.
 
-## Preparar o Docker oficial
+## Congelar o Docker
 
-O ambiente auditado usa Docker 29.7.2/Compose 5.3.1. A troca e manual: siga `docs/environment-versions.md`, instale a versao candidata do Docker Desktop, desative atualizacoes, preserve 4 CPUs/8 GB na VM WSL2 e confirme os valores com `docker version`, `docker compose version` e `docker info`. Nao execute a bateria se Engine e Compose nao forem exatamente 29.5.2/5.1.4.
+O ambiente registrado usa Docker 29.7.2/Compose 5.3.1, que sao as versoes instaladas neste host e as declaradas na Tabela 1 do TCC. Nao ha troca a fazer. Antes da bateria, siga `docs/environment-versions.md`: desative a atualizacao automatica do Docker Desktop, preserve 4 CPUs/8 GB na VM WSL2 e confirme os valores com `docker version`, `docker compose version` e `docker info`. Nao execute a bateria se Engine e Compose nao forem exatamente 29.7.2/5.3.1.
 
 ## Bateria oficial
 
-Somente depois de revisar/versionar as mudancas, obter Git limpo, instalar Docker 29.5.2/Compose 5.1.4 e executar novamente a verificacao completa nesse ambiente e no mesmo commit. Entao use:
+Somente depois de revisar/versionar as mudancas, obter Git limpo, confirmar Docker 29.7.2/Compose 5.3.1 com a atualizacao automatica desligada e executar novamente a verificacao completa nesse ambiente e no mesmo commit. Entao use:
 
 ```bash
 ./scripts/run_capacity_battery.sh

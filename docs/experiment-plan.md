@@ -43,6 +43,6 @@ Cada perfil oficial executa tres repeticoes. A ordem das cinco linguagens e rota
 Metodologia atual: `6`.
 
 - `pilot`: permitido com ambiente divergente ou Git sujo; resultado `non_official`.
-- `official`: exige Docker 29.5.2, Compose 5.1.4, arvore Git limpa, imagens fixadas, cAdvisor por container, targets saudaveis e `project-verification.json` aprovado no mesmo commit.
+- `official`: exige Docker 29.7.2, Compose 5.3.1, arvore Git limpa, imagens fixadas, cAdvisor por container, targets saudaveis e `project-verification.json` aprovado no mesmo commit.
 
 Os consolidadores agrupam por linguagem, endpoint quando aplicavel, cenario, perfil e metodologia. `legacy`, `non_official` e `official` nunca entram no mesmo agregado. O dashboard oficial aplica os mesmos filtros e so publica recursos quando cAdvisor e postgres-exporter forneceram a janela completa.

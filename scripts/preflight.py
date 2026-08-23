@@ -18,8 +18,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED_DOCKER = "29.5.2"
-EXPECTED_COMPOSE = "5.1.4"
+EXPECTED_DOCKER = "29.7.2"
+EXPECTED_COMPOSE = "5.3.1"
 EXPECTED_IMAGES = {
     "postgres": "postgres:17",
     "locust": "locustio/locust:2.32.6",

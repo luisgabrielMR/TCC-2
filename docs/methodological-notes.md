@@ -86,7 +86,7 @@ Cada perfil executa tres repeticoes por padrao. A ordem das linguagens e rotacio
 
 ## Proveniencia e classificacao
 
-A metodologia atual e `6`. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo e cAdvisor validado. `pilot` permanece executavel, mas e sempre `non_official`.
+A metodologia atual e `6`. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.7.2, Compose 5.3.1, Git limpo e cAdvisor validado. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 

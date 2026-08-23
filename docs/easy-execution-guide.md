@@ -19,7 +19,7 @@ Abra `launchers/windows/00_MENU_TESTES.bat` e escolha uma opcao pelo numero. Os 
 - `17_CAPACIDADE_200_USUARIOS.bat`: piloto das cinco APIs com 200 usuarios.
 - `18_BATERIA_50_100_200.bat`: solicita bateria oficial, tres repeticoes, rotacao e preflight estrito.
 
-Os atalhos `07` a `12`, `16` e `17` gravam `non_official`. O atalho `18` so inicia com Docker 29.5.2, Compose 5.1.4, Git limpo e cAdvisor validado. Todos selecionam uma nova pasta `run_N` automaticamente.
+Os atalhos `07` a `12`, `16` e `17` gravam `non_official`. O atalho `18` so inicia com Docker 29.7.2, Compose 5.3.1, Git limpo e cAdvisor validado. Todos selecionam uma nova pasta `run_N` automaticamente.
 
 ## WSL/Linux
 

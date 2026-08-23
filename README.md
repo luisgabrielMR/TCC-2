@@ -13,7 +13,7 @@ Requisitos para uso local:
 - `curl` para testes manuais
 - Git
 
-Para uma rodada oficial, o TCC exige Docker Engine 29.5.2 e Docker Compose 5.1.4. O host atualmente verificado usa 29.7.2/5.3.1; portanto, ele permite pilotos, mas o preflight bloqueia oficial. A troca do Docker Desktop deve ser manual.
+Para uma rodada oficial, o TCC registra Docker Engine 29.7.2 e Docker Compose 5.3.1, que sao as versoes instaladas e verificadas neste host. Nao ha troca de Docker Desktop a fazer; a exigencia e manter a atualizacao automatica desligada durante a bateria, para que todas as rodadas usem o mesmo ambiente.
 
 ## Configurar ambiente
 
@@ -378,7 +378,7 @@ No WSL/Linux:
 
 ```text
 [ ] Docker esta rodando
-[ ] Docker Engine e 29.5.2 e Compose e 5.1.4
+[ ] Docker Engine e 29.7.2 e Compose e 5.3.1
 [ ] Git esta limpo e o commit foi revisado
 [ ] A verificacao completa gerou project-verification.json para esse mesmo commit limpo
 [ ] PostgreSQL subiu corretamente

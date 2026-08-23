@@ -6,8 +6,8 @@ Estado verificado em 23 de agosto de 2026. A fonte reproduzivel e `scripts/prefl
 
 | Componente | Versao exigida |
 | --- | --- |
-| Docker Engine | 29.5.2 |
-| Docker Compose | 5.1.4 |
+| Docker Engine | 29.7.2 |
+| Docker Compose | 5.3.1 |
 | PostgreSQL | `postgres:17` |
 | Locust | `locustio/locust:2.32.6` |
 | Prometheus | `prom/prometheus:v2.55.1` |
@@ -35,14 +35,14 @@ Todas as imagens de infraestrutura e todos os `FROM` das APIs estao fixados por 
 | Alocacao Docker Desktop | 4 processadores logicos e 7,76 GiB |
 | Kernel Docker Desktop/WSL2 | 6.18.33.1 |
 
-O Docker Engine e o Compose instalados nao coincidem com o TCC. `--mode official` bloqueia a execucao; `--mode pilot` permite apenas resultado `non_official`. A troca das versoes do Docker Desktop e uma acao manual externa e nao e feita pelos scripts.
+O Docker Engine e o Compose instalados sao exatamente os registrados pelo experimento, e o `--mode official` nao bloqueia mais por versao. A partir deste ponto a exigencia deixa de ser trocar o Docker Desktop e passa a ser congela-lo: qualquer atualizacao automatica durante a bateria passaria a misturar ambientes entre rodadas.
 
-## Intervencao manual para as versoes oficiais
+## Congelamento do ambiente
 
-1. Preserve os dados necessarios antes de trocar o Docker Desktop. A documentacao oficial alerta que a desinstalacao pode remover containers, imagens e volumes: <https://docs.docker.com/desktop/settings-and-maintenance/backup-and-restore/>.
-2. Encerre o Docker Desktop e instale manualmente o Docker Desktop 4.76.0 para Windows a partir das notas oficiais: <https://docs.docker.com/desktop/release-notes/#4760>. A sequencia oficial de releases registra Engine 29.5.2 na versao 4.75.0 e Compose 5.1.4 na 4.76.0; a instalacao so pode ser aceita depois da verificacao dos binarios reais.
-3. Em `Settings > General`, desative `Always download updates` e `Automatically update components` durante a bateria. Referencia: <https://docs.docker.com/desktop/settings-and-maintenance/settings/>.
-4. Mantenha a alocacao experimental declarada em `%UserProfile%\.wslconfig`:
+Nenhuma troca de Docker Desktop e necessaria. Antes de iniciar a bateria oficial:
+
+1. Em `Settings > General`, desative `Always download updates` e `Automatically update components` durante a bateria. Referencia: <https://docs.docker.com/desktop/settings-and-maintenance/settings/>.
+2. Mantenha a alocacao experimental declarada em `%UserProfile%\.wslconfig`:
 
 ```ini
 [wsl2]
@@ -50,7 +50,7 @@ processors=4
 memory=8GB
 ```
 
-5. Execute `wsl --shutdown`, abra novamente o Docker Desktop e valide:
+3. Execute `wsl --shutdown`, abra novamente o Docker Desktop e valide:
 
 ```powershell
 docker version --format '{{.Server.Version}}'
@@ -58,7 +58,7 @@ docker compose version --short
 docker info --format 'CPUs={{.NCPU}} memoria_bytes={{.MemTotal}} kernel={{.KernelVersion}} storage={{.Driver}} so={{.OperatingSystem}} cgroup={{.CgroupVersion}}'
 ```
 
-O resultado esperado para os dois primeiros comandos e `29.5.2` e `5.1.4`. A memoria efetiva pode ser ligeiramente menor que 8 GiB por sobrecarga da VM; o valor de `docker info`, e nao os 32 GB fisicos do host, e o valor registrado para os containers. Alterar 4 CPUs/8 GB exige uma nova versao metodologica e repeticao integral das rodadas. A configuracao WSL e documentada em <https://learn.microsoft.com/pt-br/windows/wsl/wsl-config>.
+O resultado esperado para os dois primeiros comandos e `29.7.2` e `5.3.1`, os mesmos valores registrados na Tabela 1 do TCC. A memoria efetiva pode ser ligeiramente menor que 8 GiB por sobrecarga da VM; o valor de `docker info`, e nao os 32 GB fisicos do host, e o valor registrado para os containers. Alterar 4 CPUs/8 GB exige uma nova versao metodologica e repeticao integral das rodadas. A configuracao WSL e documentada em <https://learn.microsoft.com/pt-br/windows/wsl/wsl-config>.
 
 ## Runtimes e bibliotecas
 
