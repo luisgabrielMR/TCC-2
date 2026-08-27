@@ -1,41 +1,61 @@
+INICIO RAPIDO
+
 PRE-REQUISITO
 1. Abrir o Docker Desktop manualmente.
 2. Aguardar aparecer Docker Engine running.
-3. Nao iniciar bateria se outra API estiver usando a porta 8000.
+3. Fechar programas pesados e nao executar outros testes durante a rodada.
 
-VERIFICAR O PROJETO
-1. Duplo clique em 14_VERIFICAR_PROJETO_COMPLETO.bat.
-2. A verificacao reseta apenas benchmark_db e nao cria resultado oficial.
-3. Ao final, conferir a pasta mais recente em results/raw/verification/<data-hora>/, principalmente preflight.json e monitoring-preflight.json.
+ATALHOS PRINCIPAIS
+1. 00_MENU_TESTES.bat: mostra somente as opcoes essenciais.
+2. 01_VERIFICAR_PROJETO.bat: valida banco, APIs, contrato e monitoramento.
+3. 02_PROXIMA_RODADA_OFICIAL.bat: executa uma rodada oficial completa.
+4. 03_ABRIR_GRAFANA.bat: abre os dashboards.
+5. 04_MENU_AVANCADO.bat: preparacao manual, pilotos e testes de capacidade.
 
-TESTE PILOTO
-1. Duplo clique em 07 a 11 para uma linguagem, ou 12 para todas.
-2. Esses atalhos usam controlled_50 e sao marcados non_official.
-3. Para carga extra, usar 16 (100 usuarios) ou 17 (200 usuarios); continuam pilotos.
+ANTES DA PRIMEIRA RODADA OFICIAL
+1. Revisar e versionar todas as alteracoes; git status deve estar limpo.
+2. Executar 01_VERIFICAR_PROJETO.bat no commit limpo.
+3. A verificacao deve concluir e atualizar results/summaries/project-verification.json.
+4. Nao alterar arquivos, Docker ou configuracoes depois da verificacao.
 
-BATERIA OFICIAL
-1. Revisar e versionar todas as mudancas; git status deve estar limpo.
-2. Instalar manualmente Docker Engine 29.5.2 e Docker Compose 5.1.4.
-3. Garantir que cAdvisor publique CPU e memoria da API, PostgreSQL e Locust.
-4. Executar novamente 14_VERIFICAR_PROJETO_COMPLETO.bat nesse ambiente e no commit limpo.
-5. Duplo clique em 18_BATERIA_50_100_200.bat.
-6. O atalho executa 3 repeticoes, perfis 50/100/200 e rotacao da ordem.
-7. Qualquer divergencia de ambiente, Git, comprovante de verificacao ou cAdvisor bloqueia a bateria.
+EXECUTAR AS CINCO RODADAS OFICIAIS
+1. Executar 02_PROXIMA_RODADA_OFICIAL.bat.
+2. O preflight oficial ocorre antes da carga e bloqueia qualquer divergencia.
+3. Conferir a rodada e a ordem mostradas na tela; digitar SIM.
+4. Cada clique executa somente uma rodada completa das cinco APIs.
+5. Repetir em outro momento ate completar 5/5 rodadas.
+6. Cada rodada leva aproximadamente 55 a 75 minutos.
+7. Se houver interrupcao, executar o mesmo atalho novamente; as linguagens ja
+   concluidas como official sao ignoradas e a rodada e retomada.
 
-RESUMOS E GRAFICOS
-1. Duplo clique em 13_RESUMIR_RESULTADOS.bat.
-2. Duplo clique em 15_GERAR_GRAFICOS.bat para o painel HTML.
-3. Duplo clique em 19_ABRIR_GRAFANA.bat para os dois dashboards.
-4. Resultados Oficiais mostra somente classification=official.
-5. Monitoramento e Diagnostico filtra linguagem, endpoint, cenario, perfil, metodologia e rodada.
+METODOLOGIA DA BATERIA
+- perfil: controlled_50;
+- cenario: mixed;
+- 50 usuarios;
+- warmup: 300 segundos por API;
+- medicao: 5 minutos por API, sem incluir o warmup;
+- cinco rodadas completas, totalizando 25 medicoes de API;
+- ordem rotacionada entre as rodadas;
+- reset deterministico do benchmark_db entre APIs;
+- CPU e memoria oficiais coletadas pelo cAdvisor;
+- PostgreSQL coletado pelo postgres-exporter;
+- nenhuma rodada e official se qualquer gate falhar.
+
+RESULTADOS
+1. Executar 03_ABRIR_GRAFANA.bat.
+2. Resultados Oficiais mostra somente classification=official.
+3. Monitoramento e Diagnostico mostra pilotos e detalhes por endpoint.
+4. A primeira rodada oficial pode usar pastas run_2 porque o piloto run_1 foi
+   preservado. A identificacao oficial fica em execution_order.sequence_id.
 
 CRITERIOS DE UMA RODADA OFICIAL
-- preflight sem bloqueios;
-- project-verification.json corresponde ao mesmo commit limpo;
+- Docker ativo e versoes aprovadas pelo preflight;
 - Git limpo e commit registrado;
+- project-verification.json correspondente ao mesmo commit;
 - contrato e estado final equivalentes nas cinco APIs;
-- aquecimento de 300 segundos estavel;
-- janela principal exata, sem aquecimento;
+- aquecimento estavel;
+- janela principal exata;
 - cAdvisor validado para API, PostgreSQL e Locust;
-- postgres-exporter e Prometheus saudaveis;
-- zero falhas HTTP e tres repeticoes com ordem rotacionada.
+- postgres-exporter, Prometheus e Grafana saudaveis;
+- zero falhas HTTP;
+- resultado gravado com result_classification=official.

@@ -82,7 +82,7 @@ O percentual de CPU do `docker stats` e expresso por nucleo logico: aproximadame
 
 A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma linguagem, aquece, coleta, encerra e somente entao inicia a proxima.
 
-Cada perfil executa tres repeticoes por padrao. A ordem das linguagens e rotacionada entre repeticoes para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; uma combinacao linguagem/perfil com menos de tres rodadas e marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, ordem nao rotacionada, variacao de RPS acima de 10%, instabilidade interna ou saturacao do gerador de carga invalidam a combinacao.
+O perfil oficial `controlled_50` executa cinco rodadas completas. A ordem das linguagens e rotacionada entre rodadas para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; uma combinacao linguagem/perfil com menos de tres rodadas continua marcada como preliminar e a coleta planejada so termina em 5/5. Falhas HTTP, metricas ausentes, janela inexata, ordem nao rotacionada, variacao de RPS acima de 10%, instabilidade interna ou saturacao do gerador de carga invalidam a combinacao.
 
 ## Proveniencia e classificacao
 

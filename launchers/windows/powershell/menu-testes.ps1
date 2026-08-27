@@ -111,21 +111,126 @@ function Invoke-RunAll {
     Invoke-RunAllProfile "controlled_50"
 }
 
-function Invoke-CapacityBattery {
-    $environment = Get-BenchmarkEnvironment
-    $repetitions = [int](Get-BenchmarkValue $environment "BENCHMARK_REPETITIONS" "3")
-    $profiles = @("controlled_50", "capacity_100", "capacity_200")
-    for ($round = 1; $round -le $repetitions; $round++) {
-        for ($profileIndex = 0; $profileIndex -lt $profiles.Count; $profileIndex++) {
-            $profile = $profiles[$profileIndex]
-            $offset = ($round - 1 + $profileIndex * 2) % 5
-            Write-Host "Iniciando perfil $profile, repeticao $round/$repetitions, ordem deslocada $offset."
-            Invoke-RunAllProfile $profile $offset "${profile}_round_${round}" "official"
+function Get-OfficialLanguagesForSequence([string]$SequenceId) {
+    $completed = @()
+    foreach ($language in @("python", "node", "java", "go", "dotnet")) {
+        $scenarioDirectory = Join-Path $Root "results/raw/$language/mixed"
+        $metadataFiles = @(Get-ChildItem $scenarioDirectory -Directory -Filter "run_*" -ErrorAction SilentlyContinue |
+            ForEach-Object { Join-Path $_.FullName "metadata.json" } |
+            Where-Object { Test-Path $_ })
+        foreach ($metadataPath in $metadataFiles) {
+            try {
+                $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
+                if ($metadata.result_classification -eq "official" -and
+                    $metadata.execution_order.sequence_id -eq $SequenceId) {
+                    $completed += $language
+                    break
+                }
+            }
+            catch {
+                Write-Warning "Metadata ignorado por estar invalido: $metadataPath"
+            }
         }
     }
-    Remove-Item Env:BENCHMARK_SEQUENCE_ID, Env:BENCHMARK_ORDER_POSITION -ErrorAction SilentlyContinue
+    return @($completed)
+}
+
+function Get-NextOfficialRoundPlan {
+    $environment = Get-BenchmarkEnvironment
+    $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_CONTROLLED_ROUNDS" "5")
+    if ($totalRounds -lt 1) { throw "OFFICIAL_CONTROLLED_ROUNDS deve ser maior que zero." }
+
+    $languages = @("python", "node", "java", "go", "dotnet")
+    for ($round = 1; $round -le $totalRounds; $round++) {
+        $sequenceId = "controlled_50_official_round_${round}_of_${totalRounds}"
+        $completed = @(Get-OfficialLanguagesForSequence $sequenceId)
+        if ($completed.Count -lt $languages.Count) {
+            $offset = ($round - 1) % $languages.Count
+            $ordered = for ($index = 0; $index -lt $languages.Count; $index++) {
+                $languages[($index + $offset) % $languages.Count]
+            }
+            return [pscustomobject]@{
+                all_complete = $false
+                round = $round
+                total_rounds = $totalRounds
+                sequence_id = $sequenceId
+                ordered_languages = @($ordered)
+                completed_languages = @($completed)
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        all_complete = $true
+        round = $totalRounds
+        total_rounds = $totalRounds
+        sequence_id = ""
+        ordered_languages = @()
+        completed_languages = @($languages)
+    }
+}
+
+function Show-OfficialStatus {
+    $plan = Get-NextOfficialRoundPlan
+    if ($plan.all_complete) {
+        Write-Host "Rodadas oficiais: $($plan.total_rounds)/$($plan.total_rounds) completas." -ForegroundColor Green
+        return
+    }
+    Write-Host "Proxima rodada oficial: $($plan.round)/$($plan.total_rounds)" -ForegroundColor Cyan
+    Write-Host "Concluidas nesta rodada: $($plan.completed_languages.Count)/5"
+    Write-Host "Ordem: $($plan.ordered_languages -join ' -> ')"
+}
+
+function Invoke-NextOfficialRound {
+    $plan = Get-NextOfficialRoundPlan
+    if ($plan.all_complete) {
+        Write-Host "As $($plan.total_rounds) rodadas oficiais ja estao completas." -ForegroundColor Green
+        return
+    }
+
+    & docker info *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker Desktop nao esta ativo. Abra-o manualmente e aguarde Docker Engine running."
+    }
+
+    $preflightPath = Join-Path $Root "results/summaries/preflight-official-next.json"
+    Invoke-BenchmarkPython @(
+        (Join-Path $Root "scripts/preflight.py"),
+        "--mode", "official", "--output", $preflightPath
+    )
+
+    Write-Host ""
+    Show-OfficialStatus
+    Write-Host "Cada rodada executa as cinco APIs, com warmup e medicao separados."
+    Write-Host "Tempo estimado: aproximadamente 55 a 75 minutos."
+    $confirmation = Read-Host "Digite SIM para iniciar esta rodada oficial"
+    if ($confirmation.Trim().ToUpperInvariant() -ne "SIM") {
+        Write-Host "Execucao cancelada."
+        return
+    }
+
+    try {
+        for ($index = 0; $index -lt $plan.ordered_languages.Count; $index++) {
+            $language = $plan.ordered_languages[$index]
+            if ($plan.completed_languages -contains $language) {
+                Write-Host "Ignorando ${language}: ja concluida nesta rodada oficial."
+                continue
+            }
+            $env:BENCHMARK_SEQUENCE_ID = $plan.sequence_id
+            $env:BENCHMARK_ORDER_POSITION = "$($index + 1)"
+            Write-Host "Iniciando $language, posicao $($index + 1)/5, rodada oficial $($plan.round)/$($plan.total_rounds)."
+            & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" `
+                -Language $language -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode official
+            if ($LASTEXITCODE -ne 0) { throw "A execucao oficial de $language falhou." }
+        }
+    }
+    finally {
+        Remove-Item Env:BENCHMARK_SEQUENCE_ID, Env:BENCHMARK_ORDER_POSITION -ErrorAction SilentlyContinue
+    }
+
     & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/gerar-graficos.ps1" -NoOpen
-    if ($LASTEXITCODE -ne 0) { throw "A geracao final dos resultados falhou." }
+    if ($LASTEXITCODE -ne 0) { throw "A atualizacao dos resultados falhou." }
+    Write-Host "Rodada oficial $($plan.round)/$($plan.total_rounds) concluida." -ForegroundColor Green
 }
 
 function Invoke-Summarize {
@@ -158,12 +263,92 @@ function Invoke-Action([string]$SelectedAction) {
         "all" { Invoke-RunAll }
         "capacity-100" { Invoke-RunAllProfile "capacity_100" }
         "capacity-200" { Invoke-RunAllProfile "capacity_200" }
-        "capacity-all" { Invoke-CapacityBattery }
+        "official-status" { Show-OfficialStatus }
+        "official-next" { Invoke-NextOfficialRound }
         "summarize" { Invoke-Summarize }
         "verify" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/verificar-projeto.ps1" }
         "charts" { Invoke-Charts }
         "grafana" { Invoke-Grafana }
+        "advanced" { Show-AdvancedMenu }
         default { throw "Acao desconhecida: $SelectedAction" }
+    }
+}
+
+function Show-AdvancedMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "Menu avancado - TCC PostgreSQL Backend Benchmark"
+        Write-Host ""
+        Write-Host "1  Subir PostgreSQL"
+        Write-Host "2  Preparar banco"
+        Write-Host "3  Gerar payloads"
+        Write-Host "4  Validar banco"
+        Write-Host "5  Testar payloads da API ativa"
+        Write-Host "6  Rodar warmup da API ativa"
+        Write-Host "7  Piloto Python mixed"
+        Write-Host "8  Piloto Node.js mixed"
+        Write-Host "9  Piloto Java mixed"
+        Write-Host "10 Piloto Go mixed"
+        Write-Host "11 Piloto .NET mixed"
+        Write-Host "12 Piloto de todas sequencialmente"
+        Write-Host "13 Resumir resultados oficiais"
+        Write-Host "14 Verificar projeto completo"
+        Write-Host "15 Gerar graficos e abrir painel"
+        Write-Host "16 Piloto de capacidade: 100 usuarios"
+        Write-Host "17 Piloto de capacidade: 200 usuarios"
+        Write-Host "18 Proxima rodada oficial controlled_50"
+        Write-Host "19 Abrir Grafana completo"
+        Write-Host "0  Voltar"
+        Write-Host ""
+        $choice = Read-Host "Escolha"
+        switch ($choice) {
+            "1" { Invoke-Action "postgres"; Read-Host "Enter para continuar" }
+            "2" { Invoke-Action "prepare-db"; Read-Host "Enter para continuar" }
+            "3" { Invoke-Action "payloads"; Read-Host "Enter para continuar" }
+            "4" { Invoke-Action "validate-db"; Read-Host "Enter para continuar" }
+            "5" { Invoke-Action "test-payloads"; Read-Host "Enter para continuar" }
+            "6" { Invoke-Action "warmup"; Read-Host "Enter para continuar" }
+            "7" { Invoke-Action "python"; Read-Host "Enter para continuar" }
+            "8" { Invoke-Action "node"; Read-Host "Enter para continuar" }
+            "9" { Invoke-Action "java"; Read-Host "Enter para continuar" }
+            "10" { Invoke-Action "go"; Read-Host "Enter para continuar" }
+            "11" { Invoke-Action "dotnet"; Read-Host "Enter para continuar" }
+            "12" { Invoke-Action "all"; Read-Host "Enter para continuar" }
+            "13" { Invoke-Action "summarize"; Read-Host "Enter para continuar" }
+            "14" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
+            "15" { Invoke-Action "charts"; Read-Host "Enter para continuar" }
+            "16" { Invoke-Action "capacity-100"; Read-Host "Enter para continuar" }
+            "17" { Invoke-Action "capacity-200"; Read-Host "Enter para continuar" }
+            "18" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
+            "19" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
+            "0" { break }
+            default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
+        }
+    }
+}
+
+function Show-SimpleMenu {
+    while ($true) {
+        Clear-Host
+        Write-Host "TCC Benchmark - inicio rapido"
+        Write-Host ""
+        Show-OfficialStatus
+        Write-Host ""
+        Write-Host "1  Verificar projeto"
+        Write-Host "2  Executar proxima rodada oficial"
+        Write-Host "3  Abrir Grafana"
+        Write-Host "4  Menu avancado"
+        Write-Host "0  Sair"
+        Write-Host ""
+        $choice = Read-Host "Escolha"
+        switch ($choice) {
+            "1" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
+            "2" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
+            "3" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
+            "4" { Show-AdvancedMenu }
+            "0" { break }
+            default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
+        }
     }
 }
 
@@ -172,53 +357,4 @@ if ($Action) {
     exit $LASTEXITCODE
 }
 
-while ($true) {
-    Clear-Host
-    Write-Host "Menu de testes - TCC PostgreSQL Backend Benchmark"
-    Write-Host ""
-    Write-Host "1  Subir PostgreSQL"
-    Write-Host "2  Preparar banco"
-    Write-Host "3  Gerar payloads"
-    Write-Host "4  Validar banco"
-    Write-Host "5  Testar payloads da API ativa"
-    Write-Host "6  Rodar warmup da API ativa"
-    Write-Host "7  Piloto Python mixed"
-    Write-Host "8  Piloto Node.js mixed"
-    Write-Host "9  Piloto Java mixed"
-    Write-Host "10 Piloto Go mixed"
-    Write-Host "11 Piloto .NET mixed"
-    Write-Host "12 Piloto de todas sequencialmente"
-    Write-Host "13 Resumir resultados"
-    Write-Host "14 Verificar projeto completo"
-    Write-Host "15 Gerar graficos e abrir painel"
-    Write-Host "16 Piloto de capacidade: 100 usuarios"
-    Write-Host "17 Piloto de capacidade: 200 usuarios"
-    Write-Host "18 Bateria oficial: 3 repeticoes de 50, 100 e 200"
-    Write-Host "19 Abrir Grafana completo"
-    Write-Host "0  Sair"
-    Write-Host ""
-    $choice = Read-Host "Escolha"
-    switch ($choice) {
-        "1" { Invoke-Action "postgres"; Read-Host "Enter para continuar" }
-        "2" { Invoke-Action "prepare-db"; Read-Host "Enter para continuar" }
-        "3" { Invoke-Action "payloads"; Read-Host "Enter para continuar" }
-        "4" { Invoke-Action "validate-db"; Read-Host "Enter para continuar" }
-        "5" { Invoke-Action "test-payloads"; Read-Host "Enter para continuar" }
-        "6" { Invoke-Action "warmup"; Read-Host "Enter para continuar" }
-        "7" { Invoke-Action "python"; Read-Host "Enter para continuar" }
-        "8" { Invoke-Action "node"; Read-Host "Enter para continuar" }
-        "9" { Invoke-Action "java"; Read-Host "Enter para continuar" }
-        "10" { Invoke-Action "go"; Read-Host "Enter para continuar" }
-        "11" { Invoke-Action "dotnet"; Read-Host "Enter para continuar" }
-        "12" { Invoke-Action "all"; Read-Host "Enter para continuar" }
-        "13" { Invoke-Action "summarize"; Read-Host "Enter para continuar" }
-        "14" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
-        "15" { Invoke-Action "charts"; Read-Host "Enter para continuar" }
-        "16" { Invoke-Action "capacity-100"; Read-Host "Enter para continuar" }
-        "17" { Invoke-Action "capacity-200"; Read-Host "Enter para continuar" }
-        "18" { Invoke-Action "capacity-all"; Read-Host "Enter para continuar" }
-        "19" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
-        "0" { break }
-        default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
-    }
-}
+Show-SimpleMenu

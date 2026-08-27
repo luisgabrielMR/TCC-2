@@ -36,7 +36,7 @@ Locust: requisicoes, falhas, taxa de erro, media, P50, P95, P99 e RPS por metodo
 
 ## Repeticoes e ordem
 
-Cada perfil oficial executa tres repeticoes. A ordem das cinco linguagens e rotacionada, e `execution_order.position` e `sequence_id` ficam nos metadados. Uma unica execucao e sempre preliminar.
+O perfil oficial `controlled_50` executa cinco rodadas completas. Cada rodada mede as cinco linguagens sequencialmente, totalizando 25 medicoes de API. A ordem e rotacionada, e `execution_order.position` e `sequence_id` ficam nos metadados. Uma unica rodada permanece preliminar ate a bateria ser concluida.
 
 ## Classificacao
 

@@ -23,7 +23,7 @@ Fonte documental verificada: `TCC_Luis_Gabriel_Mendonca_Reos (27).pdf`, paginas 
 | Git limpo e verificacao no mesmo commit | Pendente | Arvore limpa no commit anterior; as correcoes deste bloco precisam de novo commit e nova verificacao completa. |
 | Imagens fixadas por digest | OK | Infraestrutura e `FROM` das APIs usam SHA-256. |
 | Separacao `legacy`/`non_official`/`official` | OK | Consolidador final usa somente `official` por padrao. |
-| Tres repeticoes e ordem rotacionada | Preparado | Runner implementado; bateria ainda nao iniciada. |
+| Cinco rodadas e ordem rotacionada | Preparado | Runner retomavel implementado; bateria ainda nao iniciada. |
 | Preflight oficial sem bloqueios | Pendente | Os bloqueios de Docker/Compose foram removidos; falta reexecutar `preflight.py --mode official` apos o commit e a verificacao completa. |
 
 ## Interpretacao

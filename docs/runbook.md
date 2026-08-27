@@ -43,13 +43,11 @@ O ambiente registrado usa Docker 29.7.2/Compose 5.3.1, que sao as versoes instal
 
 ## Bateria oficial
 
-Somente depois de revisar/versionar as mudancas, obter Git limpo, confirmar Docker 29.7.2/Compose 5.3.1 com a atualizacao automatica desligada e executar novamente a verificacao completa nesse ambiente e no mesmo commit. Entao use:
+Somente depois de revisar/versionar as mudancas, obter Git limpo, confirmar Docker 29.7.2/Compose 5.3.1 com a atualizacao automatica desligada e executar novamente a verificacao completa nesse ambiente e no mesmo commit.
 
-```bash
-./scripts/run_capacity_battery.sh
-```
+No Windows, use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa uma das cinco rodadas oficiais do perfil `controlled_50`. Uma rodada mede as cinco linguagens sequencialmente, com ordem rotacionada, e leva aproximadamente 55 a 75 minutos. O runner detecta a proxima rodada incompleta e retoma somente as linguagens ainda ausentes.
 
-No Windows, use `18_BATERIA_50_100_200.bat`. A bateria executa tres repeticoes dos perfis 50, 100 e 200, rotaciona a ordem das cinco linguagens e bloqueia no primeiro requisito oficial ausente.
+O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel. Pilotos de capacidade com 100 e 200 usuarios continuam disponiveis no menu avancado, separados da bateria oficial.
 
 ## Monitoramento
 

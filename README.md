@@ -45,7 +45,7 @@ Esse script executa:
 - `database/init/002_seed_base_data.sql`
 - `database/init/003_indexes.sql`
 
-No Windows, use `launchers/windows/02_PREPARAR_BANCO.bat`.
+No Windows, abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Preparar banco`.
 
 ## Gerar payloads prontos
 
@@ -63,7 +63,7 @@ Arquivos gerados em `common/payloads/`:
 - `ids_categories.jsonl`
 - `ids_orders.jsonl`
 
-No Windows, use `launchers/windows/03_GERAR_PAYLOADS.bat`.
+No Windows, abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Gerar payloads`.
 
 ## Validar banco
 
@@ -71,7 +71,7 @@ No Windows, use `launchers/windows/03_GERAR_PAYLOADS.bat`.
 ./scripts/validate_database.sh
 ```
 
-O script confere tabelas, indices e contagens minimas. No Windows, use `launchers/windows/04_VALIDAR_BANCO.bat`.
+O script confere tabelas, indices e contagens minimas. No Windows, use a opcao `Validar banco` do menu avancado.
 
 ## Resetar banco entre rodadas
 
@@ -122,7 +122,10 @@ WARMUP_DURATION_SECONDS=300
 WARMUP_STABILITY_WINDOW_SECONDS=45
 WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
+OFFICIAL_CONTROLLED_ROUNDS=5
 ```
+
+`BENCHMARK_REPETITIONS` controla somente as rotinas avancadas de capacidade. O atalho da bateria oficial usa `OFFICIAL_CONTROLLED_ROUNDS` e executa cinco rodadas completas do perfil `controlled_50`.
 
 O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
@@ -160,13 +163,13 @@ Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker es
 
 Esse script chama uma linguagem por vez. Ele nunca sobe as cinco APIs simultaneamente.
 
-O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. Os testes extras usam os perfis `capacity_100` e `capacity_200`. A bateria completa executa, por padrao, tres repeticoes de cada nivel, alterna a ordem inicial das linguagens e nao sobrescreve rodadas anteriores:
+O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. No Windows, a coleta oficial e dividida em cinco rodadas completas. Cada rodada executa as cinco linguagens uma por vez, rotaciona a ordem inicial e pode ser retomada sem sobrescrever resultados anteriores. Os perfis `capacity_100` e `capacity_200` permanecem testes extras.
 
 ```bash
 ./scripts/run_capacity_battery.sh
 ```
 
-`run_capacity_battery.sh` e o atalho Windows 18 solicitam modo `official`: tres repeticoes, rotacao e bloqueio estrito. Os atalhos 07 a 12, 16 e 17 sao pilotos `non_official`.
+No Windows, `02_PROXIMA_RODADA_OFICIAL.bat` executa somente a proxima rodada `controlled_50` ainda incompleta, em modo `official`. O menu avancado preserva pilotos por linguagem e os perfis extras, sempre separados dos resultados oficiais.
 
 ## Monitoramento
 
@@ -244,31 +247,17 @@ launchers/windows/00_MENU_TESTES.bat
 
 ## Execucao facil por duplo clique
 
-Abra a pasta `launchers/windows/` e execute `00_MENU_TESTES.bat` com duplo clique. O menu chama os scripts equivalentes para subir PostgreSQL, preparar banco, gerar payloads, validar banco, testar uma API ativa, rodar warmup e preparar rodadas por linguagem.
+Abra a pasta `launchers/windows/` e execute `00_MENU_TESTES.bat` com duplo clique. O menu principal mostra apenas verificacao, proxima rodada oficial, Grafana e acesso ao menu avancado.
 
 Os principais atalhos sao:
 
-- `01_SUBIR_POSTGRES.bat`
-- `02_PREPARAR_BANCO.bat`
-- `03_GERAR_PAYLOADS.bat`
-- `04_VALIDAR_BANCO.bat`
-- `05_TESTAR_PAYLOADS_API_ATIVA.bat`
-- `06_RODAR_WARMUP_API_ATIVA.bat`
-- `07_TESTE_PYTHON_MIXED.bat`
-- `08_TESTE_NODE_MIXED.bat`
-- `09_TESTE_JAVA_MIXED.bat`
-- `10_TESTE_GO_MIXED.bat`
-- `11_TESTE_DOTNET_MIXED.bat`
-- `12_TESTAR_TODAS_SEQUENCIALMENTE.bat`
-- `13_RESUMIR_RESULTADOS.bat`
-- `14_VERIFICAR_PROJETO_COMPLETO.bat`
-- `15_GERAR_GRAFICOS.bat`
-- `16_CAPACIDADE_100_USUARIOS.bat`
-- `17_CAPACIDADE_200_USUARIOS.bat`
-- `18_BATERIA_50_100_200.bat`
-- `19_ABRIR_GRAFANA.bat`
+- `00_MENU_TESTES.bat`
+- `01_VERIFICAR_PROJETO.bat`
+- `02_PROXIMA_RODADA_OFICIAL.bat`
+- `03_ABRIR_GRAFANA.bat`
+- `04_MENU_AVANCADO.bat`
 
-O fluxo PowerShell do Windows e nativo e nao depende de Bash ou WSL.
+O fluxo PowerShell do Windows e nativo e nao depende de Bash ou WSL. A proxima rodada oficial so inicia depois do preflight estrito e exige confirmacao `SIM`.
 
 ## Como testar manualmente os payloads
 
@@ -347,11 +336,7 @@ Esse script nao executa carga pesada. Ele apenas le exemplos dos arquivos JSONL,
 
 No Windows:
 
-```text
-launchers/windows/05_TESTAR_PAYLOADS_API_ATIVA.bat
-```
-
-Esse atalho chama `launchers/windows/powershell/testar-payloads.ps1` e espera a API ativa em `http://127.0.0.1:8000`.
+Abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Testar payloads da API ativa`. A opcao chama `launchers/windows/powershell/testar-payloads.ps1` e espera a API em `http://127.0.0.1:8000`.
 
 No WSL/Linux:
 
@@ -430,13 +415,9 @@ python scripts/summarize_results.py
 
 O consolidado final publica somente `official` por padrao. Para uma inspecao diagnostica separada, use `--classification non_official`, `--classification legacy` ou `--classification all`; esses modos nunca promovem suas linhas ao agregado oficial.
 
-No Windows, `launchers/windows/15_GERAR_GRAFICOS.bat` atualiza os resumos, gera o painel HTML comparativo e o abre no navegador.
+No Windows, a opcao `Gerar graficos e abrir painel` do menu avancado atualiza os resumos e o painel HTML comparativo.
 
-No Windows:
-
-```text
-launchers/windows/13_RESUMIR_RESULTADOS.bat
-```
+No Windows, a opcao `Resumir resultados oficiais` fica no menu avancado.
 
 ## Documentacao principal
 
@@ -469,7 +450,7 @@ Validacao do banco falha:
 Payloads nao existem:
 
 - Rode `./scripts/generate_payloads.sh`.
-- No Windows, use `03_GERAR_PAYLOADS.bat`.
+- No Windows, use `Gerar payloads` no menu avancado.
 
 API nao responde em `/health`:
 

@@ -2,41 +2,31 @@
 
 ## Windows
 
-Abra `launchers/windows/00_MENU_TESTES.bat` e escolha uma opcao pelo numero. Os atalhos PowerShell sao nativos do Windows e nao dependem de Bash ou WSL.
+Abra o Docker Desktop manualmente e aguarde `Docker Engine running`. Depois use somente um destes atalhos em `launchers/windows/`:
 
-- `01_SUBIR_POSTGRES.bat`: sobe o PostgreSQL.
-- `02_PREPARAR_BANCO.bat`: executa schema, seed e indices.
-- `03_GERAR_PAYLOADS.bat`: gera os arquivos JSONL.
-- `04_VALIDAR_BANCO.bat`: valida tabelas, indices e contagens.
-- `05_TESTAR_PAYLOADS_API_ATIVA.bat`: testa os oito endpoints.
-- `06_RODAR_WARMUP_API_ATIVA.bat`: executa warmup.
-- `07` a `11`: pilotos de uma linguagem no cenario mixed.
-- `12_TESTAR_TODAS_SEQUENCIALMENTE.bat`: piloto com uma linguagem por vez.
-- `13_RESUMIR_RESULTADOS.bat`: gera resumos.
-- `14_VERIFICAR_PROJETO_COMPLETO.bat`: compila e valida banco, cinco APIs, monitoramento e Locust.
-- `15_GERAR_GRAFICOS.bat`: gera o painel comparativo e abre no navegador.
-- `16_CAPACIDADE_100_USUARIOS.bat`: piloto das cinco APIs com 100 usuarios.
-- `17_CAPACIDADE_200_USUARIOS.bat`: piloto das cinco APIs com 200 usuarios.
-- `18_BATERIA_50_100_200.bat`: solicita bateria oficial, tres repeticoes, rotacao e preflight estrito.
-- `19_ABRIR_GRAFANA.bat`: abre o Grafana no navegador.
+- `00_MENU_TESTES.bat`: menu inicial com as quatro acoes principais.
+- `01_VERIFICAR_PROJETO.bat`: verificacao completa sem gerar resultado oficial.
+- `02_PROXIMA_RODADA_OFICIAL.bat`: proxima rodada oficial `controlled_50`.
+- `03_ABRIR_GRAFANA.bat`: abre os dois dashboards.
+- `04_MENU_AVANCADO.bat`: preparacao, pilotos e capacidade.
 
-Os atalhos `07` a `12`, `16` e `17` gravam `non_official`. O atalho `18` so inicia com Docker 29.7.2, Compose 5.3.1, Git limpo e cAdvisor validado. Todos selecionam uma nova pasta `run_N` automaticamente.
+O fluxo oficial possui cinco rodadas completas. Cada rodada executa Python, Node.js, Java, Go e .NET sequencialmente, com ordem rotacionada, warmup de 300 segundos e medicao de 5 minutos por API. O atalho detecta a proxima rodada incompleta, ignora linguagens ja concluidas como `official` e nunca sobrescreve `run_N` existente.
+
+Antes da primeira rodada, o Git deve estar limpo e `01_VERIFICAR_PROJETO.bat` deve ter sido executado no mesmo commit. O atalho oficial realiza um preflight estrito antes da confirmacao e nao inicia carga quando Docker, Git, verificacao, imagens ou monitoramento estiverem divergentes.
+
+Os pilotos e testes de 100/200 usuarios ficam no menu avancado e sao gravados como `non_official`.
 
 ## WSL/Linux
 
-Use `./launchers/linux-wsl/menu-testes.sh` ou os atalhos individuais:
+Use `./launchers/linux-wsl/menu-testes.sh` ou os scripts individuais para diagnosticos e pilotos:
 
 ```bash
 ./launchers/linux-wsl/subir-postgres.sh
 ./launchers/linux-wsl/preparar-banco.sh
 ./launchers/linux-wsl/gerar-payloads.sh
 ./launchers/linux-wsl/validar-banco.sh
-./launchers/linux-wsl/testar-payloads-api-ativa.sh
 ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 controlled_50 pilot
 ./launchers/linux-wsl/testar-todas-sequencialmente.sh
-./scripts/run_all_languages_sequentially.sh mixed 0 capacity_100
-./scripts/run_all_languages_sequentially.sh mixed 0 capacity_200
-./scripts/run_capacity_battery.sh
 ```
 
-Abra o Docker Desktop antes dos atalhos Windows. O cAdvisor ja foi validado por ID real e as versoes de Docker e Compose deste host sao as registradas pelo experimento. A bateria oficial exige apenas que a arvore Git esteja limpa e que a verificacao completa e o preflight oficial tenham sido reexecutados nesse mesmo commit.
+O procedimento oficial simplificado e retomavel descrito acima e o fluxo Windows usado neste ambiente experimental.
