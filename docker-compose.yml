@@ -2,6 +2,9 @@ services:
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3}
     container_name: tcc_benchmark_postgres
+    # Alocacao fixa: sem isso API, banco e gerador disputam livremente os 4
+    # processadores do Docker e "capacidade" viraria capacidade da maquina.
+    cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-benchmark_db}
       POSTGRES_USER: ${POSTGRES_USER:-benchmark_user}
@@ -108,6 +111,7 @@ services:
     image: ${LOCUST_IMAGE:-locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3}
     container_name: tcc_benchmark_locust
     profiles: ["load"]
+    cpus: 1.0
     working_dir: /mnt/locust
     environment:
       PAYLOAD_DIR: /mnt/payloads
@@ -127,6 +131,7 @@ services:
     build:
       context: ./apps/python-api
     container_name: tcc_benchmark_python_api
+    cpus: 2.0
     environment: &api-environment
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -151,6 +156,7 @@ services:
     build:
       context: ./apps/node-api
     container_name: tcc_benchmark_node_api
+    cpus: 2.0
     environment:
       <<: *api-environment
     ports:
@@ -166,6 +172,7 @@ services:
     build:
       context: ./apps/java-api
     container_name: tcc_benchmark_java_api
+    cpus: 2.0
     environment:
       <<: *api-environment
     ports:
@@ -181,6 +188,7 @@ services:
     build:
       context: ./apps/go-api
     container_name: tcc_benchmark_go_api
+    cpus: 2.0
     environment:
       <<: *api-environment
     ports:
@@ -196,6 +204,7 @@ services:
     build:
       context: ./apps/dotnet-api
     container_name: tcc_benchmark_dotnet_api
+    cpus: 2.0
     environment:
       <<: *api-environment
     ports:

@@ -70,6 +70,19 @@ Nenhuma API usa ORM. FastAPI, Express e ASP.NET Core Minimal API cuidam apenas d
 
 O Docker Desktop atual usa o image store containerd. O factory Docker do cAdvisor 0.49.1 procurava `image/overlayfs/layerdb` e descartava cada container; mudar o namespace de cgroup ou desabilitar metricas de disco nao corrigiu a falha. O servico agora desativa esse factory e usa o endpoint containerd no namespace `moby`. Em 23 de agosto de 2026, `scripts/validate_monitoring.py --mode official --api-service python-api` retornou `official_eligible: true`, com uma serie de CPU e uma de memoria para os IDs reais da API, PostgreSQL e Locust. Cgroups genericos como `/`, `/docker` e `/restricted` continuam rejeitados. `docker stats` permanece complementar para diagnostico de pilotos, nunca substituto do requisito do TCC.
 
+## Alocacao de CPU por container
+
+O Docker recebe 4 processadores logicos. Sem limite explicito, API, PostgreSQL e gerador de carga disputam os quatro livremente, e o numero medido em malha fechada seria a capacidade da maquina, nao da API. O `docker-compose.yml` fixa:
+
+| Container | CPUs |
+| --- | --- |
+| API ativa | 2,0 |
+| PostgreSQL | 1,0 |
+| Locust | 1,0 |
+| Monitoramento | sem limite, fora do caminho critico |
+
+Com isso, capacidade passa a ter definicao precisa e reproduzivel: o maximo que a API sustenta com exatamente 2 CPUs. Alterar esses valores exige nova versao metodologica e repeticao integral das rodadas.
+
 ## Pool comum
 
 `DB_POOL_MIN=1`, `DB_POOL_MAX=20`, aquisicao `10 s`, ociosidade `60 s` e vida maxima `1800 s`. As diferencas inevitaveis de cada driver sao registradas em `metadata.json`.
