@@ -306,7 +306,11 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
 
 
 def scalability_rows(runs: list[dict]) -> list[dict]:
-    mixed = [row for row in runs if row["scenario"] == "mixed" or row["scenario"].startswith("mixed_capacity_")]
+    scalable_prefixes = ("mixed_capacity_", "mixed_saturation_")
+    mixed = [
+        row for row in runs
+        if row["scenario"] == "mixed" or row["scenario"].startswith(scalable_prefixes)
+    ]
     current_cohorts = {
         (row["language"], row.get("result_classification", "legacy"))
         for row in mixed if row.get("load_profile", "legacy") != "legacy"

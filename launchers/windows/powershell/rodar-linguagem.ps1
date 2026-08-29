@@ -1,11 +1,11 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("python", "node", "java", "go", "dotnet")]
     [string]$Language,
     [ValidateSet("smoke", "warmup", "read_heavy", "write_heavy", "mixed")]
     [string]$Scenario = "mixed",
     [int]$RunNumber = 0,
-    [ValidateSet("environment", "controlled_50", "capacity_100", "capacity_200")]
+    [ValidateSet("environment", "fixed_200", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
     [string]$LoadProfile = "environment",
     [ValidateSet("pilot", "official")]
     [string]$RunMode = "pilot"
@@ -26,22 +26,39 @@ $warmupWindowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_W
 $warmupMaxDriftPercent = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
 $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
 $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTERVAL_SECONDS" "2")
+# $loadTargetRps marca os perfis de taxa fixa: a vazao vira variavel controlada,
+# igual para as cinco, e a comparacao passa a ser de latencia e recursos.
+$loadTargetRps = $null
 switch ($LoadProfile) {
+    # 50 usuarios com pacing de 0,25 s produzem 200 req/s exatos.
+    "fixed_200" { $users = 50; $spawnRate = 10; $waitSeconds = "0.25"; $loadTargetRps = 200 }
+    # Malha fechada: sem pacing o teto passa a ser da propria API.
+    "saturation_25" { $users = 25; $spawnRate = 25; $waitSeconds = "0" }
+    "saturation_50" { $users = 50; $spawnRate = 25; $waitSeconds = "0" }
+    "saturation_100" { $users = 100; $spawnRate = 25; $waitSeconds = "0" }
+    "saturation_200" { $users = 200; $spawnRate = 40; $waitSeconds = "0" }
+    "saturation_400" { $users = 400; $spawnRate = 80; $waitSeconds = "0" }
+    # Perfis anteriores, preservados para releitura do historico.
     "controlled_50" { $users = 50; $spawnRate = 10 }
     "capacity_100" { $users = 100; $spawnRate = 20 }
     "capacity_200" { $users = 200; $spawnRate = 40 }
 }
-if ($LoadProfile -like "capacity_*" -and $Scenario -ne "mixed") {
-    throw "Os perfis de capacidade usam o workload mixed."
+if (($LoadProfile -like "capacity_*" -or $LoadProfile -like "saturation_*" -or $LoadProfile -like "fixed_*") -and $Scenario -ne "mixed") {
+    throw "Os perfis de capacidade, saturacao e taxa fixa usam o workload mixed."
 }
 
-$resultScenario = switch ($LoadProfile) {
-    "capacity_100" { "${Scenario}_capacity_100" }
-    "capacity_200" { "${Scenario}_capacity_200" }
-    default { $Scenario }
-}
-$benchmarkKind = if ($LoadProfile -like "capacity_*") { "capacity" } else { "controlled_load" }
+$resultScenario = if ($LoadProfile -like "capacity_*" -or $LoadProfile -like "saturation_*" -or $LoadProfile -like "fixed_*") {
+    "${Scenario}_${LoadProfile}"
+} else { $Scenario }
+$benchmarkKind = if ($LoadProfile -like "capacity_*") { "capacity" }
+    elseif ($LoadProfile -like "fixed_*") { "fixed_rate" }
+    elseif ($LoadProfile -like "saturation_*") { "saturation" }
+    else { "controlled_load" }
 $service = "$Language-api"
+# A carga percorre a rede interna do Docker. Pelo proxy de porta do host, o
+# GET /health custava de 6 a 7 ms sem consultar o banco, e esse piso entrava em
+# toda medicao de leitura.
+$locustHost = Get-BenchmarkValue $environment "LOCUST_HOST_OVERRIDE" "http://${service}:8000"
 $scenarioDirectory = Join-Path $script:BenchmarkRoot "results/raw/$Language/$resultScenario"
 if ($RunNumber -le 0) {
     $existingRuns = @(Get-ChildItem $scenarioDirectory -Directory -Filter "run_*" -ErrorAction SilentlyContinue |
@@ -153,6 +170,21 @@ try {
     ) | Out-Host
     $measurementValidation = Get-Content $measurementValidationPath -Raw | ConvertFrom-Json
     $measurementStable = [bool]$measurementValidation.stable
+
+    # Nos perfis de taxa fixa a vazao e imposta, nao medida. Se a implementacao
+    # nao entregou a taxa pedida, ela saturou e a latencia dela nao e comparavel
+    # com a das outras: a rodada deixa de ser elegivel a oficial.
+    $rateTargetMet = $true
+    $achievedRps = $null
+    if ($null -ne $loadTargetRps) {
+        $aggregated = Import-Csv (Join-Path $resultDirectory "locust_stats.csv") |
+            Where-Object { $_.Name -eq "Aggregated" } | Select-Object -First 1
+        $achievedRps = if ($aggregated) { [double]$aggregated."Requests/s" } else { 0 }
+        $rateTargetMet = ($achievedRps -ge ($loadTargetRps * 0.975))
+        if (-not $rateTargetMet) {
+            Write-Warning "Alvo de $loadTargetRps req/s nao atingido (obtido $achievedRps). A implementacao saturou antes do alvo; a latencia nao e comparavel neste perfil."
+        }
+    }
     Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
@@ -183,7 +215,7 @@ try {
         "dotnet" { "Pooling nativo do Npgsql" }
     }
     $metadata = [ordered]@{
-        result_classification = $(if ($RunMode -eq "official" -and $measurementStable) { "official" } else { "non_official" })
+        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet) { "official" } else { "non_official" })
         requested_run_mode = $RunMode
         official_run = ($RunMode -eq "official")
         language = $Language
@@ -254,7 +286,10 @@ try {
             spawn_rate = $spawnRate
             duration = $duration
             wait_seconds = [double]$waitSeconds
-            theoretical_rps_ceiling = [math]::Round($users / [double]$waitSeconds, 3)
+            theoretical_rps_ceiling = $(if ([double]$waitSeconds -gt 0) { [math]::Round($users / [double]$waitSeconds, 3) } else { $null })
+            target_rps = $loadTargetRps
+            achieved_rps = $achievedRps
+            rate_target_met = $rateTargetMet
             host = $locustHost
         }
         test_phase = [ordered]@{
@@ -286,15 +321,19 @@ try {
             started_epoch = $metricsStartEpoch
             finished_epoch = $metricsEndEpoch
         }
-        notes = $(if ($benchmarkKind -eq "controlled_load") {
-            "Carga controlada; nao representa a capacidade maxima da API."
-        } else {
-            "Teste extra de escalabilidade; representa o limite pratico observado neste ambiente."
+        notes = $(switch ($benchmarkKind) {
+            "controlled_load" { "Carga controlada; nao representa a capacidade maxima da API." }
+            "fixed_rate" { "Taxa fixa de $loadTargetRps req/s imposta a todas as linguagens; a vazao e variavel controlada e a comparacao e de latencia e recursos." }
+            "saturation" { "Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container." }
+            default { "Teste extra de escalabilidade; representa o limite pratico observado neste ambiente." }
         })
     }
     $metadata | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 (Join-Path $resultDirectory "metadata.json")
     if ($RunMode -eq "official" -and -not $measurementStable) {
         throw "A medicao oficial ficou instavel e foi registrada como non_official: $($measurementValidation.reasons -join '; ')"
+    }
+    if ($RunMode -eq "official" -and -not $rateTargetMet) {
+        throw "A rodada oficial nao atingiu o alvo de $loadTargetRps req/s (obtido $achievedRps) e foi registrada como non_official."
     }
     Write-Host "Rodada concluida: $resultRelative"
 }

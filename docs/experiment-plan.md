@@ -15,7 +15,16 @@ O estudo compara Python, Node.js, Java, Go e C#/.NET no mesmo PostgreSQL, com SQ
 
 ## Workloads
 
-Os cenarios `smoke`, `read_heavy`, `write_heavy` e `mixed` usam os mesmos pesos e payloads JSONL pre-processados em todas as linguagens. O perfil principal `controlled_50` usa 50 usuarios e spawn rate 10; mede carga controlada, nao capacidade maxima. `capacity_100` usa 100/20 e `capacity_200` usa 200/40 como testes extras de escalabilidade.
+Os cenarios `smoke`, `read_heavy`, `write_heavy` e `mixed` usam os mesmos pesos e payloads JSONL pre-processados em todas as linguagens.
+
+Os perfis de carga respondem a duas perguntas distintas, e por isso sao dois conjuntos separados. Um perfil unico com pacing nao responde nenhuma das duas: o pacing impoe um teto de `usuarios / wait_seconds` requisicoes por segundo, e uma implementacao mais rapida que esse teto apenas espera.
+
+- `fixed_200`: 50 usuarios, spawn rate 10 e pacing de 0,25 s, o que fixa 200 req/s. A vazao e variavel controlada, igual para as cinco, e a comparacao e de latencia e consumo de recursos. Se uma implementacao entregar menos de 97,5% do alvo, ela saturou, a latencia dela deixa de ser comparavel e a rodada nao e elegivel a oficial.
+- `saturation_25`, `saturation_50`, `saturation_100`, `saturation_200` e `saturation_400`: sem pacing, em malha fechada. Cada usuario dispara a proxima requisicao assim que a anterior responde, entao o teto passa a ser da propria API. A vazao volta a ser variavel de resposta. O ponto de saturacao e o degrau em que o ganho de RPS ao dobrar a concorrencia cai abaixo de 5%, ou em que a taxa de erro passa de 1%, ou em que a deriva de RPS passa de 10%.
+
+Os perfis `controlled_50`, `capacity_100` e `capacity_200` continuam definidos apenas para releitura do historico.
+
+A carga percorre a rede interna do Docker. Pelo caminho anterior, atraves da porta publicada no host, o `GET /health` custava de 6 a 7 ms sem consultar o banco, e esse piso entrava em toda medicao de leitura.
 
 ## Aquecimento e medicao
 

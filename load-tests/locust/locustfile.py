@@ -9,7 +9,7 @@ import time
 from itertools import cycle
 from pathlib import Path
 
-from locust import HttpUser, constant_pacing, events, task
+from locust import HttpUser, constant, constant_pacing, events, task
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 
 
@@ -121,8 +121,14 @@ category_ids = PayloadCycle(PAYLOAD_DIR / "ids_categories.jsonl", parse_json=Fal
 order_ids = PayloadCycle(PAYLOAD_DIR / "ids_orders.jsonl", parse_json=False)
 
 
+# Com WAIT_SECONDS > 0 o pacing impoe um teto de usuarios/WAIT_SECONDS req/s ao
+# gerador. Com WAIT_SECONDS = 0 a malha e fechada: cada usuario dispara a proxima
+# requisicao assim que a anterior responde, e o teto passa a ser da propria API.
+WAIT_STRATEGY = constant(0) if WAIT_SECONDS <= 0 else constant_pacing(WAIT_SECONDS)
+
+
 class BenchmarkUser(HttpUser):
-    wait_time = constant_pacing(WAIT_SECONDS)
+    wait_time = WAIT_STRATEGY
 
     def get_health(self) -> None:
         self.client.get("/health", name="GET /health")

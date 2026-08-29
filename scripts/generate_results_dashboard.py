@@ -297,14 +297,25 @@ def collect() -> dict:
             "endpoints": dict(sorted(endpoints.items())),
         }
 
-    baseline = {
-        (row["language"], row["methodologyVersion"], row["resultClassification"]): row
-        for row in scenarios.get("mixed", {}).get("summary", [])
-        if row["loadProfile"] == "controlled_50"
-    }
+    # A base da eficiencia de escala e a rodada de menor concorrencia da propria
+    # coorte, e nao um perfil fixo: assim o calculo vale tanto para a escada de
+    # saturacao quanto para os perfis antigos.
+    scalable_prefixes = ("mixed_capacity_", "mixed_saturation_")
+    eligible = [
+        row
+        for scenario, scenario_data in scenarios.items()
+        if scenario == "mixed" or scenario.startswith(scalable_prefixes)
+        for row in scenario_data["summary"]
+    ]
+    baseline: dict[tuple, dict] = {}
+    for row in eligible:
+        cohort = (row["language"], row["methodologyVersion"], row["resultClassification"])
+        current = baseline.get(cohort)
+        if current is None or row["users"] < current["users"]:
+            baseline[cohort] = row
     scalability: dict[str, list[dict]] = defaultdict(list)
     for scenario, scenario_data in scenarios.items():
-        if scenario != "mixed" and not scenario.startswith("mixed_capacity_"):
+        if scenario != "mixed" and not scenario.startswith(scalable_prefixes):
             continue
         for row in scenario_data["summary"]:
             cohort = (row["language"], row["methodologyVersion"], row["resultClassification"])

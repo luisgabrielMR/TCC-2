@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Action = ""
 )
 
@@ -108,13 +108,23 @@ function Invoke-RunAllProfile(
 }
 
 function Invoke-RunAll {
-    Invoke-RunAllProfile "controlled_50"
+    Invoke-RunAllProfile "fixed_200"
 }
 
-function Get-OfficialLanguagesForSequence([string]$SequenceId) {
+function Get-ResultScenarioName([string]$Profile) {
+    # run_one_language.sh grava perfis de capacidade, saturacao e taxa fixa em
+    # "mixed_<perfil>"; so controlled_50 e environment usam "mixed" puro.
+    if ($Profile -like "capacity_*" -or $Profile -like "saturation_*" -or $Profile -like "fixed_*") {
+        return "mixed_$Profile"
+    }
+    return "mixed"
+}
+
+function Get-OfficialLanguagesForSequence([string]$SequenceId, [string]$Profile = "fixed_200") {
     $completed = @()
+    $resultScenario = Get-ResultScenarioName $Profile
     foreach ($language in @("python", "node", "java", "go", "dotnet")) {
-        $scenarioDirectory = Join-Path $Root "results/raw/$language/mixed"
+        $scenarioDirectory = Join-Path $Root "results/raw/$language/$resultScenario"
         $metadataFiles = @(Get-ChildItem $scenarioDirectory -Directory -Filter "run_*" -ErrorAction SilentlyContinue |
             ForEach-Object { Join-Path $_.FullName "metadata.json" } |
             Where-Object { Test-Path $_ })
@@ -137,13 +147,14 @@ function Get-OfficialLanguagesForSequence([string]$SequenceId) {
 
 function Get-NextOfficialRoundPlan {
     $environment = Get-BenchmarkEnvironment
+    $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_200"
     $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_CONTROLLED_ROUNDS" "5")
     if ($totalRounds -lt 1) { throw "OFFICIAL_CONTROLLED_ROUNDS deve ser maior que zero." }
 
     $languages = @("python", "node", "java", "go", "dotnet")
     for ($round = 1; $round -le $totalRounds; $round++) {
-        $sequenceId = "controlled_50_official_round_${round}_of_${totalRounds}"
-        $completed = @(Get-OfficialLanguagesForSequence $sequenceId)
+        $sequenceId = "${officialProfile}_official_round_${round}_of_${totalRounds}"
+        $completed = @(Get-OfficialLanguagesForSequence $sequenceId $officialProfile)
         if ($completed.Count -lt $languages.Count) {
             $offset = ($round - 1) % $languages.Count
             $ordered = for ($index = 0; $index -lt $languages.Count; $index++) {
@@ -220,7 +231,7 @@ function Invoke-NextOfficialRound {
             $env:BENCHMARK_ORDER_POSITION = "$($index + 1)"
             Write-Host "Iniciando $language, posicao $($index + 1)/5, rodada oficial $($plan.round)/$($plan.total_rounds)."
             & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" `
-                -Language $language -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode official
+                -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $officialProfile -RunMode official
             if ($LASTEXITCODE -ne 0) { throw "A execucao oficial de $language falhou." }
         }
     }
@@ -255,11 +266,11 @@ function Invoke-Action([string]$SelectedAction) {
         "validate-db" { Invoke-ValidateDatabase }
         "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://127.0.0.1:8000" }
         "warmup" { Invoke-Warmup }
-        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
-        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
-        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
-        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
-        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot }
+        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
+        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
+        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
+        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
+        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
         "all" { Invoke-RunAll }
         "capacity-100" { Invoke-RunAllProfile "capacity_100" }
         "capacity-200" { Invoke-RunAllProfile "capacity_200" }
@@ -296,7 +307,7 @@ function Show-AdvancedMenu {
         Write-Host "15 Gerar graficos e abrir painel"
         Write-Host "16 Piloto de capacidade: 100 usuarios"
         Write-Host "17 Piloto de capacidade: 200 usuarios"
-        Write-Host "18 Proxima rodada oficial controlled_50"
+        Write-Host "18 Proxima rodada oficial (perfil de taxa fixa)"
         Write-Host "19 Abrir Grafana completo"
         Write-Host "0  Voltar"
         Write-Host ""

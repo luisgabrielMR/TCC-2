@@ -15,21 +15,38 @@ if [ "$RUN_MODE" != pilot ] && [ "$RUN_MODE" != official ]; then
   exit 2
 fi
 
+# LOAD_TARGET_RPS marca os perfis de taxa fixa: a vazao e variavel controlada,
+# igual para as cinco linguagens, e a comparacao passa a ser de latencia e
+# recursos. Vazio nos demais perfis.
+LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
+  # Taxa fixa: 50 usuarios com pacing de 0,25 s produzem 200 req/s exatos, com
+  # folga em relacao ao limite da implementacao mais lenta.
+  fixed_200) LOCUST_USERS=50; LOCUST_SPAWN_RATE=10; LOCUST_WAIT_SECONDS=0.25; LOAD_TARGET_RPS=200 ;;
+  # Malha fechada: sem pacing, cada usuario dispara a proxima requisicao assim
+  # que a anterior responde. A vazao volta a ser variavel de resposta.
+  saturation_25) LOCUST_USERS=25; LOCUST_SPAWN_RATE=25; LOCUST_WAIT_SECONDS=0 ;;
+  saturation_50) LOCUST_USERS=50; LOCUST_SPAWN_RATE=25; LOCUST_WAIT_SECONDS=0 ;;
+  saturation_100) LOCUST_USERS=100; LOCUST_SPAWN_RATE=25; LOCUST_WAIT_SECONDS=0 ;;
+  saturation_200) LOCUST_USERS=200; LOCUST_SPAWN_RATE=40; LOCUST_WAIT_SECONDS=0 ;;
+  saturation_400) LOCUST_USERS=400; LOCUST_SPAWN_RATE=80; LOCUST_WAIT_SECONDS=0 ;;
+  # Perfis anteriores, preservados para releitura do historico.
   controlled_50) LOCUST_USERS=50; LOCUST_SPAWN_RATE=10 ;;
   capacity_100) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20 ;;
   capacity_200) LOCUST_USERS=200; LOCUST_SPAWN_RATE=40 ;;
   *) echo "Perfil invalido: $LOAD_PROFILE" >&2; exit 2 ;;
 esac
-if [[ "$LOAD_PROFILE" == capacity_* && "$SCENARIO_NAME" != mixed ]]; then
-  echo "Os perfis de capacidade usam o workload mixed." >&2
+if [[ ( "$LOAD_PROFILE" == capacity_* || "$LOAD_PROFILE" == saturation_* || "$LOAD_PROFILE" == fixed_* ) && "$SCENARIO_NAME" != mixed ]]; then
+  echo "Os perfis de capacidade, saturacao e taxa fixa usam o workload mixed." >&2
   exit 2
 fi
+# run_warmup.sh e um processo separado e leria o padrao do .env. O aquecimento
+# precisa do mesmo pacing da medicao, entao o valor do perfil e exportado.
+export LOCUST_WAIT_SECONDS
 
 case "$LOAD_PROFILE" in
-  capacity_100) RESULT_SCENARIO="${SCENARIO_NAME}_capacity_100" ;;
-  capacity_200) RESULT_SCENARIO="${SCENARIO_NAME}_capacity_200" ;;
+  capacity_100|capacity_200|fixed_*|saturation_*) RESULT_SCENARIO="${SCENARIO_NAME}_${LOAD_PROFILE}" ;;
   *) RESULT_SCENARIO="$SCENARIO_NAME" ;;
 esac
 if [ "$RUN_NUMBER" -le 0 ]; then
@@ -44,6 +61,11 @@ if [ "$RUN_NUMBER" -le 0 ]; then
 fi
 API_SERVICE="$(api_service_for_language "$LANGUAGE")"
 API_DIR="apps/$API_SERVICE"
+# A carga percorre a rede interna do Docker. O proxy de porta do host acrescenta
+# um salto de encaminhamento que aparecia integralmente na latencia medida:
+# o GET /health, que nao consulta o banco, custava de 6 a 7 ms por esse caminho.
+# LOCUST_HOST_OVERRIDE permite voltar ao caminho pelo host para comparacao.
+LOCUST_HOST="${LOCUST_HOST_OVERRIDE:-http://$API_SERVICE:8000}"
 RESULT_DIR="results/raw/$LANGUAGE/$RESULT_SCENARIO/run_$RUN_NUMBER"
 if [ -f "$RESULT_DIR/locust_stats.csv" ]; then
   echo "A rodada ja existe: $RESULT_DIR. Use run_number 0 para selecionar a proxima automaticamente." >&2
@@ -51,6 +73,8 @@ if [ -f "$RESULT_DIR/locust_stats.csv" ]; then
 fi
 BENCHMARK_KIND="controlled_load"
 if [[ "$LOAD_PROFILE" == capacity_* ]]; then BENCHMARK_KIND="capacity"; fi
+if [[ "$LOAD_PROFILE" == fixed_* ]]; then BENCHMARK_KIND="fixed_rate"; fi
+if [[ "$LOAD_PROFILE" == saturation_* ]]; then BENCHMARK_KIND="saturation"; fi
 API_STARTED=false
 LOCUST_PREFLIGHT_STARTED=false
 METRICS_STARTED=false
@@ -197,8 +221,34 @@ rm -f "$METRICS_STOP_FILE"
   --output "$RESULT_DIR/measurement_stability.json"
 MEASUREMENT_STABILITY="$(cat "$RESULT_DIR/measurement_stability.json")"
 MEASUREMENT_STABLE="$($PYTHON_BIN -c 'import json,sys; print(str(bool(json.load(open(sys.argv[1], encoding="utf-8"))["stable"])).lower())' "$RESULT_DIR/measurement_stability.json")"
+
+# Nos perfis de taxa fixa a vazao e imposta, nao medida. Se a implementacao nao
+# entregou a taxa pedida, ela esta saturada e a latencia dela nao e comparavel
+# com a das outras: a rodada deixa de ser elegivel a oficial.
+RATE_TARGET_MET=true
+ACHIEVED_RPS=null
+if [ -n "$LOAD_TARGET_RPS" ]; then
+  ACHIEVED_RPS="$($PYTHON_BIN -c '
+import csv, sys
+for row in csv.DictReader(open(sys.argv[1], encoding="utf-8-sig")):
+    if row["Name"] == "Aggregated":
+        print(row["Requests/s"]); break
+else:
+    print("0")
+' "$RESULT_DIR/locust_stats.csv")"
+  RATE_TARGET_MET="$($PYTHON_BIN -c '
+import sys
+achieved, target = float(sys.argv[1]), float(sys.argv[2])
+print(str(achieved >= target * 0.975).lower())
+' "$ACHIEVED_RPS" "$LOAD_TARGET_RPS")"
+  if [ "$RATE_TARGET_MET" != true ]; then
+    echo "AVISO: alvo de $LOAD_TARGET_RPS req/s nao atingido (obtido $ACHIEVED_RPS)." >&2
+    echo "A implementacao saturou antes do alvo; a latencia nao e comparavel neste perfil." >&2
+  fi
+fi
+
 RESULT_CLASSIFICATION=non_official
-if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ]; then RESULT_CLASSIFICATION=official; fi
+if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ]; then RESULT_CLASSIFICATION=official; fi
 "$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE"
 "$SCRIPT_DIR/reset_db.sh"
 MAIN_RUN_STARTED=false
@@ -206,10 +256,22 @@ DATABASE_NEEDS_RESET=false
 
 END_TIME="$(date -Iseconds)"
 API_IMAGE="$(docker compose images -q "$API_SERVICE" 2>/dev/null || echo unknown)"
-THEORETICAL_RPS_CEILING="$($PYTHON_BIN -c 'import sys; print(round(float(sys.argv[1]) / float(sys.argv[2]), 3))' "$LOCUST_USERS" "$LOCUST_WAIT_SECONDS")"
+# Com pacing 0 a malha e fechada: o gerador nao impoe teto, entao registrar um
+# numero aqui seria falso (e a divisao estouraria).
+if [ "$(printf '%s' "$LOCUST_WAIT_SECONDS" | awk '{print ($1 > 0)}')" = "1" ]; then
+  THEORETICAL_RPS_CEILING="$($PYTHON_BIN -c 'import sys; print(round(float(sys.argv[1]) / float(sys.argv[2]), 3))' "$LOCUST_USERS" "$LOCUST_WAIT_SECONDS")"
+else
+  THEORETICAL_RPS_CEILING=null
+fi
 NOTES="Carga controlada; nao representa a capacidade maxima da API."
 if [ "$BENCHMARK_KIND" = capacity ]; then
   NOTES="Teste extra de escalabilidade; representa o limite pratico observado neste ambiente."
+fi
+if [ "$BENCHMARK_KIND" = fixed_rate ]; then
+  NOTES="Taxa fixa de $LOAD_TARGET_RPS req/s imposta a todas as linguagens; a vazao e variavel controlada e a comparacao e de latencia e recursos."
+fi
+if [ "$BENCHMARK_KIND" = saturation ]; then
+  NOTES="Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container."
 fi
 
 cat > "$RESULT_DIR/metadata.json" <<JSON
@@ -289,6 +351,9 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "duration": "$LOCUST_DURATION",
     "wait_seconds": $LOCUST_WAIT_SECONDS,
     "theoretical_rps_ceiling": $THEORETICAL_RPS_CEILING,
+    "target_rps": ${LOAD_TARGET_RPS:-null},
+    "achieved_rps": $ACHIEVED_RPS,
+    "rate_target_met": $RATE_TARGET_MET,
     "host": "$LOCUST_HOST"
   },
   "test_phase": {
