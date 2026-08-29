@@ -20,6 +20,11 @@ def create_pool(settings: Settings) -> ConnectionPool:
         kwargs={
             "row_factory": dict_row,
             "connect_timeout": settings.pool_acquire_timeout_seconds,
+            # Autocommit por consulta, como nos outros quatro ecossistemas. Sem
+            # isso o psycopg3 abre uma transacao implicita por requisicao e os
+            # endpoints de duas consultas contam 1 commit onde os demais contam 2.
+            # As escritas permanecem transacionais por `conn.transaction()`.
+            "autocommit": True,
         },
         open=False,
     )
