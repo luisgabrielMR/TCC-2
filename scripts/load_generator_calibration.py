@@ -8,8 +8,9 @@ from typing import Any
 
 
 REQUIRED_USER_STEPS = [25, 50, 100, 200, 400]
-MINIMUM_SAFE_RPS = 250.0
-MAXIMUM_LOCUST_CPU_QUOTA_PERCENT = 90.0
+MINIMUM_PEAK_RPS = 250.0
+LOCUST_SATURATION_CPU_QUOTA_PERCENT = 90.0
+SAFE_OPERATING_FACTOR = 0.8
 MINIMUM_CADVISOR_COVERAGE_PERCENT = 80.0
 
 
@@ -93,7 +94,8 @@ def validate_calibration(
     observed_steps = [sample.get("users") for sample in samples if isinstance(sample, dict)]
     if observed_steps != REQUIRED_USER_STEPS:
         reasons.append(f"users steps must be exactly {REQUIRED_USER_STEPS}; found {observed_steps}")
-    safe_rps_values: list[float] = []
+    peak_rps_values: list[float] = []
+    saturation_observed = False
     for sample in samples:
         users = sample.get("users")
         if sample.get("spawn_rate") != users:
@@ -134,13 +136,20 @@ def validate_calibration(
             reasons.append(
                 f"calibration sample for {users} users has inconsistent Locust CPU normalization"
             )
-        if locust_cpu_quota_percent < MAXIMUM_LOCUST_CPU_QUOTA_PERCENT and failures == 0:
-            safe_rps_values.append(exact_rps)
+        if locust_cpu_quota_percent >= LOCUST_SATURATION_CPU_QUOTA_PERCENT:
+            saturation_observed = True
+        if failures == 0 and exact_rps > 0:
+            peak_rps_values.append(exact_rps)
 
-    validated_capacity = max(safe_rps_values, default=0.0)
-    if validated_capacity < MINIMUM_SAFE_RPS:
+    validated_capacity = max(peak_rps_values, default=0.0)
+    if not saturation_observed:
         reasons.append(
-            f"validated generator capacity {validated_capacity:.3f} req/s is below the required {MINIMUM_SAFE_RPS:.3f} req/s"
+            "calibration did not drive Locust to 90% of its CPU quota; "
+            "the generator ceiling was not demonstrated"
+        )
+    if validated_capacity < MINIMUM_PEAK_RPS:
+        reasons.append(
+            f"validated generator peak {validated_capacity:.3f} req/s is below the required {MINIMUM_PEAK_RPS:.3f} req/s"
         )
     declared_capacity = artifact.get("validated_capacity_rps")
     try:
@@ -155,8 +164,10 @@ def validate_calibration(
         "path": str(path),
         "reasons": reasons,
         "validated_capacity_rps": validated_capacity,
-        "minimum_safe_rps": MINIMUM_SAFE_RPS,
-        "maximum_locust_cpu_quota_percent": MAXIMUM_LOCUST_CPU_QUOTA_PERCENT,
+        "safe_operating_rps": validated_capacity * SAFE_OPERATING_FACTOR,
+        "minimum_peak_rps": MINIMUM_PEAK_RPS,
+        "saturation_cpu_quota_percent": LOCUST_SATURATION_CPU_QUOTA_PERCENT,
+        "safe_operating_factor": SAFE_OPERATING_FACTOR,
         "minimum_cadvisor_coverage_percent": MINIMUM_CADVISOR_COVERAGE_PERCENT,
         "artifact": artifact,
     }

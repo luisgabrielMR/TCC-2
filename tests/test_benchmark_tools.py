@@ -693,6 +693,8 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             "cadvisor_coverage_percent": 95, "cpu_metric_source": "cadvisor_via_prometheus",
             "bounds_valid": True,
         } for users in (25, 50, 100, 200, 400)]
+        samples[-1]["locust_cpu_raw_max_percent"] = 380
+        samples[-1]["locust_cpu_quota_percent"] = 95
         artifact = {
             "schema_version": 2, "classification": "non_official_calibration",
             "scenario": "health_only", "wait_seconds": 0, "step_duration_seconds": 60,
@@ -709,6 +711,8 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             path.write_text(json.dumps(artifact), encoding="utf-8")
             report = validate_calibration(path, 7, git, docker, images, 4, 4)
             self.assertTrue(report["valid"])
+            self.assertEqual(report["validated_capacity_rps"], 300)
+            self.assertEqual(report["safe_operating_rps"], 240)
             artifact["git"]["commit_sha"] = "stale"
             path.write_text(json.dumps(artifact), encoding="utf-8")
             report = validate_calibration(path, 7, git, docker, images, 4, 4)
@@ -719,6 +723,15 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             report = validate_calibration(path, 7, git, docker, images, 4, 4)
             self.assertFalse(report["valid"])
             self.assertTrue(any("80% cAdvisor coverage" in reason for reason in report["reasons"]))
+
+            artifact["samples"][0]["cadvisor_coverage_percent"] = 95
+            for sample in artifact["samples"]:
+                sample["locust_cpu_raw_max_percent"] = 200
+                sample["locust_cpu_quota_percent"] = 50
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+            report = validate_calibration(path, 7, git, docker, images, 4, 4)
+            self.assertFalse(report["valid"])
+            self.assertTrue(any("generator ceiling" in reason for reason in report["reasons"]))
 
     def test_locust_cpu_is_normalized_by_its_cpu_quota(self) -> None:
         self.assertEqual(quota_normalized_cpu_percent(340, 4), 85)

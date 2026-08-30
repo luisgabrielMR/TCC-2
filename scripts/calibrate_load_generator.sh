@@ -120,7 +120,7 @@ for users in (25, 50, 100, 200, 400):
         "cpu_metric_source": "cadvisor_via_prometheus", "bounds_valid": bool(validation["valid"]),
         "result_directory": str(directory).replace("\\", "/"),
     })
-safe = [row["throughput_rps_exact"] for row in samples if row["failures"] == 0 and row["locust_cpu_quota_percent"] < 90]
+valid = [row["throughput_rps_exact"] for row in samples if row["failures"] == 0]
 locust_image = next((item["configured_reference"] for item in preflight["configured_images"]["images"] if item["configured_reference"].startswith("locustio/locust:2.32.6@sha256:")), None)
 artifact = {
     "schema_version": 2, "classification": "non_official_calibration",
@@ -137,7 +137,7 @@ artifact = {
         "locust_processes": processes,
         "locust_cpu_quota": locust_cpu_quota,
     },
-    "samples": samples, "validated_capacity_rps": round(max(safe, default=0), 9),
+    "samples": samples, "validated_capacity_rps": round(max(valid, default=0), 9),
 }
 output_path.parent.mkdir(parents=True, exist_ok=True)
 output_path.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")

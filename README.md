@@ -172,7 +172,7 @@ O perfil `fixed_200` tem alvo de 200 req/s e compara latencia e recursos sob a m
 ./scripts/run_capacity_battery.sh
 ```
 
-A calibracao usa somente `GET /health`, pacing zero e degraus de 25, 50, 100, 200 e 400 usuarios durante 60 s. Ela e `non_official_calibration`, usa CPU do cAdvisor e fica vinculada ao commit, imagens, numero de workers, cota do Locust e alocacao Docker. Sem capacidade segura de pelo menos 250 req/s, CPU do Locust abaixo de 90% da cota e 80% de cobertura na janela curta, perfis novos nao podem ser oficiais. As rodadas principais de 5 minutos exigem 90% de cobertura.
+A calibracao usa somente `GET /health`, pacing zero e degraus de 25, 50, 100, 200 e 400 usuarios durante 60 s. Ela e `non_official_calibration`, usa CPU do cAdvisor e fica vinculada ao commit, imagens, numero de workers, cota do Locust e alocacao Docker. A escada deve levar o Locust a pelo menos 90% da cota para demonstrar seu teto, registrar pico de pelo menos 250 req/s e cobrir 80% da janela curta. Cada rodada oficial permanece limitada a 80% desse pico, CPU do Locust abaixo de 90% e 90% de cobertura na janela principal.
 
 No Windows, calibre pelo menu e depois use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa a proxima rodada `fixed_200` ainda incompleta. O menu avancado preserva pilotos e a bateria de saturacao separadamente.
 

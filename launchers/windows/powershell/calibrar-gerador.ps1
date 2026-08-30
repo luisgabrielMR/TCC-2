@@ -113,9 +113,9 @@ try {
         }
     }
 
-    $safeSamples = @($samples | Where-Object { $_.failures -eq 0 -and $_.locust_cpu_quota_percent -lt 90 })
-    $validatedCapacity = if ($safeSamples.Count) {
-        ($safeSamples | Measure-Object -Property throughput_rps_exact -Maximum).Maximum
+    $validSamples = @($samples | Where-Object { $_.failures -eq 0 })
+    $validatedCapacity = if ($validSamples.Count) {
+        ($validSamples | Measure-Object -Property throughput_rps_exact -Maximum).Maximum
     } else { 0 }
     $locustImage = $preflight.configured_images.images |
         Where-Object { $_.configured_reference -like "locustio/locust:2.32.6@sha256:*" } |
@@ -161,7 +161,8 @@ try {
         throw "A calibracao foi gravada, mas nao passou no validador: $($calibrationValidation.reasons -join '; ')"
     }
     Write-Host "Calibracao gravada em $calibrationRelative" -ForegroundColor Green
-    Write-Host "Capacidade validada com CPU do Locust abaixo de 90% da cota: $validatedCapacity req/s"
+    Write-Host "Capacidade de pico validada: $validatedCapacity req/s"
+    Write-Host "Limite operacional das rodadas (80%): $([math]::Round([double]$validatedCapacity * 0.8, 3)) req/s"
 }
 finally {
     if ($locustStarted) { Stop-BenchmarkServices -Services @("locust") }

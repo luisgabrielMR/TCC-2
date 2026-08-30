@@ -48,7 +48,7 @@ Locust: requisicoes, falhas, taxa de erro, media, P50, P95 e P99 por metodo/endp
 
 O perfil oficial primario `fixed_200` executa cinco rodadas completas. Cada rodada mede as cinco linguagens sequencialmente, totalizando 25 medicoes de API. A ordem e rotacionada, e `execution_order.position` e `sequence_id` ficam nos metadados. O `sequence_id` incorpora metodologia, commit e hash da calibracao; uma retomada em outro codigo ou ambiente inicia outra campanha em vez de misturar resultados. Uma unica rodada permanece preliminar ate a bateria ser concluida.
 
-Antes de perfis `fixed_*` ou `saturation_*` oficiais, o Locust e calibrado em `GET /health`, pacing zero, 25/50/100/200/400 usuarios e 60 segundos por degrau. O artefato deve corresponder ao mesmo commit, imagem, numero de workers, cota e alocacao Docker, usar cAdvisor, cobrir ao menos 80% dessa janela curta e comprovar pelo menos 250 req/s com CPU do Locust abaixo de 90% da cota configurada. Cada rodada principal ainda exige 90% de cobertura e 25% de folga em relacao a essa capacidade.
+Antes de perfis `fixed_*` ou `saturation_*` oficiais, o Locust e calibrado em `GET /health`, pacing zero, 25/50/100/200/400 usuarios e 60 segundos por degrau. O artefato deve corresponder ao mesmo commit, imagem, numero de workers, cota e alocacao Docker, usar cAdvisor, cobrir ao menos 80% dessa janela curta e levar o Locust a pelo menos 90% da cota para demonstrar um pico de no minimo 250 req/s. Cada rodada principal ainda exige 90% de cobertura, CPU do Locust abaixo de 90% e vazao de no maximo 80% do pico calibrado.
 
 ## Classificacao
 
