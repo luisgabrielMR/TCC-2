@@ -300,6 +300,7 @@ class SummaryTests(unittest.TestCase):
             "resource_metrics_available": True,
             "exact_measurement_window": True,
             "locust_cpu_max_percent": 70,
+            "locust_cpu_quota_average_percent": 70,
             "locust_cpu_quota_max_percent": 70,
             "measurement_stability_status": "stable",
             "throughput_rps": 1000,
@@ -309,7 +310,8 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(result_confidence([clean] * 4), "preliminary_fewer_than_5_runs")
         ordered = [{**clean, "execution_order_position": position} for position in (1, 2, 3, 4, 5)]
         self.assertEqual(result_confidence(ordered), "adequate")
-        self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_max_percent": 90}, *ordered[1:]]), "invalid_load_generator")
+        self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_average_percent": 90}, *ordered[1:]]), "invalid_load_generator")
+        self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_max_percent": 150}, *ordered[1:]]), "adequate")
         variable = [{**row, "throughput_rps": rps} for row, rps in zip(ordered, (800, 900, 1000, 1100, 1200))]
         self.assertEqual(result_confidence(variable), "invalid_run_variability")
 
@@ -323,6 +325,20 @@ class SummaryTests(unittest.TestCase):
             dashboard.RAW = original_raw
         self.assertEqual(data["scenarios"], {})
         self.assertEqual(data["scalability"], {})
+
+    def test_dashboard_load_generator_gate_uses_window_average_not_scrape_peak(self) -> None:
+        clean = {
+            "resultClassification": "official", "failures": 0,
+            "resourceMetricsAvailable": True, "exactMeasurementWindow": True,
+            "locustCpuAvg": 70, "locustCpuMax": 150,
+            "measurementAvailable": True, "measurementFinalStable": True,
+            "measurementRpsChange": 0, "methodologyVersion": 7,
+            "loadProfile": "fixed_200", "executionOrderPosition": 1, "rps": 200,
+        }
+        rows = [{**clean, "executionOrderPosition": position} for position in range(1, 6)]
+        self.assertEqual(dashboard.result_confidence(rows), "adequate")
+        rows[0]["locustCpuAvg"] = 90
+        self.assertEqual(dashboard.result_confidence(rows), "invalid_load_generator")
 
 
 class ResourceWindowTests(unittest.TestCase):
@@ -691,15 +707,18 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
         images = {"images": [{"configured_reference": reference}]}
         samples = [{
             "users": users, "spawn_rate": users, "elapsed_seconds": 60, "failures": 0,
-            "throughput_rps_exact": 300, "locust_cpu_raw_max_percent": 200,
-            "locust_cpu_quota_percent": 50,
+            "throughput_rps_exact": 300,
+            "locust_cpu_raw_average_percent": 200, "locust_cpu_raw_max_percent": 300,
+            "locust_cpu_quota_average_percent": 50, "locust_cpu_quota_max_percent": 75,
             "cadvisor_coverage_percent": 95, "cpu_metric_source": "cadvisor_via_prometheus",
             "bounds_valid": True,
         } for users in (25, 50, 100, 200, 400)]
-        samples[-1]["locust_cpu_raw_max_percent"] = 380
-        samples[-1]["locust_cpu_quota_percent"] = 95
+        samples[-1]["locust_cpu_raw_average_percent"] = 380
+        samples[-1]["locust_cpu_raw_max_percent"] = 520
+        samples[-1]["locust_cpu_quota_average_percent"] = 95
+        samples[-1]["locust_cpu_quota_max_percent"] = 130
         artifact = {
-            "schema_version": 2, "classification": "non_official_calibration",
+            "schema_version": 3, "classification": "non_official_calibration",
             "scenario": "health_only", "wait_seconds": 0, "step_duration_seconds": 60,
             "processes": 4, "api_service": "go-api", "methodology_version": 7, "git": {**git},
             "environment": {
@@ -729,8 +748,10 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
 
             artifact["samples"][0]["cadvisor_coverage_percent"] = 95
             for sample in artifact["samples"]:
+                sample["locust_cpu_raw_average_percent"] = 200
                 sample["locust_cpu_raw_max_percent"] = 200
-                sample["locust_cpu_quota_percent"] = 50
+                sample["locust_cpu_quota_average_percent"] = 50
+                sample["locust_cpu_quota_max_percent"] = 50
             path.write_text(json.dumps(artifact), encoding="utf-8")
             report = validate_calibration(path, 7, git, docker, images, 4, 4)
             self.assertFalse(report["valid"])

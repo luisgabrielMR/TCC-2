@@ -46,7 +46,7 @@ def validate_calibration(
         return {"available": False, "valid": False, "path": str(path), "reasons": [str(exc)]}
 
     expected = {
-        "schema_version": 2,
+        "schema_version": 3,
         "classification": "non_official_calibration",
         "scenario": "health_only",
         "wait_seconds": 0,
@@ -104,8 +104,10 @@ def validate_calibration(
             elapsed = float(sample.get("elapsed_seconds"))
             failures = int(sample.get("failures"))
             exact_rps = float(sample.get("throughput_rps_exact"))
-            locust_cpu_raw = float(sample.get("locust_cpu_raw_max_percent"))
-            locust_cpu_quota_percent = float(sample.get("locust_cpu_quota_percent"))
+            locust_cpu_raw_average = float(sample.get("locust_cpu_raw_average_percent"))
+            locust_cpu_raw_max = float(sample.get("locust_cpu_raw_max_percent"))
+            locust_cpu_quota_average = float(sample.get("locust_cpu_quota_average_percent"))
+            locust_cpu_quota_max = float(sample.get("locust_cpu_quota_max_percent"))
             cadvisor_coverage = float(sample.get("cadvisor_coverage_percent"))
         except (TypeError, ValueError):
             reasons.append(f"calibration sample for {users} users has invalid numeric fields")
@@ -126,17 +128,25 @@ def validate_calibration(
         if exact_rps <= 0:
             reasons.append(f"calibration sample for {users} users has no throughput")
         try:
-            expected_quota_percent = quota_normalized_cpu_percent(
-                locust_cpu_raw, expected_locust_cpu_quota
+            expected_quota_average = quota_normalized_cpu_percent(
+                locust_cpu_raw_average, expected_locust_cpu_quota
+            )
+            expected_quota_max = quota_normalized_cpu_percent(
+                locust_cpu_raw_max, expected_locust_cpu_quota
             )
         except ValueError as exc:
             reasons.append(str(exc))
-            expected_quota_percent = float("inf")
-        if abs(locust_cpu_quota_percent - expected_quota_percent) > 0.001:
+            expected_quota_average = float("inf")
+            expected_quota_max = float("inf")
+        if abs(locust_cpu_quota_average - expected_quota_average) > 0.001:
             reasons.append(
-                f"calibration sample for {users} users has inconsistent Locust CPU normalization"
+                f"calibration sample for {users} users has inconsistent average Locust CPU normalization"
             )
-        if locust_cpu_quota_percent >= LOCUST_SATURATION_CPU_QUOTA_PERCENT:
+        if abs(locust_cpu_quota_max - expected_quota_max) > 0.001:
+            reasons.append(
+                f"calibration sample for {users} users has inconsistent maximum Locust CPU normalization"
+            )
+        if locust_cpu_quota_average >= LOCUST_SATURATION_CPU_QUOTA_PERCENT:
             saturation_observed = True
         if failures == 0 and exact_rps > 0:
             peak_rps_values.append(exact_rps)

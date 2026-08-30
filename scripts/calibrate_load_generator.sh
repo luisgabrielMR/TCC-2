@@ -114,8 +114,10 @@ for users in (25, 50, 100, 200, 400):
         "failures": int(aggregate["Failure Count"]),
         "throughput_rps_exact": round(requests / elapsed, 9),
         "locust_reported_rps": float(aggregate["Requests/s"]),
+        "locust_cpu_raw_average_percent": float(locust["cpu_average_percent"]),
         "locust_cpu_raw_max_percent": float(locust["cpu_max_percent"]),
-        "locust_cpu_quota_percent": round(float(locust["cpu_max_percent"]) / locust_cpu_quota, 6),
+        "locust_cpu_quota_average_percent": round(float(locust["cpu_average_percent"]) / locust_cpu_quota, 6),
+        "locust_cpu_quota_max_percent": round(float(locust["cpu_max_percent"]) / locust_cpu_quota, 6),
         "cadvisor_coverage_percent": float(locust["coverage_percent"]),
         "cpu_metric_source": "cadvisor_via_prometheus", "bounds_valid": bool(validation["valid"]),
         "result_directory": str(directory).replace("\\", "/"),
@@ -123,7 +125,7 @@ for users in (25, 50, 100, 200, 400):
 valid = [row["throughput_rps_exact"] for row in samples if row["failures"] == 0]
 locust_image = next((item["configured_reference"] for item in preflight["configured_images"]["images"] if item["configured_reference"].startswith("locustio/locust:2.32.6@sha256:")), None)
 artifact = {
-    "schema_version": 2, "classification": "non_official_calibration",
+    "schema_version": 3, "classification": "non_official_calibration",
     "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     "methodology_version": methodology, "scenario": "health_only", "wait_seconds": 0,
     "step_duration_seconds": 60, "processes": processes, "api_service": api_service,

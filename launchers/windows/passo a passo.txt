@@ -69,5 +69,5 @@ CRITERIOS DE UMA RODADA OFICIAL
 - postgres-exporter, Prometheus e Grafana saudaveis;
 - zero falhas HTTP;
 - pelo menos 97,5% do alvo fixed_200;
-- CPU maxima do Locust abaixo de 90% da cota e 25% de folga calibrada;
+- CPU media do Locust na janela abaixo de 90% da cota e 25% de folga calibrada;
 - resultado gravado com result_classification=official.

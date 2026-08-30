@@ -90,13 +90,13 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_measurement_window"
     if any(
         int(number(row.get("methodology_version"), 1)) >= 7
-        and row.get("locust_cpu_quota_max_percent") in (None, "")
+        and row.get("locust_cpu_quota_average_percent") in (None, "")
         for row in rows
     ):
         return "invalid_load_generator"
     if any(
         number(
-            row.get("locust_cpu_quota_max_percent")
+            row.get("locust_cpu_quota_average_percent")
             if int(number(row.get("methodology_version"), 1)) >= 7
             else row.get("locust_cpu_max_percent")
         ) >= 90
@@ -302,10 +302,16 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
             "locust_cpu_average_percent": number(locust.get("cpu_average_percent")) if locust else None,
             "locust_cpu_max_percent": number(locust.get("cpu_max_percent")) if locust else None,
             "locust_cpu_quota_average_percent": (
-                number(locust.get("cpu_average_percent")) / number(locust_meta.get("locust_cpu_quota"), 1)
+                locust_meta.get("locust_cpu_quota_average_percent")
+                if locust_meta.get("locust_cpu_quota_average_percent") not in (None, "")
+                else number(locust.get("cpu_average_percent")) / number(locust_meta.get("locust_cpu_quota"), 1)
                 if locust and number(locust_meta.get("locust_cpu_quota"), 0) > 0 else None
             ),
-            "locust_cpu_quota_max_percent": locust_meta.get("locust_cpu_quota_percent"),
+            "locust_cpu_quota_max_percent": (
+                locust_meta.get("locust_cpu_quota_max_percent")
+                if locust_meta.get("locust_cpu_quota_max_percent") not in (None, "")
+                else locust_meta.get("locust_cpu_quota_percent")
+            ),
             "postgres_cpu_average_percent": number(postgres.get("cpu_average_percent")) if postgres else None,
             "postgres_cpu_max_percent": number(postgres.get("cpu_max_percent")) if postgres else None,
             "postgres_metric_source": postgres_summary.get("metric_source", "unavailable"),

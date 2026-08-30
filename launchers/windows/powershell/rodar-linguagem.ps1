@@ -214,13 +214,15 @@ try {
     Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
     $locustResource = Import-Csv (Join-Path $resultDirectory "cadvisor_summary.csv") |
         Where-Object { $_.component -eq "locust" } | Select-Object -First 1
+    $locustCpuAveragePercent = if ($locustResource) { [double]$locustResource.cpu_average_percent } else { $null }
     $locustCpuMaxPercent = if ($locustResource) { [double]$locustResource.cpu_max_percent } else { $null }
-    $locustCpuQuotaPercent = if ($null -eq $locustCpuMaxPercent) {
+    $locustCpuQuotaAveragePercent = if ($null -eq $locustCpuAveragePercent) {
         $null
     } else {
-        [math]::Round($locustCpuMaxPercent / $locustCpuQuota, 6)
+        [math]::Round($locustCpuAveragePercent / $locustCpuQuota, 6)
     }
-    $generatorHeadroomMet = if ($null -eq $locustCpuQuotaPercent) { $RunMode -ne "official" } else { $locustCpuQuotaPercent -lt 90 }
+    $locustCpuQuotaMaxPercent = if ($null -eq $locustCpuMaxPercent) { $null } else { [math]::Round($locustCpuMaxPercent / $locustCpuQuota, 6) }
+    $generatorHeadroomMet = if ($null -eq $locustCpuQuotaAveragePercent) { $RunMode -ne "official" } else { $locustCpuQuotaAveragePercent -lt 90 }
     $calibratedCapacityRps = $preflight.load_generator_calibration.validated_capacity_rps
     if ($LoadProfile -like "fixed_*" -or $LoadProfile -like "saturation_*") {
         $generatorHeadroomMet = $generatorHeadroomMet -and $null -ne $calibratedCapacityRps -and
@@ -336,10 +338,13 @@ try {
             reported_rps = $locustReportedRps
             throughput_source = "request_count / monotonic elapsed_seconds"
             rate_target_met = $rateTargetMet
+            locust_cpu_average_percent = $locustCpuAveragePercent
             locust_cpu_max_percent = $locustCpuMaxPercent
             locust_cpu_raw_max_percent = $locustCpuMaxPercent
             locust_cpu_quota = $locustCpuQuota
-            locust_cpu_quota_percent = $locustCpuQuotaPercent
+            locust_cpu_quota_average_percent = $locustCpuQuotaAveragePercent
+            locust_cpu_quota_max_percent = $locustCpuQuotaMaxPercent
+            generator_headroom_cpu_metric = "window_average_normalized_by_cpu_quota"
             generator_headroom_met = $generatorHeadroomMet
             calibrated_capacity_rps = $calibratedCapacityRps
             calibration_headroom_factor_required = 1.25

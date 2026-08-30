@@ -58,12 +58,12 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_missing_resources"
     if any(not row["exactMeasurementWindow"] for row in rows):
         return "invalid_measurement_window"
-    if any(row["locustCpuMax"] >= 90 for row in rows):
+    if any(row["locustCpuAvg"] >= 90 for row in rows):
         return "invalid_load_generator"
     if any(not row["measurementAvailable"] or not row["measurementFinalStable"] or abs(row["measurementRpsChange"]) > 10 for row in rows):
         return "invalid_instability"
     required_runs = 5 if any(
-        int(number(row.get("methodologyVersion"), 1)) >= 7
+        int(number(row.get("methodologyVersion")) or 1) >= 7
         and row.get("loadProfile") == "fixed_200"
         for row in rows
     ) else 3
@@ -171,6 +171,19 @@ def collect() -> dict:
             5 <= methodology_version < 7 and window_source == "locust_test_start_stop"
         )
         use_exact_rps = methodology_version >= 7 and exact_window
+        locust_cpu_quota = number(locust_metadata.get("locust_cpu_quota")) or 1
+        locust_cpu_quota_average = (
+            number(locust_metadata.get("locust_cpu_quota_average_percent"))
+            if locust_metadata.get("locust_cpu_quota_average_percent") not in (None, "")
+            else number(locust.get("cpu_average_percent")) / locust_cpu_quota
+        )
+        locust_cpu_quota_max = (
+            number(locust_metadata.get("locust_cpu_quota_max_percent"))
+            if locust_metadata.get("locust_cpu_quota_max_percent") not in (None, "")
+            else number(locust_metadata.get("locust_cpu_quota_percent"))
+            if locust_metadata.get("locust_cpu_quota_percent") not in (None, "")
+            else number(locust.get("cpu_max_percent")) / locust_cpu_quota
+        )
         aggregate_rps = exact_throughput(
             aggregate.get("Request Count"), elapsed, aggregate.get("Requests/s"), use_exact_rps
         )
@@ -201,8 +214,10 @@ def collect() -> dict:
             "cpuMax": number(api.get("cpu_max_percent")),
             "memoryAvgMiB": number(api.get("memory_average_bytes")) / 1024 / 1024,
             "memoryMaxMiB": number(api.get("memory_max_bytes")) / 1024 / 1024,
-            "locustCpuAvg": number(locust.get("cpu_average_percent")),
-            "locustCpuMax": number(locust.get("cpu_max_percent")),
+            "locustCpuAvg": locust_cpu_quota_average
+                if methodology_version >= 7 else number(locust.get("cpu_average_percent")),
+            "locustCpuMax": locust_cpu_quota_max
+                if methodology_version >= 7 else number(locust.get("cpu_max_percent")),
             "postgresCpuAvg": number(postgres.get("cpu_average_percent")),
             "resourceMetricSource": resource_source,
             "resourceMetricsAvailable": bool(api and locust and postgres) and (

@@ -49,7 +49,7 @@ No menu simples, execute primeiro `Calibrar gerador de carga`. O processo usa ap
 
 No Windows, use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa uma das cinco rodadas oficiais do perfil `fixed_200`. Uma rodada mede as cinco linguagens sequencialmente, com ordem rotacionada, e leva aproximadamente 55 a 75 minutos. O runner detecta a proxima rodada incompleta e retoma somente as linguagens ainda ausentes do mesmo commit, metodologia e calibracao; mudancas nesses elementos criam uma campanha distinta.
 
-O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel, entrega pelo menos 97,5% do alvo, mantem a CPU do Locust abaixo de 90% da cota e usa no maximo 80% da capacidade calibrada. A bateria de saturacao permanece separada e e piloto por padrao.
+O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel, entrega pelo menos 97,5% do alvo, mantem a CPU media do Locust na janela abaixo de 90% da cota e usa no maximo 80% da capacidade calibrada. A bateria de saturacao permanece separada e e piloto por padrao.
 
 ## Monitoramento
 

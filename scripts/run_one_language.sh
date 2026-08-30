@@ -275,22 +275,27 @@ print(str(achieved >= target * 0.975).lower())
 fi
 
 "$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE"
-LOCUST_CPU_MAX_PERCENT="$($PYTHON_BIN -c '
+read -r LOCUST_CPU_AVERAGE_PERCENT LOCUST_CPU_MAX_PERCENT <<EOF
+$($PYTHON_BIN -c '
 import csv, sys
 try:
     rows=csv.DictReader(open(sys.argv[1], encoding="utf-8-sig"))
-    print(next((row["cpu_max_percent"] for row in rows if row.get("component") == "locust"), "null"))
+    row=next((row for row in rows if row.get("component") == "locust"), None)
+    print(f'{row["cpu_average_percent"]} {row["cpu_max_percent"]}' if row else "null null")
 except OSError:
-    print("null")
-' "$RESULT_DIR/cadvisor_summary.csv")"
-LOCUST_CPU_QUOTA_PERCENT=null
-if [ "$LOCUST_CPU_MAX_PERCENT" != null ]; then
-  LOCUST_CPU_QUOTA_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$LOCUST_CPU_MAX_PERCENT" "$LOCUST_CPU_QUOTA")"
+    print("null null")
+' "$RESULT_DIR/cadvisor_summary.csv")
+EOF
+LOCUST_CPU_QUOTA_AVERAGE_PERCENT=null
+LOCUST_CPU_QUOTA_MAX_PERCENT=null
+if [ "$LOCUST_CPU_AVERAGE_PERCENT" != null ]; then
+  LOCUST_CPU_QUOTA_AVERAGE_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$LOCUST_CPU_AVERAGE_PERCENT" "$LOCUST_CPU_QUOTA")"
+  LOCUST_CPU_QUOTA_MAX_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$LOCUST_CPU_MAX_PERCENT" "$LOCUST_CPU_QUOTA")"
 fi
 GENERATOR_HEADROOM_MET=true
-if [ "$LOCUST_CPU_QUOTA_PERCENT" = null ]; then
+if [ "$LOCUST_CPU_QUOTA_AVERAGE_PERCENT" = null ]; then
   if [ "$RUN_MODE" = official ]; then GENERATOR_HEADROOM_MET=false; fi
-elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$LOCUST_CPU_QUOTA_PERCENT"; then
+elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$LOCUST_CPU_QUOTA_AVERAGE_PERCENT"; then
   GENERATOR_HEADROOM_MET=false
 fi
 if [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then
@@ -412,10 +417,13 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "reported_rps": $LOCUST_REPORTED_RPS,
     "throughput_source": "request_count / monotonic elapsed_seconds",
     "rate_target_met": $RATE_TARGET_MET,
+    "locust_cpu_average_percent": $LOCUST_CPU_AVERAGE_PERCENT,
     "locust_cpu_max_percent": $LOCUST_CPU_MAX_PERCENT,
     "locust_cpu_raw_max_percent": $LOCUST_CPU_MAX_PERCENT,
     "locust_cpu_quota": $LOCUST_CPU_QUOTA,
-    "locust_cpu_quota_percent": $LOCUST_CPU_QUOTA_PERCENT,
+    "locust_cpu_quota_average_percent": $LOCUST_CPU_QUOTA_AVERAGE_PERCENT,
+    "locust_cpu_quota_max_percent": $LOCUST_CPU_QUOTA_MAX_PERCENT,
+    "generator_headroom_cpu_metric": "window_average_normalized_by_cpu_quota",
     "generator_headroom_met": $GENERATOR_HEADROOM_MET,
     "calibrated_capacity_rps": $CALIBRATION_CAPACITY_RPS,
     "calibration_headroom_factor_required": 1.25,

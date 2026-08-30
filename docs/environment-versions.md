@@ -84,7 +84,7 @@ O Docker recebe 8 processadores logicos. Sem limite explicito, API, PostgreSQL e
 | Locust | 4,0 |
 | Monitoramento | sem quota individual |
 
-O Locust recebe quatro CPUs e roda com `--processes 4`, definido por `LOCUST_PROCESSES`. A calibracao registra o numero real de workers e a CPU em duas unidades: percentual bruto do cAdvisor, no qual cada core equivale a 100%, e percentual normalizado pela cota de quatro CPUs. O gate de 90% usa somente o valor normalizado. Cada worker consome uma faixa disjunta de `customers_create.jsonl`; os demais fluxos deterministas com reuso comecam em deslocamentos diferentes.
+O Locust recebe quatro CPUs e roda com `--processes 4`, definido por `LOCUST_PROCESSES`. A calibracao registra o numero real de workers e a CPU em duas unidades: percentual bruto do cAdvisor, no qual cada core equivale a 100%, e percentual normalizado pela cota de quatro CPUs. O gate de 90% usa a media da janela normalizada; o maximo bruto por scrape permanece diagnostico porque atualizacoes acumuladas do contador podem gerar picos aparentes acima da cota. Cada worker consome uma faixa disjunta de `customers_create.jsonl`; os demais fluxos deterministas com reuso comecam em deslocamentos diferentes.
 
 Esses valores sao cotas maximas, nao reservas exclusivas nem afinidade de CPU. Assim, a API pode consumir no maximo o equivalente a 2 CPUs, mas Prometheus, Grafana, exportadores e cAdvisor ainda podem competir pelos processadores do Docker. O preflight registra o hash do Compose e valida `NanoCpus` dos containers ativos; o cAdvisor registra o consumo observado. Nao se deve descrever a API como tendo "exatamente duas CPUs dedicadas". Alterar as cotas ou a alocacao Docker exige nova versao metodologica e repeticao integral.
 

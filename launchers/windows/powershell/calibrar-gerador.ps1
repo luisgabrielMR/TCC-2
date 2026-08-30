@@ -104,8 +104,10 @@ try {
             failures = [int64]$aggregate."Failure Count"
             throughput_rps_exact = [math]::Round($requestCount / $elapsed, 9)
             locust_reported_rps = [double]$aggregate."Requests/s"
+            locust_cpu_raw_average_percent = [double]$locustResource.cpu_average_percent
             locust_cpu_raw_max_percent = [double]$locustResource.cpu_max_percent
-            locust_cpu_quota_percent = [math]::Round([double]$locustResource.cpu_max_percent / $locustCpuQuota, 6)
+            locust_cpu_quota_average_percent = [math]::Round([double]$locustResource.cpu_average_percent / $locustCpuQuota, 6)
+            locust_cpu_quota_max_percent = [math]::Round([double]$locustResource.cpu_max_percent / $locustCpuQuota, 6)
             cadvisor_coverage_percent = [double]$locustResource.coverage_percent
             cpu_metric_source = "cadvisor_via_prometheus"
             bounds_valid = [bool]$boundsValidation.valid
@@ -123,7 +125,7 @@ try {
         Where-Object { $_.configured_reference -like "locustio/locust:2.32.6@sha256:*" } |
         Select-Object -ExpandProperty configured_reference -First 1
     $artifact = [ordered]@{
-        schema_version = 2
+        schema_version = 3
         classification = "non_official_calibration"
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
         methodology_version = $methodologyVersion
