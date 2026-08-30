@@ -5,16 +5,27 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/_lib.sh"
 
-# fixed_200 responde "qual a latencia sob carga igual para todas"; a escada de
-# saturacao responde "qual o limite de cada uma". Um perfil so nao responde as
-# duas perguntas: com pacing, a vazao e do gerador, nao da API.
-IFS=' ' read -r -a profiles <<< "${BENCHMARK_PROFILES:-fixed_200 saturation_50 saturation_100 saturation_200}"
+# fixed_200 pertence exclusivamente a bateria oficial de cinco rodadas. Esta
+# bateria separada responde apenas "qual o limite observado de cada API" e nao
+# pode introduzir repeticoes extras na coorte de taxa fixa.
+IFS=' ' read -r -a profiles <<< "${BENCHMARK_PROFILES:-saturation_25 saturation_50 saturation_100 saturation_200 saturation_400}"
+for profile in "${profiles[@]}"; do
+  if [[ "$profile" != saturation_* ]]; then
+    echo "BENCHMARK_PROFILES aceita somente perfis saturation_* nesta bateria." >&2
+    exit 2
+  fi
+done
+CAPACITY_RUN_MODE="${CAPACITY_RUN_MODE:-pilot}"
+if [ "$CAPACITY_RUN_MODE" != pilot ] && [ "$CAPACITY_RUN_MODE" != official ]; then
+  echo "CAPACITY_RUN_MODE deve ser pilot ou official." >&2
+  exit 2
+fi
 for round in $(seq 1 "$BENCHMARK_REPETITIONS"); do
   for profile_index in "${!profiles[@]}"; do
     profile="${profiles[$profile_index]}"
     offset=$(((round - 1 + profile_index * 2) % 5))
     echo "Iniciando perfil $profile, repeticao $round/$BENCHMARK_REPETITIONS, ordem deslocada $offset."
-    "$SCRIPT_DIR/run_all_languages_sequentially.sh" mixed 0 "$profile" "$offset" "${profile}_round_${round}" official
+    "$SCRIPT_DIR/run_all_languages_sequentially.sh" mixed 0 "$profile" "$offset" "${profile}_round_${round}" "$CAPACITY_RUN_MODE"
   done
 done
 

@@ -459,7 +459,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{classification}}",
           "range": false,
@@ -507,7 +507,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -556,7 +556,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_duration_seconds{classification=~\"$classification\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_duration_seconds{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -605,7 +605,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_requests{classification=~\"$classification\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_requests{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -664,7 +664,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_failures{classification=~\"$classification\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_failures{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -729,7 +729,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_error_rate{classification=~\"$classification\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_error_rate{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -777,7 +777,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=~\"$classification\",methodology=~\"$methodology\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_cpu_percent{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{metric_source}}",
           "range": false,
@@ -825,7 +825,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_memory_bytes{classification=~\"$classification\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_memory_bytes{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{metric_source}}",
           "range": false,
@@ -873,7 +873,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -921,7 +921,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -969,7 +969,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -1277,7 +1277,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
+          "expr": "benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{endpoint}}",
           "range": false,
@@ -1325,7 +1325,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_endpoint_run_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",run=~\"$run\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
+          "expr": "benchmark_endpoint_run_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{endpoint}}",
           "range": false,
@@ -1384,7 +1384,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_endpoint_run_failures{classification=~\"$classification\",methodology=~\"$methodology\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
+          "expr": "benchmark_endpoint_run_failures{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{endpoint}}",
           "range": false,
@@ -2008,7 +2008,35 @@
           "type": "prometheus",
           "uid": "Prometheus"
         },
-        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, run)",
+        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, campaign)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Campanha",
+        "multi": true,
+        "name": "campaign",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, campaign)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "Todas",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\"}, run)",
         "hide": 0,
         "includeAll": true,
         "label": "Rodada",
@@ -2016,7 +2044,7 @@
         "name": "run",
         "options": [],
         "query": {
-          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, run)",
+          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\"}, run)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -2092,7 +2120,7 @@
           "type": "prometheus",
           "uid": "Prometheus"
         },
-        "definition": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
+        "definition": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
         "hide": 0,
         "includeAll": true,
         "label": "Endpoint",
@@ -2100,7 +2128,7 @@
         "name": "endpoint",
         "options": [],
         "query": {
-          "query": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
+          "query": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,

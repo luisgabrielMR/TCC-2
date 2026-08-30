@@ -90,22 +90,94 @@ def series_values(
     return values
 
 
-def series_cpu_rates(
-    series: list[dict], service: str, name_pattern: str, identifiers: str | list[str] | None = None
-) -> list[float]:
-    rates: list[float] = []
+def clean_samples(row: dict) -> list[tuple[float, float]]:
+    return sorted(
+        (float(timestamp), float(value))
+        for timestamp, value in row.get("values", [])
+        if value not in ("NaN", "+Inf", "-Inf")
+    )
+
+
+def clipped_samples(samples: list[tuple[float, float]], start: float, end: float) -> list[tuple[float, float]]:
+    if end <= start or len(samples) < 2:
+        return []
+
+    def interpolate(boundary: float) -> tuple[float, float] | None:
+        for left, right in zip(samples, samples[1:]):
+            if left[0] <= boundary <= right[0] and right[0] > left[0]:
+                ratio = (boundary - left[0]) / (right[0] - left[0])
+                return boundary, left[1] + (right[1] - left[1]) * ratio
+        return None
+
+    observed_start = max(start, samples[0][0])
+    observed_end = min(end, samples[-1][0])
+    if observed_end <= observed_start:
+        return []
+    first = interpolate(observed_start)
+    last = interpolate(observed_end)
+    if first is None or last is None:
+        return []
+    inside = [(timestamp, value) for timestamp, value in samples if observed_start < timestamp < observed_end]
+    return [first, *inside, last]
+
+
+def time_weighted_gauge(
+    samples: list[tuple[float, float]], start: float, end: float
+) -> tuple[float, float, int, float]:
+    clipped = clipped_samples(samples, start, end)
+    if len(clipped) < 2:
+        return 0.0, 0.0, 0, 0.0
+    area = 0.0
+    for (left_time, left_value), (right_time, right_value) in zip(clipped, clipped[1:]):
+        area += (left_value + right_value) / 2 * (right_time - left_time)
+    observed = clipped[-1][0] - clipped[0][0]
+    return area / observed if observed else 0.0, max(value for _, value in clipped), len(clipped), observed
+
+
+def counter_window_delta_samples(samples: list[tuple[float, float]], start: float, end: float) -> float:
+    total = 0.0
+    for (left_time, left_value), (right_time, right_value) in zip(samples, samples[1:]):
+        interval = right_time - left_time
+        overlap = min(right_time, end) - max(left_time, start)
+        if interval <= 0 or overlap <= 0:
+            continue
+        delta = right_value - left_value if right_value >= left_value else right_value
+        total += max(delta, 0.0) * overlap / interval
+    return total
+
+
+def series_cpu_observations(
+    series: list[dict], service: str, name_pattern: str, identifiers: str | list[str] | None,
+    start: float, end: float,
+) -> list[tuple[float, float]]:
+    observations: list[tuple[float, float]] = []
     for row in matching_series(series, service, name_pattern, identifiers):
-        values = [
-            (float(timestamp), float(value))
-            for timestamp, value in row.get("values", [])
-            if value not in ("NaN", "+Inf", "-Inf")
-        ]
+        values = clean_samples(row)
         for (previous_time, previous_value), (current_time, current_value) in zip(values, values[1:]):
             elapsed = current_time - previous_time
+            overlap = min(current_time, end) - max(previous_time, start)
             delta = current_value - previous_value
-            if elapsed > 0 and delta >= 0:
-                rates.append(delta / elapsed * 100)
-    return rates
+            if elapsed > 0 and overlap > 0 and delta >= 0:
+                observations.append((delta / elapsed * 100, overlap))
+    return observations
+
+
+def series_gauge_summary(
+    series: list[dict], service: str, name_pattern: str, identifiers: str | list[str] | None,
+    start: float, end: float,
+) -> tuple[float, float, int, float]:
+    summaries = [
+        time_weighted_gauge(clean_samples(row), start, end)
+        for row in matching_series(series, service, name_pattern, identifiers)
+    ]
+    return max(summaries, key=lambda item: item[3], default=(0.0, 0.0, 0, 0.0))
+
+
+def series_cpu_rates(
+    series: list[dict], service: str, name_pattern: str, identifiers: str | list[str] | None = None,
+    start: float = float("-inf"), end: float = float("inf"),
+) -> list[float]:
+    return [rate for rate, _ in series_cpu_observations(series, service, name_pattern, identifiers, start, end)]
 
 
 def sampled_container_ids(path: Path, component: str, canonical_name: str) -> list[str]:
@@ -132,6 +204,11 @@ def query_values(result: dict, key: str) -> list[float]:
     ]
 
 
+def query_samples(result: dict, key: str) -> list[tuple[float, float]]:
+    series = result["queries"][key]["response"].get("data", {}).get("result", [])
+    return clean_samples(series[0]) if series else []
+
+
 def counter_window_delta(values: list[float]) -> float:
     if len(values) < 2:
         return 0.0
@@ -146,26 +223,51 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         "postgres_up", "postgres_connections", "postgres_commits_total", "postgres_rollbacks_total",
         "postgres_blocks_read", "postgres_blocks_hit", "postgres_database_size_bytes",
     )
-    values = {key: query_values(result, key) for key in keys}
-    missing = [key for key, series in values.items() if not series]
-    insufficient = [key for key, series in values.items() if 0 < len(series) < 2]
-    if values["postgres_up"] and any(value != 1 for value in values["postgres_up"]):
+    samples = {key: query_samples(result, key) for key in keys}
+    missing = [key for key, series in samples.items() if not series]
+    insufficient = [key for key, series in samples.items() if 0 < len(series) < 2]
+    start = float(result["start_epoch"])
+    end = float(result["end_epoch"])
+    elapsed = max(end - start, 0.0)
+    observed_by_metric = {}
+    for key, series in samples.items():
+        clipped = clipped_samples(series, start, end)
+        observed_by_metric[key] = clipped[-1][0] - clipped[0][0] if len(clipped) >= 2 else 0.0
+    clipped_up = clipped_samples(samples["postgres_up"], start, end)
+    if clipped_up and any(value != 1 for _, value in clipped_up):
         missing.append("postgres_up_not_continuously_healthy")
     if require and (missing or insufficient):
         problems = missing + [f"{key}:insufficient_samples" for key in insufficient]
         raise RuntimeError("Invalid PostgreSQL measurement series: " + ", ".join(problems))
-    connections = values["postgres_connections"]
-    commits = counter_window_delta(values["postgres_commits_total"])
-    rollbacks = counter_window_delta(values["postgres_rollbacks_total"])
-    blocks_read = counter_window_delta(values["postgres_blocks_read"])
-    blocks_hit = counter_window_delta(values["postgres_blocks_hit"])
-    sizes = values["postgres_database_size_bytes"]
-    elapsed = max(float(result["end_epoch"]) - float(result["start_epoch"]), 0.0)
+    incomplete_coverage = [
+        f"{key}:{observed:.3f}/{elapsed:.3f}s"
+        for key, observed in observed_by_metric.items()
+        if elapsed and observed < elapsed * 0.99
+    ]
+    if require and incomplete_coverage:
+        raise RuntimeError(
+            "PostgreSQL measurement coverage is incomplete: " + ", ".join(incomplete_coverage)
+        )
+    connections_average, connections_max, connection_samples, connection_observed = time_weighted_gauge(
+        samples["postgres_connections"], start, end
+    )
+    size_average, size_max, _, _ = time_weighted_gauge(samples["postgres_database_size_bytes"], start, end)
+    commits = counter_window_delta_samples(samples["postgres_commits_total"], start, end)
+    rollbacks = counter_window_delta_samples(samples["postgres_rollbacks_total"], start, end)
+    blocks_read = counter_window_delta_samples(samples["postgres_blocks_read"], start, end)
+    blocks_hit = counter_window_delta_samples(samples["postgres_blocks_hit"], start, end)
+    minimum_observed = min(observed_by_metric.values(), default=0.0)
     cache_total = blocks_hit + blocks_read
     row = {
-        "samples": len(connections),
-        "connections_average": f"{(sum(connections) / len(connections)) if connections else 0:.6f}",
-        "connections_max": f"{max(connections, default=0):.6f}",
+        "samples": connection_samples,
+        "observed_seconds": f"{minimum_observed:.6f}",
+        "coverage_percent": f"{(minimum_observed / elapsed * 100) if elapsed else 0:.6f}",
+        "coverage_by_metric": json.dumps({
+            key: round(observed / elapsed * 100, 6) if elapsed else 0.0
+            for key, observed in observed_by_metric.items()
+        }, sort_keys=True, separators=(",", ":")),
+        "connections_average": f"{connections_average:.6f}",
+        "connections_max": f"{connections_max:.6f}",
         "commits_total": f"{commits:.6f}",
         "rollbacks_total": f"{rollbacks:.6f}",
         "commits_per_second": f"{(commits / elapsed) if elapsed else 0:.6f}",
@@ -173,8 +275,9 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         "blocks_read_total": f"{blocks_read:.6f}",
         "blocks_hit_total": f"{blocks_hit:.6f}",
         "cache_hit_ratio": f"{(blocks_hit / cache_total) if cache_total else 0:.9f}",
-        "database_size_average_bytes": f"{(sum(sizes) / len(sizes)) if sizes else 0:.3f}",
-        "database_size_max_bytes": f"{max(sizes, default=0):.3f}",
+        "database_size_average_bytes": f"{size_average:.3f}",
+        "database_size_max_bytes": f"{size_max:.3f}",
+        "boundary_method": "scrape-padded overlap clipping; time-weighted gauges",
         "metric_source": "postgres_exporter_via_prometheus",
     }
     with path.open("w", encoding="utf-8", newline="") as handle:
@@ -183,11 +286,16 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         writer.writerow(row)
 
 
-def write_cadvisor_summary(path: Path, result: dict, components: list[str], require: bool) -> None:
+def write_cadvisor_summary(
+    path: Path, result: dict, components: list[str], require: bool, minimum_coverage_percent: float = 90
+) -> None:
     cpu = result["queries"]["cadvisor_cpu_usage_seconds_total"]["response"].get("data", {}).get("result", [])
     memory = result["queries"]["cadvisor_memory_working_set_bytes"]["response"].get("data", {}).get("result", [])
     rows: list[dict[str, object]] = []
     missing: list[str] = []
+    start = float(result["start_epoch"])
+    end = float(result["end_epoch"])
+    elapsed = max(end - start, 0.0)
     for specification in components:
         component, target = specification.split("=", 1)
         service, name_pattern = target.split(",", 1)
@@ -195,10 +303,24 @@ def write_cadvisor_summary(path: Path, result: dict, components: list[str], requ
         current_identifier = container_id(name_pattern)
         if current_identifier:
             identifiers.append(current_identifier)
-        cpu_values = series_cpu_rates(cpu, service, name_pattern, identifiers)
-        memory_values = series_values(memory, service, name_pattern, identifiers)
-        if not cpu_values or not memory_values:
+        cpu_observations = series_cpu_observations(
+            cpu, service, name_pattern, identifiers, start, end
+        )
+        memory_average, memory_max, memory_samples, memory_observed = series_gauge_summary(
+            memory, service, name_pattern, identifiers, start, end
+        )
+        cpu_observed = sum(overlap for _, overlap in cpu_observations)
+        cpu_average = (
+            sum(rate * overlap for rate, overlap in cpu_observations) / cpu_observed
+            if cpu_observed else 0.0
+        )
+        cpu_max = max((rate for rate, _ in cpu_observations), default=0.0)
+        coverage = min(cpu_observed, memory_observed) / elapsed * 100 if elapsed else 0.0
+        if not cpu_observations or not memory_samples:
             missing.append(component)
+            continue
+        if require and coverage < minimum_coverage_percent:
+            missing.append(f"{component}:coverage_{coverage:.1f}_percent")
             continue
         canonical_name = {
             "api": "tcc_benchmark_" + service.replace("-", "_"),
@@ -208,16 +330,20 @@ def write_cadvisor_summary(path: Path, result: dict, components: list[str], requ
         rows.append({
             "component": component,
             "container_name": canonical_name,
-            "samples": min(len(cpu_values), len(memory_values)),
-            "cpu_average_percent": f"{sum(cpu_values) / len(cpu_values):.6f}",
-            "cpu_max_percent": f"{max(cpu_values):.6f}",
-            "memory_average_bytes": round(sum(memory_values) / len(memory_values)),
-            "memory_max_bytes": round(max(memory_values)),
+            "samples": min(len(cpu_observations), memory_samples),
+            "observed_seconds": f"{min(cpu_observed, memory_observed):.6f}",
+            "coverage_percent": f"{coverage:.6f}",
+            "cpu_average_percent": f"{cpu_average:.6f}",
+            "cpu_max_percent": f"{cpu_max:.6f}",
+            "memory_average_bytes": round(memory_average),
+            "memory_max_bytes": round(memory_max),
+            "boundary_method": "scrape-padded overlap clipping; time-weighted samples",
             "metric_source": "cadvisor_via_prometheus",
         })
     fields = [
-        "component", "container_name", "samples", "cpu_average_percent", "cpu_max_percent",
-        "memory_average_bytes", "memory_max_bytes", "metric_source",
+        "component", "container_name", "samples", "observed_seconds", "coverage_percent",
+        "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
+        "boundary_method", "metric_source",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
@@ -237,16 +363,31 @@ def main() -> int:
     parser.add_argument("--component", action="append", default=[])
     parser.add_argument("--require-cadvisor", action="store_true")
     parser.add_argument("--require-postgres", action="store_true")
+    parser.add_argument("--minimum-cadvisor-coverage-percent", type=float, default=90)
     args = parser.parse_args()
-    result = {"start_epoch": args.start, "end_epoch": args.end, "step_seconds": args.step, "queries": {}}
+    query_start = args.start - args.step
+    query_end = args.end + args.step
+    result = {
+        "start_epoch": args.start,
+        "end_epoch": args.end,
+        "query_start_epoch": query_start,
+        "query_end_epoch": query_end,
+        "step_seconds": args.step,
+        "boundary_method": "one-scrape padding with overlap clipping to wall-clock boundaries; duration is monotonic",
+        "queries": {},
+    }
     for name, query in QUERIES.items():
-        result["queries"][name] = {"query": query, "response": query_range(args.url, query, args.start, args.end, args.step)}
+        result["queries"][name] = {
+            "query": query,
+            "response": query_range(args.url, query, query_start, query_end, args.step),
+        }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8", newline="\n")
     write_postgres_summary(output.with_name("postgres_summary.csv"), result, args.require_postgres)
     write_cadvisor_summary(
-        output.with_name("cadvisor_summary.csv"), result, args.component, args.require_cadvisor
+        output.with_name("cadvisor_summary.csv"), result, args.component, args.require_cadvisor,
+        args.minimum_cadvisor_coverage_percent,
     )
     print(f"Prometheus series exported to {output}")
     return 0

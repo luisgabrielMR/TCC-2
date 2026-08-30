@@ -16,8 +16,9 @@ BASE_CUSTOMERS = 200
 BASE_CATEGORIES = 5
 BASE_PRODUCTS = 100
 BASE_ORDERS = 300
-# 200 users at 0.1 s pacing can issue up to 60,000 customer creates in 5 minutes.
-CREATE_CUSTOMERS = 75_000
+# At 5,000 total req/s for five minutes, the mixed scenario expects 150,000
+# customer creates. Keep one third of deterministic headroom for task variance.
+CREATE_CUSTOMERS = 200_000
 UPDATE_CUSTOMERS = 200
 CREATE_ORDERS = 250
 
@@ -50,7 +51,7 @@ def customer_create_payloads():
                 "district": f"Bairro Carga {(idx % 20) + 1}",
                 "city": "Sao Paulo",
                 "state": "SP",
-                "postalCode": f"020{idx:05d}",
+                "postalCode": f"{2_000_000 + idx:08d}",
                 "isDefault": True,
             },
         }
@@ -70,7 +71,7 @@ def customer_update_payloads():
                 "district": f"Bairro Atualizado {(idx % 20) + 1}",
                 "city": "Sao Paulo",
                 "state": "SP",
-                "postalCode": f"030{idx:05d}",
+                "postalCode": f"{3_000_000 + idx:08d}",
                 "isDefault": True,
             },
         }

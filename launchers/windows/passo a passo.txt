@@ -1,4 +1,4 @@
-INICIO RAPIDO
+﻿INICIO RAPIDO
 
 PRE-REQUISITO
 1. Abrir o Docker Desktop manualmente.
@@ -16,7 +16,9 @@ ANTES DA PRIMEIRA RODADA OFICIAL
 1. Revisar e versionar todas as alteracoes; git status deve estar limpo.
 2. Executar 01_VERIFICAR_PROJETO.bat no commit limpo.
 3. A verificacao deve concluir e atualizar results/summaries/project-verification.json.
-4. Nao alterar arquivos, Docker ou configuracoes depois da verificacao.
+4. No 00_MENU_TESTES.bat, executar Calibrar gerador de carga.
+5. A calibracao deve concluir os cinco degraus e comprovar folga do Locust.
+6. Nao alterar arquivos, Docker ou configuracoes depois da verificacao/calibracao.
 
 EXECUTAR AS CINCO RODADAS OFICIAIS
 1. Executar 02_PROXIMA_RODADA_OFICIAL.bat.
@@ -29,7 +31,7 @@ EXECUTAR AS CINCO RODADAS OFICIAIS
    concluidas como official sao ignoradas e a rodada e retomada.
 
 METODOLOGIA DA BATERIA
-- perfil: controlled_50;
+- perfil: fixed_200, alvo de 200 req/s;
 - cenario: mixed;
 - 50 usuarios;
 - warmup: 300 segundos por API;
@@ -41,6 +43,12 @@ METODOLOGIA DA BATERIA
 - PostgreSQL coletado pelo postgres-exporter;
 - nenhuma rodada e official se qualquer gate falhar.
 
+TESTE EXTRA DE SATURACAO
+- perfis separados: saturation_25, 50, 100, 200 e 400;
+- pacing zero, sempre no workload mixed;
+- bateria piloto por padrao;
+- nunca usa controlled_50 ou fixed_200 como baseline da sua coorte.
+
 RESULTADOS
 1. Executar 03_ABRIR_GRAFANA.bat.
 2. Resultados Oficiais mostra somente classification=official.
@@ -50,12 +58,16 @@ RESULTADOS
 
 CRITERIOS DE UMA RODADA OFICIAL
 - Docker ativo e versoes aprovadas pelo preflight;
+- Docker Engine 29.5.2 e Compose 5.1.4;
 - Git limpo e commit registrado;
 - project-verification.json correspondente ao mesmo commit;
+- calibracao health_only correspondente ao mesmo commit, imagens e alocacao;
 - contrato e estado final equivalentes nas cinco APIs;
 - aquecimento estavel;
 - janela principal exata;
 - cAdvisor validado para API, PostgreSQL e Locust;
 - postgres-exporter, Prometheus e Grafana saudaveis;
 - zero falhas HTTP;
+- pelo menos 97,5% do alvo fixed_200;
+- CPU maxima do Locust abaixo de 90% da cota e 25% de folga calibrada;
 - resultado gravado com result_classification=official.

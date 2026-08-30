@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory = $true)]
     [ValidateSet("python", "node", "java", "go", "dotnet")]
     [string]$Language,
@@ -16,8 +16,8 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "7")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
-$locustHost = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
 $duration = Get-BenchmarkValue $environment "LOCUST_DURATION" "5m"
@@ -25,12 +25,14 @@ $warmupSeconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS"
 $warmupWindowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_WINDOW_SECONDS" "45")
 $warmupMaxDriftPercent = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
 $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
+$locustProcesses = [int](Get-BenchmarkValue $environment "LOCUST_PROCESSES" "4")
+if ($locustProcesses -lt 1) { throw "LOCUST_PROCESSES deve ser um inteiro positivo." }
 $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTERVAL_SECONDS" "2")
 # $loadTargetRps marca os perfis de taxa fixa: a vazao vira variavel controlada,
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
 switch ($LoadProfile) {
-    # 50 usuarios com pacing de 0,25 s produzem 200 req/s exatos.
+    # 50 usuarios com pacing de 0,25 s tem alvo maximo de 200 req/s.
     "fixed_200" { $users = 50; $spawnRate = 10; $waitSeconds = "0.25"; $loadTargetRps = 200 }
     # Malha fechada: sem pacing o teto passa a ser da propria API.
     "saturation_25" { $users = 25; $spawnRate = 25; $waitSeconds = "0" }
@@ -101,9 +103,23 @@ try {
     $locustPreflightStarted = $true
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
-        "--mode", $RunMode, "--output", $preflightPath
+        "--mode", $RunMode, "--api-service", $service,
+        "--load-profile", $LoadProfile, "--output", $preflightPath
     )
     $preflight = Get-Content $preflightPath -Raw | ConvertFrom-Json
+    $locustCpuQuota = [double]$preflight.resource_policy.effective.limits.locust.effective_cpu_quota
+    if ($locustCpuQuota -le 0) { throw "O preflight nao confirmou a cota efetiva de CPU do Locust." }
+    $campaignFingerprint = $env:BENCHMARK_CAMPAIGN_FINGERPRINT
+    if (-not $campaignFingerprint -or $campaignFingerprint -eq "manual") {
+        $calibrationRelative = Get-BenchmarkValue $environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
+        $calibrationPath = Join-Path $script:BenchmarkRoot $calibrationRelative
+        $calibrationHash = if (Test-Path $calibrationPath) {
+            (Get-FileHash -Algorithm SHA256 $calibrationPath).Hash.ToLowerInvariant()
+        } else { "no_calibration" }
+        $commitToken = $preflight.git.commit_sha.Substring(0, [Math]::Min(12, $preflight.git.commit_sha.Length))
+        $calibrationToken = $calibrationHash.Substring(0, [Math]::Min(12, $calibrationHash.Length))
+        $campaignFingerprint = "m${methodologyVersion}_${commitToken}_${calibrationToken}"
+    }
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/validate_monitoring.py"),
         "--prometheus-url", "http://127.0.0.1:$(Get-BenchmarkValue $environment 'PROMETHEUS_PORT' '9090')",
@@ -135,6 +151,7 @@ try {
         -StabilityWindowSeconds $warmupWindowSeconds `
         -MaxRpsDriftPercent $warmupMaxDriftPercent `
         -WaitSeconds $waitSeconds `
+        -Processes $locustProcesses `
         -HostUrl $locustHost `
         -ResultRelative $resultRelative
     Reset-BenchmarkDatabase $environment
@@ -144,15 +161,21 @@ try {
     $mainRunStarted = $true
     $databaseNeedsReset = $true
     $testStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Invoke-BenchmarkLocust $Scenario $users $spawnRate $duration $locustHost "/mnt/$resultRelative/locust" $waitSeconds
+    Invoke-BenchmarkLocust $Scenario $users $spawnRate $duration $locustHost "/mnt/$resultRelative/locust" $waitSeconds -Processes $locustProcesses
     $testStopwatch.Stop()
     $runnerElapsedSeconds = [math]::Round($testStopwatch.Elapsed.TotalSeconds, 3)
     if (-not (Test-Path $boundsPath)) { throw "Locust nao produziu os limites exatos da medicao." }
+    $boundsValidationPath = Join-Path $resultDirectory "measurement-bounds-validation.json"
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/validate_measurement_bounds.py"),
+        "--bounds", $boundsPath, "--output", $boundsValidationPath
+    )
+    $boundsValidation = Get-Content $boundsValidationPath -Raw | ConvertFrom-Json
     $loadBounds = Get-Content $boundsPath -Raw | ConvertFrom-Json
     if (-not $loadBounds.finished_epoch -or [double]$loadBounds.elapsed_seconds -le 0) { throw "Limites de medicao invalidos em $boundsPath" }
-    $testStartedAt = [DateTimeOffset]::FromUnixTimeMilliseconds([long]([double]$loadBounds.started_epoch * 1000))
-    $testFinishedAt = [DateTimeOffset]::FromUnixTimeMilliseconds([long]([double]$loadBounds.finished_epoch * 1000))
-    $testElapsedSeconds = [math]::Round([double]$loadBounds.elapsed_seconds, 3)
+    $testStartedAt = [DateTimeOffset]::Parse($loadBounds.started_at_utc, [Globalization.CultureInfo]::InvariantCulture)
+    $testFinishedAt = [DateTimeOffset]::Parse($loadBounds.finished_at_utc, [Globalization.CultureInfo]::InvariantCulture)
+    $testElapsedSeconds = [math]::Round([double]$loadBounds.elapsed_seconds, 9)
     $metricsStartEpoch = [double]$loadBounds.started_epoch
     $metricsEndEpoch = [double]$loadBounds.finished_epoch
     Stop-BenchmarkMeasurements $measurement
@@ -164,6 +187,7 @@ try {
         "--scenario", $Scenario,
         "--expected-users", "$users",
         "--phase-label", "Measurement",
+        "--require-first-last-stability",
         "--window-seconds", "$warmupWindowSeconds",
         "--max-rps-drift-percent", "$warmupMaxDriftPercent",
         "--output", $measurementValidationPath
@@ -175,17 +199,33 @@ try {
     # nao entregou a taxa pedida, ela saturou e a latencia dela nao e comparavel
     # com a das outras: a rodada deixa de ser elegivel a oficial.
     $rateTargetMet = $true
-    $achievedRps = $null
+    $aggregated = Import-Csv (Join-Path $resultDirectory "locust_stats.csv") |
+        Where-Object { $_.Name -eq "Aggregated" } | Select-Object -First 1
+    $locustReportedRps = if ($aggregated) { [double]$aggregated."Requests/s" } else { 0 }
+    $achievedRps = if ($aggregated -and $testElapsedSeconds -gt 0) {
+        [math]::Round([double]$aggregated."Request Count" / $testElapsedSeconds, 9)
+    } else { 0 }
     if ($null -ne $loadTargetRps) {
-        $aggregated = Import-Csv (Join-Path $resultDirectory "locust_stats.csv") |
-            Where-Object { $_.Name -eq "Aggregated" } | Select-Object -First 1
-        $achievedRps = if ($aggregated) { [double]$aggregated."Requests/s" } else { 0 }
         $rateTargetMet = ($achievedRps -ge ($loadTargetRps * 0.975))
         if (-not $rateTargetMet) {
             Write-Warning "Alvo de $loadTargetRps req/s nao atingido (obtido $achievedRps). A implementacao saturou antes do alvo; a latencia nao e comparavel neste perfil."
         }
     }
     Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
+    $locustResource = Import-Csv (Join-Path $resultDirectory "cadvisor_summary.csv") |
+        Where-Object { $_.component -eq "locust" } | Select-Object -First 1
+    $locustCpuMaxPercent = if ($locustResource) { [double]$locustResource.cpu_max_percent } else { $null }
+    $locustCpuQuotaPercent = if ($null -eq $locustCpuMaxPercent) {
+        $null
+    } else {
+        [math]::Round($locustCpuMaxPercent / $locustCpuQuota, 6)
+    }
+    $generatorHeadroomMet = if ($null -eq $locustCpuQuotaPercent) { $RunMode -ne "official" } else { $locustCpuQuotaPercent -lt 90 }
+    $calibratedCapacityRps = $preflight.load_generator_calibration.validated_capacity_rps
+    if ($LoadProfile -like "fixed_*" -or $LoadProfile -like "saturation_*") {
+        $generatorHeadroomMet = $generatorHeadroomMet -and $null -ne $calibratedCapacityRps -and
+            $achievedRps -le ([double]$calibratedCapacityRps * 0.8)
+    }
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
     $mainRunStarted = $false
@@ -215,18 +255,19 @@ try {
         "dotnet" { "Pooling nativo do Npgsql" }
     }
     $metadata = [ordered]@{
-        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet) { "official" } else { "non_official" })
+        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet) { "official" } else { "non_official" })
         requested_run_mode = $RunMode
-        official_run = ($RunMode -eq "official")
+        official_run = ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet)
         language = $Language
         scenario = $resultScenario
         workload_scenario = $Scenario
         load_profile = $LoadProfile
-        methodology_version = 6
+        methodology_version = $methodologyVersion
         benchmark_kind = $benchmarkKind
         run_number = $RunNumber
         execution_order = [ordered]@{
             sequence_id = $(if ($env:BENCHMARK_SEQUENCE_ID) { $env:BENCHMARK_SEQUENCE_ID } else { "manual" })
+            campaign_fingerprint = $campaignFingerprint
             position = $(if ($env:BENCHMARK_ORDER_POSITION) { [int]$env:BENCHMARK_ORDER_POSITION } else { 0 })
         }
         started_at = $startedAt
@@ -250,6 +291,7 @@ try {
             scenario = $Scenario
             users = $users
             spawn_rate = $spawnRate
+            processes = $locustProcesses
             requested_duration_seconds = $warmupSeconds
             retry_duration_seconds = 0
             total_duration_seconds = $warmupResult.total_duration_seconds
@@ -277,19 +319,30 @@ try {
             api_containers = 1
             application_processes = 1
             replicas = 1
-            cpu_limit = "Docker Desktop host allocation"
-            interpretation = "single application instance; not an intrinsic language ranking"
+            quota_semantics = "maximum CPU quota, not an exclusive reservation"
+            configured_and_effective_limits = $preflight.resource_policy
+            interpretation = "single application instance under recorded quotas; not an intrinsic language ranking"
         }
         easy_execution = [ordered]@{ launcher_used = "launchers/windows/powershell/rodar-linguagem.ps1"; manual_command_available = $true }
         locust = [ordered]@{
             users = $users
             spawn_rate = $spawnRate
+            processes = $locustProcesses
             duration = $duration
             wait_seconds = [double]$waitSeconds
             theoretical_rps_ceiling = $(if ([double]$waitSeconds -gt 0) { [math]::Round($users / [double]$waitSeconds, 3) } else { $null })
             target_rps = $loadTargetRps
             achieved_rps = $achievedRps
+            reported_rps = $locustReportedRps
+            throughput_source = "request_count / monotonic elapsed_seconds"
             rate_target_met = $rateTargetMet
+            locust_cpu_max_percent = $locustCpuMaxPercent
+            locust_cpu_raw_max_percent = $locustCpuMaxPercent
+            locust_cpu_quota = $locustCpuQuota
+            locust_cpu_quota_percent = $locustCpuQuotaPercent
+            generator_headroom_met = $generatorHeadroomMet
+            calibrated_capacity_rps = $calibratedCapacityRps
+            calibration_headroom_factor_required = 1.25
             host = $locustHost
         }
         test_phase = [ordered]@{
@@ -297,6 +350,7 @@ try {
             finished_at = $testFinishedAt.ToString("o")
             elapsed_seconds = $testElapsedSeconds
             runner_elapsed_seconds = $runnerElapsedSeconds
+            bounds_validation = $boundsValidation
             excludes_warmup = $true
         }
         measurement_stability = $measurementValidation
@@ -304,10 +358,14 @@ try {
             window_source = "locust_test_start_stop"
             response_time_source = "Locust locust_stats.csv"
             percentile_source = "Locust locust_stats.csv"
-            throughput_source = "Locust locust_stats.csv"
+            throughput_source = "Locust request count divided by monotonic measurement duration"
             request_count_source = "Locust locust_stats.csv"
             failure_and_error_rate_source = "Locust locust_stats.csv"
-            total_test_time_source = "Locust test_start/test_stop events"
+            total_test_time_source = "Locust test_start/test_stop events measured with time.monotonic_ns"
+            duration_clock = "time.monotonic_ns"
+            boundary_clock = "time.time_ns"
+            prometheus_boundary_method = "one-scrape padding with overlap clipping"
+            minimum_cadvisor_coverage_percent = 90
             sample_interval_seconds = $metricsInterval
             container_primary_source = "cAdvisor via Prometheus"
             container_cpu_source = "cAdvisor via Prometheus"
@@ -323,7 +381,7 @@ try {
         }
         notes = $(switch ($benchmarkKind) {
             "controlled_load" { "Carga controlada; nao representa a capacidade maxima da API." }
-            "fixed_rate" { "Taxa fixa de $loadTargetRps req/s imposta a todas as linguagens; a vazao e variavel controlada e a comparacao e de latencia e recursos." }
+            "fixed_rate" { "Taxa-alvo maxima de $loadTargetRps req/s para todas as linguagens; exige entrega minima de 97,5% e compara latencia e recursos." }
             "saturation" { "Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container." }
             default { "Teste extra de escalabilidade; representa o limite pratico observado neste ambiente." }
         })
@@ -334,6 +392,9 @@ try {
     }
     if ($RunMode -eq "official" -and -not $rateTargetMet) {
         throw "A rodada oficial nao atingiu o alvo de $loadTargetRps req/s (obtido $achievedRps) e foi registrada como non_official."
+    }
+    if ($RunMode -eq "official" -and -not $generatorHeadroomMet) {
+        throw "A rodada oficial ficou sem a folga exigida do gerador (CPU ou capacidade calibrada) e foi registrada como non_official."
     }
     Write-Host "Rodada concluida: $resultRelative"
 }

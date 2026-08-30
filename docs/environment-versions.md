@@ -6,8 +6,8 @@ Estado verificado em 23 de agosto de 2026. A fonte reproduzivel e `scripts/prefl
 
 | Componente | Versao exigida |
 | --- | --- |
-| Docker Engine | 29.7.2 |
-| Docker Compose | 5.3.1 |
+| Docker Engine | 29.5.2 |
+| Docker Compose | 5.1.4 |
 | PostgreSQL | `postgres:17` |
 | Locust | `locustio/locust:2.32.6` |
 | Prometheus | `prom/prometheus:v2.55.1` |
@@ -35,22 +35,25 @@ Todas as imagens de infraestrutura e todos os `FROM` das APIs estao fixados por 
 | Alocacao Docker Desktop | 4 processadores logicos e 7,76 GiB |
 | Kernel Docker Desktop/WSL2 | 6.18.33.1 |
 
-O Docker Engine e o Compose instalados sao exatamente os registrados pelo experimento, e o `--mode official` nao bloqueia mais por versao. A partir deste ponto a exigencia deixa de ser trocar o Docker Desktop e passa a ser congela-lo: qualquer atualizacao automatica durante a bateria passaria a misturar ambientes entre rodadas.
+As versoes de Docker e Compose detectadas diferem do TCC e bloqueiam rodadas oficiais. A alocacao de 4 processadores tambem e insuficiente para oferecer folga agregada as cotas de API, PostgreSQL e Locust. O `preflight.py --mode official` bloqueia enquanto as versoes divergirem ou o Docker expuser menos de 8 processadores logicos. A tabela desta secao e historica e precisa ser atualizada por uma nova coleta depois dos ajustes manuais.
 
 ## Congelamento do ambiente
 
-Nenhuma troca de Docker Desktop e necessaria. Antes de iniciar a bateria oficial:
+Antes de iniciar a bateria oficial:
 
-1. Em `Settings > General`, desative `Always download updates` e `Automatically update components` durante a bateria. Referencia: <https://docs.docker.com/desktop/settings-and-maintenance/settings/>.
-2. Mantenha a alocacao experimental declarada em `%UserProfile%\.wslconfig`:
+1. Instale ou selecione manualmente Docker Engine `29.5.2` e Docker Compose `5.1.4`, conforme a Tabela 1 do TCC. O projeto nao altera o host automaticamente e o preflight oficial deve continuar bloqueando enquanto forem detectadas outras versoes.
+2. Em `Settings > General`, desative `Always download updates` e `Automatically update components` durante a bateria. Referencia: <https://docs.docker.com/desktop/settings-and-maintenance/settings/>.
+3. Configure e preserve a alocacao experimental declarada em `%UserProfile%\.wslconfig`:
 
 ```ini
 [wsl2]
-processors=4
+processors=8
 memory=8GB
 ```
 
-3. Execute `wsl --shutdown`, abra novamente o Docker Desktop e valide:
+O host tem 6 nucleos e 12 processadores logicos. `processors=8` limita a VM WSL2 a oito processadores logicos; nao reserva fisicamente os quatro restantes para o Windows. Essa configuracao fornece capacidade agregada para as cotas do experimento, mas os containers continuam sujeitos ao escalonador e podem competir entre si. O valor efetivo deve ser confirmado por `docker info`.
+
+4. Execute `wsl --shutdown`, abra novamente o Docker Desktop e valide:
 
 ```powershell
 docker version --format '{{.Server.Version}}'
@@ -58,7 +61,7 @@ docker compose version --short
 docker info --format 'CPUs={{.NCPU}} memoria_bytes={{.MemTotal}} kernel={{.KernelVersion}} storage={{.Driver}} so={{.OperatingSystem}} cgroup={{.CgroupVersion}}'
 ```
 
-O resultado esperado para os dois primeiros comandos e `29.7.2` e `5.3.1`, os mesmos valores registrados na Tabela 1 do TCC. A memoria efetiva pode ser ligeiramente menor que 8 GiB por sobrecarga da VM; o valor de `docker info`, e nao os 32 GB fisicos do host, e o valor registrado para os containers. Alterar 4 CPUs/8 GB exige uma nova versao metodologica e repeticao integral das rodadas. A configuracao WSL e documentada em <https://learn.microsoft.com/pt-br/windows/wsl/wsl-config>.
+O resultado esperado para os dois primeiros comandos e `29.5.2` e `5.1.4`. A memoria efetiva pode ser ligeiramente menor que o valor configurado por sobrecarga da VM; o valor de `docker info`, e nao os 32 GB fisicos do host, e o valor registrado para os containers. Qualquer alteracao posterior de CPU ou memoria exige nova versao metodologica e repeticao integral. A configuracao WSL e documentada em <https://learn.microsoft.com/pt-br/windows/wsl/wsl-config>.
 
 ## Runtimes e bibliotecas
 
@@ -72,16 +75,18 @@ O Docker Desktop atual usa o image store containerd. O factory Docker do cAdviso
 
 ## Alocacao de CPU por container
 
-O Docker recebe 4 processadores logicos. Sem limite explicito, API, PostgreSQL e gerador de carga disputam os quatro livremente, e o numero medido em malha fechada seria a capacidade da maquina, nao da API. O `docker-compose.yml` fixa:
+O Docker recebe 8 processadores logicos. Sem limite explicito, API, PostgreSQL e gerador de carga disputam tudo livremente, e o numero medido em malha fechada seria a capacidade da maquina, nao da API. O `docker-compose.yml` fixa:
 
 | Container | CPUs |
 | --- | --- |
 | API ativa | 2,0 |
 | PostgreSQL | 1,0 |
-| Locust | 1,0 |
-| Monitoramento | sem limite, fora do caminho critico |
+| Locust | 4,0 |
+| Monitoramento | sem quota individual |
 
-Com isso, capacidade passa a ter definicao precisa e reproduzivel: o maximo que a API sustenta com exatamente 2 CPUs. Alterar esses valores exige nova versao metodologica e repeticao integral das rodadas.
+O Locust recebe quatro CPUs e roda com `--processes 4`, definido por `LOCUST_PROCESSES`. A calibracao registra o numero real de workers e a CPU em duas unidades: percentual bruto do cAdvisor, no qual cada core equivale a 100%, e percentual normalizado pela cota de quatro CPUs. O gate de 90% usa somente o valor normalizado. Cada worker consome uma faixa disjunta de `customers_create.jsonl`; os demais fluxos deterministas com reuso comecam em deslocamentos diferentes.
+
+Esses valores sao cotas maximas, nao reservas exclusivas nem afinidade de CPU. Assim, a API pode consumir no maximo o equivalente a 2 CPUs, mas Prometheus, Grafana, exportadores e cAdvisor ainda podem competir pelos processadores do Docker. O preflight registra o hash do Compose e valida `NanoCpus` dos containers ativos; o cAdvisor registra o consumo observado. Nao se deve descrever a API como tendo "exatamente duas CPUs dedicadas". Alterar as cotas ou a alocacao Docker exige nova versao metodologica e repeticao integral.
 
 ## Pool comum
 

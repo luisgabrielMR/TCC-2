@@ -2,28 +2,50 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "load-tests" / "locust"))
 
 from scripts.collect_docker_stats import measured_rows
 from scripts.compare_json import first_difference
 from scripts.export_prometheus_data import (
     counter_window_delta,
+    counter_window_delta_samples,
     matching_series,
     metric_matches,
     sampled_container_ids,
     series_cpu_rates,
     write_postgres_summary,
 )
+from scripts.load_generator_calibration import quota_normalized_cpu_percent, validate_calibration
+from payload_sequences import PayloadCycle, PayloadSequence
+from scripts.validate_measurement_bounds import validate_bounds
 import scripts.generate_results_dashboard as dashboard
-from scripts.preflight import verification_matches_current_project
+from scripts.preflight import (
+    EXPECTED_COMPOSE,
+    EXPECTED_CPU_LIMITS,
+    EXPECTED_CUSTOMER_CREATE_PAYLOADS,
+    EXPECTED_DOCKER,
+    EXPECTED_LOCUST_PROCESSES,
+    payload_inventory,
+    verification_matches_current_project,
+)
+import scripts.preflight as preflight
 import scripts.summarize_results as summary
-from scripts.summarize_results import duration_from_metadata, measurement_status, result_confidence, scalability_rows
+from scripts.summarize_results import (
+    duration_from_metadata,
+    measured_throughput,
+    measurement_status,
+    result_confidence,
+    scalability_rows,
+)
 from scripts.validate_monitoring import (
     metric_matches as monitoring_metric_matches,
     wait_for_official_evidence,
@@ -103,6 +125,31 @@ class WarmupValidationTests(unittest.TestCase):
         self.assertEqual(result["rps_drift_percent"], 0)
         self.assertEqual(result["first_last_rps_drift_percent"], 50)
         self.assertEqual(result["first_last_rps_change_percent"], 50)
+
+    def test_measurement_rejects_initial_change_even_when_final_windows_match(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stats, history = self.write_fixture(root)
+            with history.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
+                )
+                writer.writeheader()
+                for timestamp, requests in ((1, 0), (46, 4500), (91, 11250), (136, 18000), (181, 24750)):
+                    writer.writerow({
+                        "Timestamp": timestamp,
+                        "User Count": 50,
+                        "Name": "Aggregated",
+                        "Total Request Count": requests,
+                    })
+            result = validate(
+                stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
+                require_first_last_stability=True,
+            )
+        self.assertFalse(result["stable"])
+        self.assertTrue(result["first_last_stability_required"])
+        self.assertTrue(any("first-to-last RPS drift" in reason for reason in result["reasons"]))
 
     def test_warmup_rejects_transition_inside_three_final_windows(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -196,22 +243,74 @@ class SummaryTests(unittest.TestCase):
         result = scalability_rows(rows)
         self.assertEqual(result[0]["runs"], 1)
         self.assertEqual(result[0]["throughput_rps"], "510.000")
-        self.assertEqual(result[1]["rps_gain_vs_50_percent"], "10.000")
+        self.assertEqual(result[1]["rps_gain_vs_baseline_percent"], "10.000")
 
-    def test_confidence_requires_three_clean_stable_runs(self) -> None:
+    def test_scalability_keeps_controlled_and_saturation_in_separate_families(self) -> None:
+        common = {
+            "language": "go", "run": "1", "failures": 0, "requests": 1000,
+            "p95_ms": 10, "test_elapsed_seconds": 300, "cpu_average_percent": 50,
+            "locust_cpu_average_percent": 40, "postgres_cpu_average_percent": 20,
+            "resource_metrics_available": True, "methodology_version": 7,
+            "result_classification": "non_official", "throughput_rps": 100,
+        }
+        rows = [
+            {**common, "scenario": "mixed", "load_profile": "controlled_50", "users": 50},
+            {**common, "scenario": "mixed_capacity_100", "load_profile": "capacity_100", "users": 100},
+            {**common, "scenario": "mixed_saturation_25", "load_profile": "saturation_25", "users": 25},
+            {**common, "scenario": "mixed_saturation_50", "load_profile": "saturation_50", "users": 50},
+        ]
+        result = scalability_rows(rows)
+        self.assertEqual({row["workload_family"] for row in result}, {"legacy_capacity", "saturation"})
+        saturation_50 = next(row for row in result if row["workload_family"] == "saturation" and row["users"] == 50)
+        self.assertEqual(saturation_50["baseline_users"], 25)
+
+    def test_scalability_never_mixes_campaigns(self) -> None:
+        rows = []
+        for campaign, base_rps in (("campaign-a", 100), ("campaign-b", 300)):
+            common = {
+                "campaign_fingerprint": campaign,
+                "language": "python", "methodology_version": 7,
+                "result_classification": "non_official", "failures": 0,
+                "requests": 1000, "p95_ms": 20, "p99_ms": 30, "avg_ms": 10,
+                "p50_ms": 8, "locust_cpu_average_percent": 30,
+                "measurement_stability_status": "stable",
+                "measurement_final_windows_stable": True,
+                "measurement_rps_change_percent": 1,
+                "resource_metrics_available": True, "cadvisor_metrics_available": True,
+                "resource_metric_source": "cadvisor_via_prometheus",
+                "cpu_average_percent": 50, "cpu_max_percent": 70,
+                "memory_average_bytes": 100, "memory_max_bytes": 120,
+                "postgres_cpu_average_percent": 20, "test_elapsed_seconds": 300,
+            }
+            rows.extend((
+                {**common, "scenario": "mixed_saturation_25", "load_profile": "saturation_25", "users": 25, "throughput_rps": base_rps},
+                {**common, "scenario": "mixed_saturation_50", "load_profile": "saturation_50", "users": 50, "throughput_rps": base_rps * 1.5},
+            ))
+        output = scalability_rows(rows)
+        self.assertEqual(len(output), 4)
+        self.assertEqual({row["campaign_fingerprint"] for row in output}, {"campaign-a", "campaign-b"})
+
+    def test_exact_throughput_uses_request_count_and_monotonic_duration(self) -> None:
+        self.assertEqual(measured_throughput(600, 3, 150, True), (200, "request_count / monotonic elapsed_seconds"))
+        self.assertEqual(measured_throughput(600, 3, 150, False), (150, "locust_reported_rps"))
+
+    def test_confidence_requires_five_clean_stable_runs_for_methodology_seven(self) -> None:
         clean = {
             "failures": 0,
             "resource_metrics_available": True,
             "exact_measurement_window": True,
             "locust_cpu_max_percent": 70,
+            "locust_cpu_quota_max_percent": 70,
             "measurement_stability_status": "stable",
             "throughput_rps": 1000,
+            "methodology_version": 7,
+            "load_profile": "fixed_200",
         }
-        self.assertEqual(result_confidence([clean, clean]), "preliminary_fewer_than_3_runs")
-        ordered = [{**clean, "execution_order_position": position} for position in (1, 2, 3)]
+        self.assertEqual(result_confidence([clean] * 4), "preliminary_fewer_than_5_runs")
+        ordered = [{**clean, "execution_order_position": position} for position in (1, 2, 3, 4, 5)]
         self.assertEqual(result_confidence(ordered), "adequate")
-        self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_max_percent": 90}, *ordered[1:]]), "invalid_load_generator")
-        variable = [{**row, "throughput_rps": rps} for row, rps in zip(ordered, (800, 1000, 1200))]
+        self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_max_percent": 90}, *ordered[1:]]), "invalid_load_generator")
+        variable = [{**row, "throughput_rps": rps} for row, rps in zip(ordered, (800, 900, 1000, 1100, 1200))]
         self.assertEqual(result_confidence(variable), "invalid_run_variability")
 
     def test_dashboard_accepts_an_empty_results_directory(self) -> None:
@@ -292,6 +391,27 @@ class ResourceWindowTests(unittest.TestCase):
         self.assertEqual(counter_window_delta([900, 950, 3, 8, 10]), 60)
         self.assertEqual(counter_window_delta([9]), 0)
 
+    def test_counter_delta_clips_partial_scrape_intervals(self) -> None:
+        samples = [(95, 0), (100, 10), (105, 20), (110, 30)]
+        self.assertEqual(counter_window_delta_samples(samples, 102, 108), 12)
+
+    def test_measurement_bounds_require_monotonic_duration_and_low_clock_drift(self) -> None:
+        valid = validate_bounds({
+            "started_epoch": 100.0, "finished_epoch": 160.0,
+            "started_at_utc": "1970-01-01T00:01:40.000000Z",
+            "finished_at_utc": "1970-01-01T00:02:40.000000Z",
+            "elapsed_seconds": 60.0, "wall_elapsed_seconds": 60.0,
+            "duration_clock": "time.monotonic_ns", "boundary_clock": "time.time_ns",
+        })
+        self.assertTrue(valid["valid"])
+        invalid = validate_bounds({**{
+            "started_epoch": 100.0, "finished_epoch": 165.0,
+            "started_at_utc": "start", "finished_at_utc": "finish",
+            "elapsed_seconds": 60.0, "wall_elapsed_seconds": 65.0,
+            "duration_clock": "time.monotonic_ns", "boundary_clock": "time.time_ns",
+        }})
+        self.assertFalse(invalid["valid"])
+
     def test_postgres_summary_requires_and_reduces_a_complete_window(self) -> None:
         def response(values: list[float]) -> dict:
             return {"data": {"result": [{
@@ -332,6 +452,20 @@ class ResourceWindowTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "insufficient_samples"):
                 write_postgres_summary(output, incomplete, require=True)
 
+            partial_counter = {
+                **result,
+                "queries": {
+                    **result["queries"],
+                    "postgres_commits_total": {
+                        "response": {"data": {"result": [{
+                            "values": [[102, "100"], [107, "105"], [112, "110"]]
+                        }]}}
+                    },
+                },
+            }
+            with self.assertRaisesRegex(RuntimeError, "postgres_commits_total"):
+                write_postgres_summary(output, partial_counter, require=True)
+
 
 class JsonComparisonTests(unittest.TestCase):
     def test_reports_nested_database_state_field(self) -> None:
@@ -354,7 +488,7 @@ class OfficialVerificationGateTests(unittest.TestCase):
         self.evidence = {
             "available": True,
             "completed": True,
-            "methodology_version": 6,
+            "methodology_version": 7,
             "commit_sha": "abc123",
             "tracked_diff_sha256": "tracked",
             "untracked_files_sha256": "untracked",
@@ -369,11 +503,20 @@ class OfficialVerificationGateTests(unittest.TestCase):
     def test_accepts_complete_evidence_for_the_same_clean_commit(self) -> None:
         self.assertTrue(verification_matches_current_project(self.evidence, self.git))
 
+    def test_versions_match_the_latest_tcc(self) -> None:
+        self.assertEqual(EXPECTED_DOCKER, "29.5.2")
+        self.assertEqual(EXPECTED_COMPOSE, "5.1.4")
+
+    def test_repository_guard_keeps_preflight_tied_to_the_approved_tcc(self) -> None:
+        guard = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn("Table 1 of that approved PDF", guard)
+        self.assertIn("Never change them only to match", guard)
+
     def test_rejects_each_incomplete_or_stale_evidence_field(self) -> None:
         invalid_values = {
             "available": False,
             "completed": False,
-            "methodology_version": 5,
+            "methodology_version": 6,
             "commit_sha": "different",
             "tracked_diff_sha256": "different",
             "untracked_files_sha256": "different",
@@ -388,6 +531,185 @@ class OfficialVerificationGateTests(unittest.TestCase):
             with self.subTest(field=field):
                 evidence = {**self.evidence, field: value}
                 self.assertFalse(verification_matches_current_project(evidence, self.git))
+
+    def test_runtime_versions_use_current_compose_image_references(self) -> None:
+        images = {
+            "python-api": "project-python-api",
+            "node-api": "project-node-api",
+            "java-api": "project-java-api",
+            "dotnet-api": "project-dotnet-api",
+            "go-api": "project-go-api",
+            "locust": "locustio/locust:2.32.6@sha256:" + "a" * 64,
+        }
+        versions = {
+            "project-python-api": "Python 3.12.1",
+            "project-node-api": "v22.1.0",
+            "project-java-api": "openjdk version 21.0.1",
+            "project-dotnet-api": "Microsoft.NETCore.App 8.0.1",
+            "project-go-api": "go1.23.1",
+            images["locust"]: "locust 2.32.6",
+        }
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            if "config" in command and "--format" in command:
+                services = {
+                    name: ({"image": image} if name == "locust" else {"build": {"context": name}})
+                    for name, image in images.items()
+                }
+                return 0, json.dumps({"name": "project", "services": services}), ""
+            if command[:3] == ["docker", "image", "inspect"]:
+                return 0, "sha256:current", ""
+            if command[:2] == ["docker", "run"]:
+                return 0, versions[command[5]], ""
+            raise AssertionError(f"unexpected command: {command}")
+
+        with patch.object(preflight, "run", side_effect=fake_run):
+            observed = preflight.runtime_versions()
+
+        self.assertTrue(all(item["available"] for item in observed.values()))
+        self.assertFalse(any("images" in command for command in commands))
+
+
+class LoadGeneratorCalibrationTests(unittest.TestCase):
+    def test_preprocessed_customer_payload_capacity_matches_methodology(self) -> None:
+        inventory = payload_inventory()
+        self.assertTrue(inventory["available"])
+        self.assertEqual(inventory["customers_create"], 200_000)
+        payload_path = Path(inventory["path"])
+        with payload_path.open(encoding="utf-8") as handle:
+            first = json.loads(next(handle))
+            last = None
+            for line in handle:
+                last = json.loads(line)
+        self.assertRegex(first["address"]["postalCode"], r"^\d{8}$")
+        self.assertRegex(last["address"]["postalCode"], r"^\d{8}$")
+        expected_creates = 5_000 * 300 * 0.10
+        self.assertGreaterEqual(
+            EXPECTED_CUSTOMER_CREATE_PAYLOADS,
+            expected_creates * 1.25,
+        )
+
+    def test_bash_and_powershell_load_profiles_remain_equivalent(self) -> None:
+        bash = (ROOT / "scripts" / "run_one_language.sh").read_text(encoding="utf-8")
+        powershell = (
+            ROOT / "launchers" / "windows" / "powershell" / "rodar-linguagem.ps1"
+        ).read_text(encoding="utf-8")
+        bash_pattern = re.compile(
+            r"^\s*(fixed_\d+|saturation_\d+)\) LOCUST_USERS=(\d+); "
+            r"LOCUST_SPAWN_RATE=(\d+); LOCUST_WAIT_SECONDS=([\d.]+);?"
+            r"(?: LOAD_TARGET_RPS=(\d+))? ;;",
+            re.MULTILINE,
+        )
+        powershell_pattern = re.compile(
+            r'^\s*"(fixed_\d+|saturation_\d+)" \{ \$users = (\d+); '
+            r'\$spawnRate = (\d+); \$waitSeconds = "([\d.]+)";?'
+            r'(?: \$loadTargetRps = (\d+))? \}',
+            re.MULTILINE,
+        )
+        bash_profiles = {match[0]: match[1:] for match in bash_pattern.findall(bash)}
+        powershell_profiles = {
+            match[0]: match[1:] for match in powershell_pattern.findall(powershell)
+        }
+        self.assertEqual(bash_profiles, powershell_profiles)
+        self.assertEqual(len(bash_profiles), 6)
+
+    def test_locust_process_count_matches_the_cpu_quota(self) -> None:
+        environment = (ROOT / ".env.example").read_text(encoding="utf-8")
+        self.assertIn(f"LOCUST_PROCESSES={EXPECTED_LOCUST_PROCESSES}", environment)
+        self.assertEqual(EXPECTED_CPU_LIMITS["locust"], EXPECTED_LOCUST_PROCESSES)
+
+    def test_customer_payload_shards_are_disjoint_and_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "customers.jsonl"
+            path.write_text(
+                "".join(json.dumps({"id": value}) + "\n" for value in range(20)),
+                encoding="utf-8",
+            )
+            observed = []
+            for worker in range(4):
+                sequence = PayloadSequence(path)
+                sequence.configure_shard(worker, 4)
+                while True:
+                    try:
+                        observed.append(sequence.next()["id"])
+                    except RuntimeError:
+                        break
+            self.assertEqual(sorted(observed), list(range(20)))
+            self.assertEqual(len(observed), len(set(observed)))
+
+    def test_cyclic_payloads_start_at_different_worker_offsets(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "ids.jsonl"
+            path.write_text("1\n2\n3\n4\n5\n", encoding="utf-8")
+            first_values = []
+            for worker in range(4):
+                stream = PayloadCycle(path, parse_json=False)
+                stream.configure_worker_offset(worker)
+                first_values.append(stream.next())
+            self.assertEqual(first_values, ["1", "2", "3", "4"])
+
+    def test_runtime_calibration_outputs_are_gitignored(self) -> None:
+        ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+        self.assertIn("results/calibration/**", ignore.splitlines())
+
+    def test_saturation_battery_cannot_duplicate_the_fixed_profile(self) -> None:
+        environment = (ROOT / ".env.example").read_text(encoding="utf-8")
+        profile_line = next(line for line in environment.splitlines() if line.startswith("BENCHMARK_PROFILES="))
+        self.assertNotIn("fixed_200", profile_line)
+        script = (ROOT / "scripts" / "run_capacity_battery.sh").read_text(encoding="utf-8")
+        self.assertIn('if [[ "$profile" != saturation_* ]]', script)
+
+    def test_calibration_is_tied_to_commit_environment_and_safe_capacity(self) -> None:
+        git = {
+            "commit_sha": "abc", "git_dirty": False,
+            "tracked_diff_sha256": "tracked", "untracked_files_sha256": "untracked",
+        }
+        docker = {
+            "engine_server_version": "29.5.2", "compose_version": "5.1.4",
+            "allocation": {"logical_processors": 6, "memory_bytes": 16_000_000_000},
+        }
+        reference = "locustio/locust:2.32.6@sha256:" + "a" * 64
+        images = {"images": [{"configured_reference": reference}]}
+        samples = [{
+            "users": users, "spawn_rate": users, "elapsed_seconds": 60, "failures": 0,
+            "throughput_rps_exact": 300, "locust_cpu_raw_max_percent": 200,
+            "locust_cpu_quota_percent": 50,
+            "cadvisor_coverage_percent": 95, "cpu_metric_source": "cadvisor_via_prometheus",
+            "bounds_valid": True,
+        } for users in (25, 50, 100, 200, 400)]
+        artifact = {
+            "schema_version": 2, "classification": "non_official_calibration",
+            "scenario": "health_only", "wait_seconds": 0, "step_duration_seconds": 60,
+            "processes": 4, "api_service": "go-api", "methodology_version": 7, "git": {**git},
+            "environment": {
+                "docker_engine": "29.5.2", "docker_compose": "5.1.4",
+                "docker_logical_processors": 6, "docker_memory_bytes": 16_000_000_000,
+                "locust_image": reference, "locust_processes": 4, "locust_cpu_quota": 4,
+            },
+            "samples": samples, "validated_capacity_rps": 300,
+        }
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "calibration.json"
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+            report = validate_calibration(path, 7, git, docker, images, 4, 4)
+            self.assertTrue(report["valid"])
+            artifact["git"]["commit_sha"] = "stale"
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+            report = validate_calibration(path, 7, git, docker, images, 4, 4)
+            self.assertFalse(report["valid"])
+            artifact["git"]["commit_sha"] = "abc"
+            artifact["samples"][0]["cadvisor_coverage_percent"] = 79
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+            report = validate_calibration(path, 7, git, docker, images, 4, 4)
+            self.assertFalse(report["valid"])
+            self.assertTrue(any("80% cAdvisor coverage" in reason for reason in report["reasons"]))
+
+    def test_locust_cpu_is_normalized_by_its_cpu_quota(self) -> None:
+        self.assertEqual(quota_normalized_cpu_percent(340, 4), 85)
+        with self.assertRaisesRegex(ValueError, "positive"):
+            quota_normalized_cpu_percent(50, 0)
 
 
 class SummaryFixtureTests(unittest.TestCase):
@@ -495,8 +817,8 @@ class SummaryFixtureTests(unittest.TestCase):
         output = scalability_rows(rows)
         official_100 = next(row for row in output if row["result_classification"] == "official" and row["users"] == 100)
         preliminary_100 = next(row for row in output if row["result_classification"] == "non_official" and row["users"] == 100)
-        self.assertEqual(official_100["rps_gain_vs_50_percent"], "80.000")
-        self.assertEqual(preliminary_100["rps_gain_vs_50_percent"], "10.000")
+        self.assertEqual(official_100["rps_gain_vs_baseline_percent"], "80.000")
+        self.assertEqual(preliminary_100["rps_gain_vs_baseline_percent"], "10.000")
 
     def test_final_outputs_default_to_official_and_keep_current_dimensions(self) -> None:
         with tempfile.TemporaryDirectory() as temp:

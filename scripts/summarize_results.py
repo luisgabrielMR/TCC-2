@@ -19,26 +19,28 @@ LANGUAGE_ORDER = {name: index for index, name in enumerate(("python", "node", "j
 
 ENDPOINT_FIELDS = [
     "language", "scenario", "load_profile", "methodology_version", "result_classification",
-    "run", "users", "benchmark_kind", "execution_order_position", "method", "endpoint",
+    "commit_sha", "campaign_fingerprint", "run", "users", "benchmark_kind", "execution_order_position", "method", "endpoint",
     "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms", "p99_ms",
-    "throughput_rps", "test_elapsed_seconds", "exact_measurement_window",
+    "throughput_rps", "locust_reported_rps", "throughput_source", "test_elapsed_seconds",
+    "exact_measurement_window",
     "resource_metrics_available", "cadvisor_metrics_available", "postgres_metrics_available",
     "resource_metric_source", "cpu_average_percent", "cpu_max_percent",
-    "memory_average_bytes", "memory_max_bytes", "locust_cpu_average_percent",
+    "memory_average_bytes", "memory_max_bytes", "cadvisor_coverage_percent", "locust_cpu_average_percent",
     "postgres_cpu_average_percent", "postgres_connections_average", "postgres_cache_hit_ratio",
 ]
 
 LANGUAGE_FIELDS = [
     "language", "scenario", "run", "load_profile", "methodology_version", "result_classification",
-    "benchmark_kind", "users", "spawn_rate", "configured_duration", "wait_seconds",
+    "commit_sha", "campaign_fingerprint", "benchmark_kind", "users", "spawn_rate", "configured_duration", "wait_seconds",
     "test_elapsed_seconds", "duration_source", "exact_measurement_window",
     "resource_metrics_available", "cadvisor_metrics_available", "postgres_metrics_available",
     "resource_metric_source", "execution_order_position", "requests", "failures", "error_rate",
-    "throughput_rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "cpu_average_percent",
+    "throughput_rps", "locust_reported_rps", "throughput_source", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "cpu_average_percent",
     "cpu_max_percent", "memory_average_bytes", "memory_max_bytes", "network_rx_delta_bytes",
-    "network_tx_delta_bytes", "locust_cpu_average_percent", "locust_cpu_max_percent",
+    "network_tx_delta_bytes", "locust_processes", "locust_cpu_quota", "locust_cpu_average_percent", "locust_cpu_max_percent",
+    "locust_cpu_quota_average_percent", "locust_cpu_quota_max_percent",
     "postgres_cpu_average_percent", "postgres_cpu_max_percent", "postgres_metric_source",
-    "postgres_connections_average", "postgres_connections_max", "postgres_commits_total",
+    "cadvisor_coverage_percent", "postgres_coverage_percent", "postgres_connections_average", "postgres_connections_max", "postgres_commits_total",
     "postgres_rollbacks_total", "postgres_commits_per_second", "postgres_rollbacks_per_second",
     "postgres_blocks_read_total", "postgres_blocks_hit_total", "postgres_cache_hit_ratio",
     "postgres_database_size_average_bytes", "postgres_database_size_max_bytes",
@@ -48,13 +50,13 @@ LANGUAGE_FIELDS = [
 ]
 
 SCALABILITY_FIELDS = [
-    "language", "scenario", "load_profile", "methodology_version", "result_classification",
-    "users", "runs", "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms",
+    "language", "workload_family", "scenario", "load_profile", "methodology_version", "result_classification",
+    "campaign_fingerprint", "baseline_users", "users", "runs", "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms",
     "p99_ms", "throughput_rps", "throughput_min_rps", "throughput_max_rps",
     "throughput_relative_range_percent", "test_elapsed_seconds", "resource_metrics_available",
     "cadvisor_metrics_available", "resource_metric_source", "api_cpu_average_percent",
     "api_cpu_max_percent", "api_memory_average_bytes", "api_memory_max_bytes",
-    "locust_cpu_average_percent", "postgres_cpu_average_percent", "rps_gain_vs_50_percent",
+    "locust_cpu_average_percent", "locust_cpu_quota_average_percent", "postgres_cpu_average_percent", "rps_gain_vs_baseline_percent",
     "linear_scaling_efficiency_percent", "rps_gain_vs_previous_percent",
     "p95_change_vs_previous_percent", "measurement_rps_change_percent",
     "measurement_stability_status", "result_confidence", "capacity_status",
@@ -86,14 +88,32 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_missing_resources"
     if any(not row.get("exact_measurement_window", False) for row in rows):
         return "invalid_measurement_window"
-    if any(number(row.get("locust_cpu_max_percent")) >= 90 for row in rows):
+    if any(
+        int(number(row.get("methodology_version"), 1)) >= 7
+        and row.get("locust_cpu_quota_max_percent") in (None, "")
+        for row in rows
+    ):
+        return "invalid_load_generator"
+    if any(
+        number(
+            row.get("locust_cpu_quota_max_percent")
+            if int(number(row.get("methodology_version"), 1)) >= 7
+            else row.get("locust_cpu_max_percent")
+        ) >= 90
+        for row in rows
+    ):
         return "invalid_load_generator"
     if any(row.get("measurement_stability_status") != "stable" for row in rows):
         return "invalid_instability"
-    if len(rows) < 3:
-        return "preliminary_fewer_than_3_runs"
+    required_runs = 5 if any(
+        int(number(row.get("methodology_version"), 1)) >= 7
+        and row.get("load_profile") == "fixed_200"
+        for row in rows
+    ) else 3
+    if len(rows) < required_runs:
+        return f"preliminary_fewer_than_{required_runs}_runs"
     order_positions = {int(number(row.get("execution_order_position"))) for row in rows}
-    if 0 in order_positions or len(order_positions) < 3:
+    if 0 in order_positions or len(order_positions) < required_runs:
         return "invalid_order_bias"
     rps_values = numeric_values(rows, "throughput_rps")
     rps_median = statistics.median(rps_values) if rps_values else 0
@@ -163,6 +183,28 @@ def duration_from_metadata(metadata: dict) -> tuple[float, str]:
     return 0.0, "unavailable"
 
 
+def measured_throughput(requests: int, elapsed: float, reported_rps: object, exact: bool) -> tuple[float, str]:
+    if exact and elapsed > 0:
+        return requests / elapsed, "request_count / monotonic elapsed_seconds"
+    return number(reported_rps), "locust_reported_rps"
+
+
+def scalability_family(row: dict) -> str | None:
+    profile = str(row.get("load_profile", "legacy"))
+    scenario = str(row.get("scenario", ""))
+    if scenario.startswith("mixed_saturation_") and (profile.startswith("saturation_") or profile == "legacy"):
+        return "saturation"
+    if scenario.startswith("mixed_capacity_") and (profile.startswith("capacity_") or profile == "legacy"):
+        return "legacy_capacity"
+    if scenario == "mixed" and (profile in {"controlled_50", "legacy"}):
+        return "legacy_capacity"
+    return None
+
+
+def campaign_key(row: dict) -> str:
+    return str(row.get("campaign_fingerprint") or row.get("commit_sha") or "legacy")
+
+
 def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
     source = raw or RAW
     runs: list[dict] = []
@@ -195,6 +237,22 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
         final_windows_stable = bool(measurement.get("stable")) if measurement_available else False
         methodology_version = int(number(metadata.get("methodology_version"), 1))
         classification = metadata.get("result_classification", "legacy")
+        commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
+        declared_campaign = metadata.get("execution_order", {}).get("campaign_fingerprint")
+        campaign_fingerprint = declared_campaign if declared_campaign not in (None, "", "manual") else commit_sha
+        bounds_valid = bool(metadata.get("test_phase", {}).get("bounds_validation", {}).get("valid"))
+        exact_window = (
+            methodology_version >= 7
+            and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
+            and bounds_valid
+        ) or (
+            5 <= methodology_version < 7
+            and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
+        )
+        aggregate_requests = int(number(aggregate.get("Request Count")))
+        aggregate_rps, throughput_source = measured_throughput(
+            aggregate_requests, elapsed, aggregate.get("Requests/s"), methodology_version >= 7 and exact_window
+        )
         monitoring = metadata.get("monitoring_preflight", {})
         cadvisor_available = bool(cadvisor_api and cadvisor_locust and cadvisor_postgres)
         resource_metrics_available = bool(api and locust and postgres and postgres_summary) and (
@@ -208,40 +266,50 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
             "load_profile": metadata.get("load_profile", "legacy"),
             "methodology_version": methodology_version,
             "result_classification": classification,
+            "commit_sha": commit_sha,
+            "campaign_fingerprint": campaign_fingerprint,
             "execution_order_position": int(number(metadata.get("execution_order", {}).get("position"))),
             "benchmark_kind": metadata.get("benchmark_kind", "controlled_load"),
             "users": int(number(locust_meta.get("users"))),
             "spawn_rate": int(number(locust_meta.get("spawn_rate"))),
+            "locust_processes": int(number(locust_meta.get("processes"), 1)),
+            "locust_cpu_quota": number(locust_meta.get("locust_cpu_quota"), 1),
             "configured_duration": locust_meta.get("duration", ""),
             "wait_seconds": number(locust_meta.get("wait_seconds"), 0.1),
             "test_elapsed_seconds": elapsed,
             "duration_source": duration_source,
-            "exact_measurement_window": (
-                methodology_version >= 5
-                and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
-            ),
+            "exact_measurement_window": exact_window,
             "cadvisor_metrics_available": cadvisor_available,
             "postgres_metrics_available": bool(postgres_summary),
             "resource_metric_source": resource_source,
             "resource_metrics_available": resource_metrics_available,
-            "requests": int(number(aggregate.get("Request Count"))),
+            "requests": aggregate_requests,
             "failures": int(number(aggregate.get("Failure Count"))),
             "avg_ms": number(aggregate.get("Average Response Time")),
             "p50_ms": number(aggregate.get("50%")),
             "p95_ms": number(aggregate.get("95%")),
             "p99_ms": number(aggregate.get("99%")),
-            "throughput_rps": number(aggregate.get("Requests/s")),
+            "throughput_rps": aggregate_rps,
+            "locust_reported_rps": number(aggregate.get("Requests/s")),
+            "throughput_source": throughput_source,
             "cpu_average_percent": number(api.get("cpu_average_percent")) if api else None,
             "cpu_max_percent": number(api.get("cpu_max_percent")) if api else None,
             "memory_average_bytes": number(api.get("memory_average_bytes")) if api else None,
             "memory_max_bytes": number(api.get("memory_max_bytes")) if api else None,
+            "cadvisor_coverage_percent": number(api.get("coverage_percent")) if api else None,
             "network_rx_delta_bytes": number(api.get("network_rx_delta_bytes")) if api else None,
             "network_tx_delta_bytes": number(api.get("network_tx_delta_bytes")) if api else None,
             "locust_cpu_average_percent": number(locust.get("cpu_average_percent")) if locust else None,
             "locust_cpu_max_percent": number(locust.get("cpu_max_percent")) if locust else None,
+            "locust_cpu_quota_average_percent": (
+                number(locust.get("cpu_average_percent")) / number(locust_meta.get("locust_cpu_quota"), 1)
+                if locust and number(locust_meta.get("locust_cpu_quota"), 0) > 0 else None
+            ),
+            "locust_cpu_quota_max_percent": locust_meta.get("locust_cpu_quota_percent"),
             "postgres_cpu_average_percent": number(postgres.get("cpu_average_percent")) if postgres else None,
             "postgres_cpu_max_percent": number(postgres.get("cpu_max_percent")) if postgres else None,
             "postgres_metric_source": postgres_summary.get("metric_source", "unavailable"),
+            "postgres_coverage_percent": number(postgres_summary.get("coverage_percent")) if postgres_summary else None,
             "postgres_connections_average": number(postgres_summary.get("connections_average")) if postgres_summary else None,
             "postgres_connections_max": number(postgres_summary.get("connections_max")) if postgres_summary else None,
             "postgres_commits_total": number(postgres_summary.get("commits_total")) if postgres_summary else None,
@@ -267,6 +335,10 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
         for row in stats:
             if row.get("Name") == "Aggregated":
                 continue
+            endpoint_requests = int(number(row.get("Request Count")))
+            endpoint_rps, endpoint_throughput_source = measured_throughput(
+                endpoint_requests, elapsed, row.get("Requests/s"), methodology_version >= 7 and exact_window
+            )
             endpoint_rows.append({
                 "language": language,
                 "scenario": scenario,
@@ -274,19 +346,23 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
                 "load_profile": run["load_profile"],
                 "methodology_version": methodology_version,
                 "result_classification": classification,
+                "commit_sha": commit_sha,
+                "campaign_fingerprint": campaign_fingerprint,
                 "users": run["users"],
                 "benchmark_kind": run["benchmark_kind"],
                 "execution_order_position": run["execution_order_position"],
                 "method": row.get("Type", ""),
                 "endpoint": row.get("Name", ""),
-                "requests": int(number(row.get("Request Count"))),
+                "requests": endpoint_requests,
                 "failures": int(number(row.get("Failure Count"))),
                 "error_rate": f"{(number(row.get('Failure Count')) / number(row.get('Request Count'))) if number(row.get('Request Count')) else 0:.6f}",
                 "avg_ms": row.get("Average Response Time", ""),
                 "p50_ms": row.get("50%", ""),
                 "p95_ms": row.get("95%", ""),
                 "p99_ms": row.get("99%", ""),
-                "throughput_rps": row.get("Requests/s", ""),
+                "throughput_rps": endpoint_rps,
+                "locust_reported_rps": number(row.get("Requests/s")),
+                "throughput_source": endpoint_throughput_source,
                 "test_elapsed_seconds": run["test_elapsed_seconds"],
                 "exact_measurement_window": run["exact_measurement_window"],
                 "resource_metrics_available": run["resource_metrics_available"],
@@ -297,6 +373,7 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
                 "cpu_max_percent": run["cpu_max_percent"],
                 "memory_average_bytes": run["memory_average_bytes"],
                 "memory_max_bytes": run["memory_max_bytes"],
+                "cadvisor_coverage_percent": run["cadvisor_coverage_percent"],
                 "locust_cpu_average_percent": run["locust_cpu_average_percent"],
                 "postgres_cpu_average_percent": run["postgres_cpu_average_percent"],
                 "postgres_connections_average": run["postgres_connections_average"],
@@ -306,55 +383,49 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
 
 
 def scalability_rows(runs: list[dict]) -> list[dict]:
-    scalable_prefixes = ("mixed_capacity_", "mixed_saturation_")
-    mixed = [
-        row for row in runs
-        if row["scenario"] == "mixed" or row["scenario"].startswith(scalable_prefixes)
-    ]
+    mixed = [{**row, "workload_family": scalability_family(row)} for row in runs]
+    mixed = [row for row in mixed if row["workload_family"] is not None]
     current_cohorts = {
-        (row["language"], row.get("result_classification", "legacy"))
+        (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy"))
         for row in mixed if row.get("load_profile", "legacy") != "legacy"
     }
     candidates = [
         row for row in mixed
         if row.get("load_profile", "legacy") != "legacy"
-        or (row["language"], row.get("result_classification", "legacy")) not in current_cohorts
+        or (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) not in current_cohorts
     ]
     latest_versions = {
         cohort: max(
             int(number(row.get("methodology_version"), 1))
             for row in candidates
-            if (row["language"], row.get("result_classification", "legacy")) == cohort
+            if (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) == cohort
         )
         for cohort in {
-            (row["language"], row.get("result_classification", "legacy")) for row in candidates
+            (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) for row in candidates
         }
     }
     mixed = [
         row for row in candidates
         if int(number(row.get("methodology_version"), 1))
-        == latest_versions[(row["language"], row.get("result_classification", "legacy"))]
+        == latest_versions[(row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy"))]
     ]
-    groups: dict[tuple[str, str, str, int, str, int], list[dict]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str, str, int, str, int], list[dict]] = defaultdict(list)
     for row in mixed:
         if row["users"] > 0:
             groups[(
-                row["language"], row["scenario"], row.get("load_profile", "legacy"),
+                row["workload_family"], campaign_key(row), row["language"], row["scenario"], row.get("load_profile", "legacy"),
                 int(number(row.get("methodology_version"), 1)),
                 row.get("result_classification", "legacy"), int(row["users"]),
             )].append(row)
 
     output: list[dict] = []
-    cohorts: dict[tuple[str, int, str], list[tuple[int, list[dict]]]] = defaultdict(list)
-    for (language, _scenario, _profile, methodology, classification, users), group in groups.items():
-        cohorts[(language, methodology, classification)].append((users, group))
+    cohorts: dict[tuple[str, str, str, int, str], list[tuple[int, list[dict]]]] = defaultdict(list)
+    for (family, campaign, language, _scenario, _profile, methodology, classification, users), group in groups.items():
+        cohorts[(family, campaign, language, methodology, classification)].append((users, group))
 
-    for (language, methodology, classification), levels in cohorts.items():
+    for (family, campaign, language, methodology, classification), levels in cohorts.items():
         levels.sort(key=lambda item: item[0])
-        baseline_group = next(
-            (group for users, group in levels if users == 50 and group[0]["scenario"] == "mixed"),
-            levels[0][1],
-        )
+        baseline_group = levels[0][1]
         baseline_users = int(baseline_group[0]["users"])
         baseline_rps = median(baseline_group, "throughput_rps")
         previous_rps = 0.0
@@ -366,6 +437,7 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
             failures = sum(int(row["failures"]) for row in group)
             requests = sum(int(row["requests"]) for row in group)
             locust_cpu = median(group, "locust_cpu_average_percent")
+            locust_cpu_quota = median(group, "locust_cpu_quota_average_percent")
             gain_baseline = (rps / baseline_rps - 1) * 100 if baseline_rps else 0.0
             linear_efficiency = rps / (baseline_rps * users / baseline_users) * 100 if baseline_rps else 0.0
             gain_previous = (rps / previous_rps - 1) * 100 if previous_rps else 0.0
@@ -393,7 +465,7 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
                 status = "baseline"
             elif failures:
                 status = "failures_detected"
-            elif locust_cpu >= 90:
+            elif locust_cpu_quota >= 90:
                 status = "load_generator_limit"
             elif gain_previous < 10:
                 status = "probable_saturation"
@@ -404,10 +476,13 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
 
             output.append({
                 "language": language,
+                "workload_family": family,
                 "scenario": group[0]["scenario"],
                 "load_profile": group[0].get("load_profile", "legacy"),
                 "methodology_version": methodology,
                 "result_classification": classification,
+                "campaign_fingerprint": campaign,
+                "baseline_users": baseline_users,
                 "users": users,
                 "runs": len(group),
                 "requests": requests,
@@ -430,8 +505,9 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
                 "api_memory_average_bytes": f"{median(group, 'memory_average_bytes'):.3f}" if resources_available else "",
                 "api_memory_max_bytes": f"{median(group, 'memory_max_bytes'):.3f}" if resources_available else "",
                 "locust_cpu_average_percent": f"{locust_cpu:.3f}" if resources_available else "",
+                "locust_cpu_quota_average_percent": f"{locust_cpu_quota:.3f}" if resources_available else "",
                 "postgres_cpu_average_percent": f"{median(group, 'postgres_cpu_average_percent'):.3f}" if resources_available else "",
-                "rps_gain_vs_50_percent": f"{gain_baseline:.3f}",
+                "rps_gain_vs_baseline_percent": f"{gain_baseline:.3f}",
                 "linear_scaling_efficiency_percent": f"{linear_efficiency:.3f}",
                 "rps_gain_vs_previous_percent": f"{gain_previous:.3f}",
                 "p95_change_vs_previous_percent": f"{p95_change:.3f}",
@@ -442,7 +518,7 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
             })
             previous_rps, previous_p95 = rps, p95
     return sorted(output, key=lambda row: (
-        LANGUAGE_ORDER.get(row["language"], 99), row["methodology_version"],
+        row["workload_family"], row["campaign_fingerprint"], LANGUAGE_ORDER.get(row["language"], 99), row["methodology_version"],
         row["result_classification"], row["users"],
     ))
 
@@ -474,10 +550,12 @@ def generate_outputs(
         requests = row["requests"]
         row["error_rate"] = f"{(row['failures'] / requests) if requests else 0:.6f}"
         for key in (
-            "throughput_rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "test_elapsed_seconds",
+            "throughput_rps", "locust_reported_rps", "avg_ms", "p50_ms", "p95_ms", "p99_ms", "test_elapsed_seconds",
             "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
+            "cadvisor_coverage_percent", "postgres_coverage_percent",
             "network_rx_delta_bytes", "network_tx_delta_bytes", "locust_cpu_average_percent",
-            "locust_cpu_max_percent", "postgres_cpu_average_percent", "postgres_cpu_max_percent",
+            "locust_cpu_max_percent", "locust_cpu_quota_average_percent", "locust_cpu_quota_max_percent",
+            "locust_cpu_quota", "postgres_cpu_average_percent", "postgres_cpu_max_percent",
             "postgres_connections_average", "postgres_connections_max", "postgres_commits_total",
             "postgres_rollbacks_total", "postgres_commits_per_second", "postgres_rollbacks_per_second",
             "postgres_blocks_read_total", "postgres_blocks_hit_total", "postgres_cache_hit_ratio",
@@ -489,8 +567,9 @@ def generate_outputs(
 
     for row in endpoints:
         for key in (
-            "avg_ms", "p50_ms", "p95_ms", "p99_ms", "throughput_rps", "test_elapsed_seconds",
+            "avg_ms", "p50_ms", "p95_ms", "p99_ms", "throughput_rps", "locust_reported_rps", "test_elapsed_seconds",
             "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
+            "cadvisor_coverage_percent",
             "locust_cpu_average_percent", "postgres_cpu_average_percent",
             "postgres_connections_average", "postgres_cache_hit_ratio",
         ):
@@ -515,7 +594,7 @@ def generate_outputs(
             handle.write(f"- Classificacao consolidada: `{classification}`\n")
             handle.write(f"- Rodadas consolidadas: {len(runs)}\n")
             handle.write(f"- Rodadas com duracao util: {sum(number(row['test_elapsed_seconds']) > 0 for row in runs)}/{len(runs)}\n")
-            handle.write("- O cenario de 50 usuarios mede carga controlada, nao capacidade maxima.\n")
+            handle.write("- O perfil fixed_200 mede latencia sob taxa-alvo; a familia saturation mede o limite observado separadamente.\n")
             handle.write(f"- Arquivo por linguagem: `{language_path}`\n")
             handle.write(f"- Arquivo por endpoint: `{endpoint_path}`\n")
             handle.write(f"- Arquivo de escalabilidade: `{scalability_path}`\n\n")

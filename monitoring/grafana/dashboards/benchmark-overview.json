@@ -74,7 +74,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_throughput_rps{classification=\"official\",methodology=~\"$methodology\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_throughput_rps{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -122,7 +122,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -170,7 +170,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_duration_seconds{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_duration_seconds{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -218,7 +218,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_rps_variability_percent{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_rps_variability_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -277,7 +277,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_failures{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_failures{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -327,7 +327,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_confidence{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_confidence{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
@@ -389,7 +389,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -437,7 +437,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"locust\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"locust\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -485,7 +485,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",component=\"postgres\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"postgres\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -533,7 +533,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -594,7 +594,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -642,7 +642,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -690,7 +690,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -735,7 +735,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_requests{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_requests{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -783,7 +783,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_error_rate{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_error_rate{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{users}} usuarios",
           "range": false,
@@ -841,7 +841,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_connections{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_postgres_connections{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -886,7 +886,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_transactions_per_second{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_postgres_transactions_per_second{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{transaction}}",
           "range": false,
@@ -931,7 +931,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_cache_hit_ratio{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_postgres_cache_hit_ratio{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -976,7 +976,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_blocks_total{classification=\"official\",methodology=~\"$methodology\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_postgres_blocks_total{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}} - {{operation}}",
           "range": false,
@@ -1021,7 +1021,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_database_size_bytes{classification=\"official\",methodology=~\"$methodology\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_result_postgres_database_size_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
           "instant": true,
           "legendFormat": "{{language}}",
           "range": false,
@@ -1129,8 +1129,8 @@
         "allValue": ".*",
         "current": {
           "selected": true,
-          "text": "6",
-          "value": "6"
+          "text": "7",
+          "value": "7"
         },
         "datasource": {
           "type": "prometheus",
@@ -1151,6 +1151,34 @@
         "regex": "",
         "skipUrlSync": false,
         "sort": 4,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "Todas",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",methodology=~\"$methodology\"}, campaign)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Campanha",
+        "multi": true,
+        "name": "campaign",
+        "options": [],
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",methodology=~\"$methodology\"}, campaign)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
         "type": "query"
       }
     ]

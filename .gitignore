@@ -8,6 +8,7 @@
 Thumbs.db
 .idea/
 .vscode/
+.claude/.skill-factory/
 
 # Python
 __pycache__/
@@ -44,6 +45,7 @@ prometheus-data/
 results/raw/**
 results/processed/**
 results/summaries/**
+results/calibration/**
 results/archive/**
 !results/raw/.gitkeep
 !results/processed/.gitkeep

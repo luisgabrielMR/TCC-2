@@ -1,10 +1,10 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "benchmark-common.ps1")
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "7")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
-$locustHost = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
 $languages = @("python", "node", "java", "go", "dotnet")
 $services = $languages | ForEach-Object { "$_-api" }
 $activeService = $null
@@ -60,6 +60,7 @@ try {
     Write-Host "[4/8] Testando os oito endpoints em cada linguagem..."
     foreach ($language in $languages) {
         $activeService = "$language-api"
+        $activeLocustHost = "http://${activeService}:8000"
         Reset-BenchmarkDatabase $environment
         Invoke-BenchmarkCompose -Arguments @(
             "exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-q",
@@ -70,7 +71,7 @@ try {
         Wait-BenchmarkApi $apiBaseUrl
         $contractArguments = @(
             "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
-            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $locustHost, "--label", $language
+            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $activeLocustHost, "--label", $language
         )
         if ($language -eq "python") { $contractArguments += @("--snapshot", $contractBaseline) }
         else { $contractArguments += @("--compare", $contractBaseline) }
@@ -98,7 +99,7 @@ try {
         Start-Sleep -Seconds 2
         Invoke-BenchmarkCompose -Arguments @(
             "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
-            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $locustHost,
+            "locust", "/mnt/scripts/contract_test_api.py", "--base-url", $activeLocustHost,
             "--label", $language, "--database-error-only"
         )
         Reset-BenchmarkDatabase $environment
@@ -120,7 +121,7 @@ try {
     )
     $goPoolDirectory = Join-Path $verificationDirectory "go-pool"
     New-Item -ItemType Directory -Force $goPoolDirectory | Out-Null
-    Invoke-BenchmarkLocust "smoke" 20 10 "15s" $locustHost "/mnt/results/raw/verification/$verificationId/go-pool/locust"
+    Invoke-BenchmarkLocust "smoke" 20 10 "15s" "http://go-api:8000" "/mnt/results/raw/verification/$verificationId/go-pool/locust" -Processes 1
     $goPoolStats = Import-Csv (Join-Path $goPoolDirectory "locust_stats.csv")
     $goPoolAggregate = $goPoolStats | Where-Object { $_.Name -eq "Aggregated" }
     if (-not $goPoolAggregate -or [int]$goPoolAggregate."Failure Count" -ne 0) {
@@ -227,7 +228,7 @@ try {
     Invoke-BenchmarkCompose -Arguments @("stop", "locust")
     $locustPreflightStarted = $false
     New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
-    $uniquenessCheck = "from locustfile import customers_create; assert len(customers_create._values) >= 75000; rows=[customers_create.next() for _ in range(5000)]; assert len({r['email'] for r in rows}) == 5000; assert len({r['documentNumber'] for r in rows}) == 5000"
+    $uniquenessCheck = "from pathlib import Path; from payload_sequences import PayloadSequence; streams=[PayloadSequence(Path('/mnt/payloads/customers_create.jsonl')) for _ in range(4)]; [stream.configure_shard(index,4) for index,stream in enumerate(streams)]; rows=[stream.next() for stream in streams for _ in range(5000)]; assert len({r['email'] for r in rows}) == 20000; assert len({r['documentNumber'] for r in rows}) == 20000"
     Invoke-BenchmarkCompose -Arguments @(
         "--profile", "load", "run", "--rm", "--no-deps", "--entrypoint", "python",
         "-e", "PAYLOAD_DIR=/mnt/payloads", "locust", "-c", $uniquenessCheck
@@ -235,8 +236,13 @@ try {
     $verificationBounds = Join-Path $verificationDirectory "locust_measurement_bounds.json"
     $measurement = Start-BenchmarkMeasurements $verificationDirectory $verificationBounds 1
     $mainRunStarted = $true
-    Invoke-BenchmarkLocust "warmup" 20 10 "15s" $locustHost "/mnt/results/raw/verification/$verificationId/locust"
+    Invoke-BenchmarkLocust "warmup" 20 10 "15s" "http://python-api:8000" "/mnt/results/raw/verification/$verificationId/locust" -Processes 1
     $loadBounds = Get-Content $verificationBounds -Raw | ConvertFrom-Json
+    Invoke-BenchmarkPython @(
+        (Join-Path $script:BenchmarkRoot "scripts/validate_measurement_bounds.py"),
+        "--bounds", $verificationBounds,
+        "--output", (Join-Path $verificationDirectory "measurement-bounds-validation.json")
+    )
     Stop-BenchmarkMeasurements $measurement
     $metricsStartEpoch = [double]$loadBounds.started_epoch
     $metricsEndEpoch = [double]$loadBounds.finished_epoch
@@ -281,7 +287,7 @@ try {
         available = $true
         completed = $true
         checked_at = (Get-Date).ToUniversalTime().ToString("o")
-        methodology_version = 6
+        methodology_version = $methodologyVersion
         commit_sha = $finalPreflight.git.commit_sha
         git_dirty = [bool]$finalPreflight.git.git_dirty
         tracked_diff_sha256 = $finalPreflight.git.tracked_diff_sha256

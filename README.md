@@ -13,7 +13,7 @@ Requisitos para uso local:
 - `curl` para testes manuais
 - Git
 
-Para uma rodada oficial, o TCC registra Docker Engine 29.7.2 e Docker Compose 5.3.1, que sao as versoes instaladas e verificadas neste host. Nao ha troca de Docker Desktop a fazer; a exigencia e manter a atualizacao automatica desligada durante a bateria, para que todas as rodadas usem o mesmo ambiente.
+Para uma rodada oficial, a versao mais recente do TCC exige Docker Engine `29.5.2` e Docker Compose `5.1.4`. O preflight bloqueia qualquer diferenca; as versoes atualmente detectadas neste host devem ser ajustadas manualmente e a atualizacao automatica deve permanecer desligada durante a bateria.
 
 ## Configurar ambiente
 
@@ -122,23 +122,25 @@ WARMUP_DURATION_SECONDS=300
 WARMUP_STABILITY_WINDOW_SECONDS=45
 WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
-OFFICIAL_CONTROLLED_ROUNDS=5
+OFFICIAL_PROFILE=fixed_200
+OFFICIAL_ROUNDS=5
+METHODOLOGY_VERSION=7
 ```
 
-`BENCHMARK_REPETITIONS` controla somente as rotinas avancadas de capacidade. O atalho da bateria oficial usa `OFFICIAL_CONTROLLED_ROUNDS` e executa cinco rodadas completas do perfil `controlled_50`.
+`BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. Agregadores e dashboards tambem separam `campaign_fingerprint`, derivado de metodologia, commit e calibracao, para impedir mistura entre campanhas.
 
 O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
-Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. O Locust roda em container e usa `LOCUST_HOST=http://host.docker.internal:8000`.
+Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. Durante a medicao, o Locust acessa diretamente `http://{api-service}:8000` pela rede interna do Compose. `LOCUST_HOST_OVERRIDE` existe somente para pilotos comparativos pelo proxy do host.
 
 ## Rodada principal por linguagem
 
 ```bash
-./scripts/run_one_language.sh python mixed 0 controlled_50 pilot
-./scripts/run_one_language.sh node mixed 0 controlled_50 pilot
-./scripts/run_one_language.sh java mixed 0 controlled_50 pilot
-./scripts/run_one_language.sh go mixed 0 controlled_50 pilot
-./scripts/run_one_language.sh dotnet mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh python mixed 0 fixed_200 pilot
+./scripts/run_one_language.sh node mixed 0 fixed_200 pilot
+./scripts/run_one_language.sh java mixed 0 fixed_200 pilot
+./scripts/run_one_language.sh go mixed 0 fixed_200 pilot
+./scripts/run_one_language.sh dotnet mixed 0 fixed_200 pilot
 ```
 
 Cada comando deve:
@@ -158,18 +160,21 @@ Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker es
 ## Executar todas sequencialmente
 
 ```bash
-./scripts/run_all_languages_sequentially.sh mixed 0 controlled_50 0 manual_pilot pilot
+./scripts/run_all_languages_sequentially.sh mixed 0 fixed_200 0 manual_pilot pilot
 ```
 
 Esse script chama uma linguagem por vez. Ele nunca sobe as cinco APIs simultaneamente.
 
-O cenario `controlled_50` mede uma carga controlada e nao a capacidade maxima. No Windows, a coleta oficial e dividida em cinco rodadas completas. Cada rodada executa as cinco linguagens uma por vez, rotaciona a ordem inicial e pode ser retomada sem sobrescrever resultados anteriores. Os perfis `capacity_100` e `capacity_200` permanecem testes extras.
+O perfil `fixed_200` tem alvo de 200 req/s e compara latencia e recursos sob a mesma taxa; nao representa capacidade maxima. A entrega minima e 97,5% do alvo. Os perfis `saturation_25` a `saturation_400` formam uma bateria separada, sem pacing. Perfis `controlled_*` e `capacity_*` existem apenas para releitura do historico e nunca entram na mesma coorte dos perfis de saturacao.
 
 ```bash
+./scripts/calibrate_load_generator.sh go
 ./scripts/run_capacity_battery.sh
 ```
 
-No Windows, `02_PROXIMA_RODADA_OFICIAL.bat` executa somente a proxima rodada `controlled_50` ainda incompleta, em modo `official`. O menu avancado preserva pilotos por linguagem e os perfis extras, sempre separados dos resultados oficiais.
+A calibracao usa somente `GET /health`, pacing zero e degraus de 25, 50, 100, 200 e 400 usuarios durante 60 s. Ela e `non_official_calibration`, usa CPU do cAdvisor e fica vinculada ao commit, imagens, numero de workers, cota do Locust e alocacao Docker. Sem capacidade segura de pelo menos 250 req/s, CPU do Locust abaixo de 90% da cota e 80% de cobertura na janela curta, perfis novos nao podem ser oficiais. As rodadas principais de 5 minutos exigem 90% de cobertura.
+
+No Windows, calibre pelo menu e depois use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa a proxima rodada `fixed_200` ainda incompleta. O menu avancado preserva pilotos e a bateria de saturacao separadamente.
 
 ## Monitoramento
 
@@ -203,7 +208,7 @@ Grafana e apoio visual. Os dados brutos e consolidados devem ser preservados em 
 
 O Grafana possui dois dashboards provisionados:
 
-- `TCC Benchmark - Resultados Oficiais`, pagina inicial restrita a metodologia 6 e classificacao `official`, com requisicoes, falhas, taxa de erro, throughput, media, P50, P95, P99, duracao sem aquecimento, variacao, confianca, CPU, memoria e o resumo do PostgreSQL por linguagem.
+- `TCC Benchmark - Resultados Oficiais`, pagina inicial filtravel por metodologia e classificacao `official`, com requisicoes, falhas, taxa de erro, throughput, media, P50, P95, P99, duracao sem aquecimento, variacao, confianca, CPU, memoria e o resumo do PostgreSQL por linguagem.
 - `TCC Benchmark - Monitoramento e Diagnostico`, com execucao ao vivo, detalhamento por endpoint e metricas internas do PostgreSQL.
 
 Os dashboards possuem links no topo para alternar entre eles. O `benchmark-results-exporter` converte somente os CSVs e JSONs ja produzidos pelo teste em metricas Prometheus; ele nao instrumenta nem altera as APIs comparadas.
@@ -363,9 +368,10 @@ No WSL/Linux:
 
 ```text
 [ ] Docker esta rodando
-[ ] Docker Engine e 29.7.2 e Compose e 5.3.1
+[ ] Docker Engine e 29.5.2 e Compose e 5.1.4
 [ ] Git esta limpo e o commit foi revisado
 [ ] A verificacao completa gerou project-verification.json para esse mesmo commit limpo
+[ ] A calibracao do Locust corresponde ao mesmo commit e ambiente
 [ ] PostgreSQL subiu corretamente
 [ ] Banco foi criado
 [ ] Seed foi carregado

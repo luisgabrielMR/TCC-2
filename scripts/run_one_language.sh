@@ -21,8 +21,8 @@ fi
 LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
-  # Taxa fixa: 50 usuarios com pacing de 0,25 s produzem 200 req/s exatos, com
-  # folga em relacao ao limite da implementacao mais lenta.
+  # Taxa fixa: 50 usuarios com pacing de 0,25 s tem alvo maximo de 200 req/s.
+  # Respostas que ultrapassam o periodo reduzem a taxa efetivamente entregue.
   fixed_200) LOCUST_USERS=50; LOCUST_SPAWN_RATE=10; LOCUST_WAIT_SECONDS=0.25; LOAD_TARGET_RPS=200 ;;
   # Malha fechada: sem pacing, cada usuario dispara a proxima requisicao assim
   # que a anterior responde. A vazao volta a ser variavel de resposta.
@@ -44,6 +44,11 @@ fi
 # run_warmup.sh e um processo separado e leria o padrao do .env. O aquecimento
 # precisa do mesmo pacing da medicao, entao o valor do perfil e exportado.
 export LOCUST_WAIT_SECONDS
+export LOCUST_PROCESSES
+if ! [[ "$LOCUST_PROCESSES" =~ ^[1-9][0-9]*$ ]]; then
+  echo "LOCUST_PROCESSES deve ser um inteiro positivo." >&2
+  exit 2
+fi
 
 case "$LOAD_PROFILE" in
   capacity_100|capacity_200|fixed_*|saturation_*) RESULT_SCENARIO="${SCENARIO_NAME}_${LOAD_PROFILE}" ;;
@@ -120,7 +125,8 @@ API_STARTED=true
 wait_for_api "$API_BASE_URL"
 docker compose --profile load up -d locust
 LOCUST_PREFLIGHT_STARTED=true
-"$PYTHON_BIN" "$SCRIPT_DIR/preflight.py" --mode "$RUN_MODE" --output "$PREFLIGHT_PATH"
+"$PYTHON_BIN" "$SCRIPT_DIR/preflight.py" --mode "$RUN_MODE" --api-service "$API_SERVICE" \
+  --load-profile "$LOAD_PROFILE" --output "$PREFLIGHT_PATH"
 "$PYTHON_BIN" "$SCRIPT_DIR/validate_monitoring.py" \
   --prometheus-url "http://127.0.0.1:${PROMETHEUS_PORT:-9090}" \
   --grafana-url "http://127.0.0.1:${GRAFANA_PORT:-3000}" \
@@ -151,7 +157,18 @@ PY
 EOF
 PREFLIGHT_JSON="$(cat "$PREFLIGHT_PATH")"
 MONITORING_PREFLIGHT_JSON="$(cat "$MONITORING_PREFLIGHT_PATH")"
+CALIBRATION_CAPACITY_RPS="$($PYTHON_BIN -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")).get("load_generator_calibration", {}).get("validated_capacity_rps"); print("null" if value is None else value)' "$PREFLIGHT_PATH")"
+LOCUST_CPU_QUOTA="$($PYTHON_BIN -c 'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["resource_policy"]["effective"]["limits"]["locust"]["effective_cpu_quota"])' "$PREFLIGHT_PATH")"
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) > 0 else 1)' "$LOCUST_CPU_QUOTA"; then
+  echo "O preflight nao confirmou a cota efetiva de CPU do Locust." >&2
+  exit 2
+fi
 UNTRACKED_FILES_JSON="$("$PYTHON_BIN" -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8"))["git"].get("untracked_files", []), ensure_ascii=True))' "$PREFLIGHT_PATH")"
+CAMPAIGN_FINGERPRINT="${BENCHMARK_CAMPAIGN_FINGERPRINT:-manual}"
+if [ "$CAMPAIGN_FINGERPRINT" = manual ]; then
+  CALIBRATION_HASH="$($PYTHON_BIN -c 'import hashlib,sys; from pathlib import Path; p=Path(sys.argv[1]); print(hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else "no_calibration")' "$LOAD_GENERATOR_CALIBRATION_FILE")"
+  CAMPAIGN_FINGERPRINT="m${METHODOLOGY_VERSION}_${COMMIT_SHA:0:12}_${CALIBRATION_HASH:0:12}"
+fi
 
 docker compose --profile load run --rm --no-deps --entrypoint python locust \
   /mnt/scripts/contract_test_api.py --base-url "$LOCUST_HOST"
@@ -180,17 +197,18 @@ METRICS_STARTED=true
 MAIN_RUN_STARTED=true
 DATABASE_NEEDS_RESET=true
 
-TEST_STARTED_AT="$(date -Iseconds)"
-TEST_STARTED_EPOCH="$(date +%s)"
+RUNNER_STARTED_MONOTONIC_NS="$($PYTHON_BIN -c 'import time; print(time.monotonic_ns())')"
 "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$RESULT_DIR/locust" --prepare
 
 SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   -e SCENARIO="$SCENARIO_NAME" \
   -e PAYLOAD_DIR=/mnt/payloads \
   -e LOCUST_WAIT_SECONDS="$LOCUST_WAIT_SECONDS" \
+  -e LOCUST_PROCESSES="$LOCUST_PROCESSES" \
   locust \
   -f locustfile.py \
   --headless \
+  --processes "$LOCUST_PROCESSES" \
   -u "$LOCUST_USERS" \
   -r "$LOCUST_SPAWN_RATE" \
   -t "$LOCUST_DURATION" \
@@ -198,12 +216,16 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   --csv "/mnt/$RESULT_DIR/locust" \
   --only-summary
 "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$RESULT_DIR/locust"
-TEST_FINISHED_AT="$(date -Iseconds)"
-TEST_FINISHED_EPOCH="$(date +%s)"
-RUNNER_ELAPSED_SECONDS=$((TEST_FINISHED_EPOCH - TEST_STARTED_EPOCH))
+RUNNER_FINISHED_MONOTONIC_NS="$($PYTHON_BIN -c 'import time; print(time.monotonic_ns())')"
+RUNNER_ELAPSED_SECONDS="$($PYTHON_BIN -c 'import sys; print(f"{(int(sys.argv[2])-int(sys.argv[1]))/1e9:.6f}")' "$RUNNER_STARTED_MONOTONIC_NS" "$RUNNER_FINISHED_MONOTONIC_NS")"
+
+BOUNDS_VALIDATION_FILE="$RESULT_DIR/measurement-bounds-validation.json"
+"$PYTHON_BIN" "$SCRIPT_DIR/validate_measurement_bounds.py" \
+  --bounds "$BOUNDS_FILE" --output "$BOUNDS_VALIDATION_FILE"
+BOUNDS_VALIDATION_JSON="$(cat "$BOUNDS_VALIDATION_FILE")"
 
 IFS='|' read -r TEST_STARTED_AT TEST_FINISHED_AT TEST_ELAPSED_SECONDS METRICS_START_EPOCH METRICS_END_EPOCH <<EOF
-$($PYTHON_BIN -c 'import datetime,json,sys; b=json.load(open(sys.argv[1], encoding="utf-8")); iso=lambda v: datetime.datetime.fromtimestamp(float(v), datetime.timezone.utc).isoformat().replace("+00:00", "Z"); print("{}|{}|{:.3f}|{:.6f}|{:.6f}".format(iso(b["started_epoch"]), iso(b["finished_epoch"]), float(b["elapsed_seconds"]), float(b["started_epoch"]), float(b["finished_epoch"])))' "$BOUNDS_FILE")
+$($PYTHON_BIN -c 'import json,sys; b=json.load(open(sys.argv[1], encoding="utf-8")); print("{}|{}|{:.9f}|{:.9f}|{:.9f}".format(b["started_at_utc"], b["finished_at_utc"], float(b["elapsed_seconds"]), float(b["started_epoch"]), float(b["finished_epoch"])))' "$BOUNDS_FILE")
 EOF
 
 touch "$METRICS_STOP_FILE"
@@ -216,6 +238,7 @@ rm -f "$METRICS_STOP_FILE"
   --scenario "$SCENARIO_NAME" \
   --expected-users "$LOCUST_USERS" \
   --phase-label "Measurement" \
+  --require-first-last-stability \
   --window-seconds "$WARMUP_STABILITY_WINDOW_SECONDS" \
   --max-rps-drift-percent "$WARMUP_MAX_RPS_DRIFT_PERCENT" \
   --output "$RESULT_DIR/measurement_stability.json"
@@ -226,16 +249,20 @@ MEASUREMENT_STABLE="$($PYTHON_BIN -c 'import json,sys; print(str(bool(json.load(
 # entregou a taxa pedida, ela esta saturada e a latencia dela nao e comparavel
 # com a das outras: a rodada deixa de ser elegivel a oficial.
 RATE_TARGET_MET=true
-ACHIEVED_RPS=null
-if [ -n "$LOAD_TARGET_RPS" ]; then
-  ACHIEVED_RPS="$($PYTHON_BIN -c '
+IFS='|' read -r ACHIEVED_RPS LOCUST_REPORTED_RPS <<EOF
+$($PYTHON_BIN -c '
 import csv, sys
 for row in csv.DictReader(open(sys.argv[1], encoding="utf-8-sig")):
     if row["Name"] == "Aggregated":
-        print(row["Requests/s"]); break
+        exact=float(row["Request Count"]) / float(sys.argv[2])
+        reported=float(row["Requests/s"])
+        print(f"{exact:.9f}|{reported:.9f}")
+        break
 else:
-    print("0")
-' "$RESULT_DIR/locust_stats.csv")"
+    print("0|0")
+' "$RESULT_DIR/locust_stats.csv" "$TEST_ELAPSED_SECONDS")
+EOF
+if [ -n "$LOAD_TARGET_RPS" ]; then
   RATE_TARGET_MET="$($PYTHON_BIN -c '
 import sys
 achieved, target = float(sys.argv[1]), float(sys.argv[2])
@@ -247,9 +274,34 @@ print(str(achieved >= target * 0.975).lower())
   fi
 fi
 
-RESULT_CLASSIFICATION=non_official
-if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ]; then RESULT_CLASSIFICATION=official; fi
 "$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE"
+LOCUST_CPU_MAX_PERCENT="$($PYTHON_BIN -c '
+import csv, sys
+try:
+    rows=csv.DictReader(open(sys.argv[1], encoding="utf-8-sig"))
+    print(next((row["cpu_max_percent"] for row in rows if row.get("component") == "locust"), "null"))
+except OSError:
+    print("null")
+' "$RESULT_DIR/cadvisor_summary.csv")"
+LOCUST_CPU_QUOTA_PERCENT=null
+if [ "$LOCUST_CPU_MAX_PERCENT" != null ]; then
+  LOCUST_CPU_QUOTA_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$LOCUST_CPU_MAX_PERCENT" "$LOCUST_CPU_QUOTA")"
+fi
+GENERATOR_HEADROOM_MET=true
+if [ "$LOCUST_CPU_QUOTA_PERCENT" = null ]; then
+  if [ "$RUN_MODE" = official ]; then GENERATOR_HEADROOM_MET=false; fi
+elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$LOCUST_CPU_QUOTA_PERCENT"; then
+  GENERATOR_HEADROOM_MET=false
+fi
+if [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then
+  if [ "$CALIBRATION_CAPACITY_RPS" = null ] || ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) <= float(sys.argv[2]) * 0.8 else 1)' "$ACHIEVED_RPS" "$CALIBRATION_CAPACITY_RPS"; then
+    GENERATOR_HEADROOM_MET=false
+  fi
+fi
+RESULT_CLASSIFICATION=non_official
+if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ]; then
+  RESULT_CLASSIFICATION=official
+fi
 "$SCRIPT_DIR/reset_db.sh"
 MAIN_RUN_STARTED=false
 DATABASE_NEEDS_RESET=false
@@ -268,7 +320,7 @@ if [ "$BENCHMARK_KIND" = capacity ]; then
   NOTES="Teste extra de escalabilidade; representa o limite pratico observado neste ambiente."
 fi
 if [ "$BENCHMARK_KIND" = fixed_rate ]; then
-  NOTES="Taxa fixa de $LOAD_TARGET_RPS req/s imposta a todas as linguagens; a vazao e variavel controlada e a comparacao e de latencia e recursos."
+  NOTES="Taxa-alvo maxima de $LOAD_TARGET_RPS req/s para todas as linguagens; exige entrega minima de 97,5% e compara latencia e recursos."
 fi
 if [ "$BENCHMARK_KIND" = saturation ]; then
   NOTES="Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container."
@@ -278,16 +330,17 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
 {
   "result_classification": "$RESULT_CLASSIFICATION",
   "requested_run_mode": "$RUN_MODE",
-  "official_run": $([ "$RUN_MODE" = official ] && echo true || echo false),
+  "official_run": $([ "$RESULT_CLASSIFICATION" = official ] && echo true || echo false),
   "language": "$LANGUAGE",
   "scenario": "$RESULT_SCENARIO",
   "workload_scenario": "$SCENARIO_NAME",
   "load_profile": "$LOAD_PROFILE",
-  "methodology_version": 6,
+  "methodology_version": $METHODOLOGY_VERSION,
   "benchmark_kind": "$BENCHMARK_KIND",
   "run_number": $RUN_NUMBER,
   "execution_order": {
     "sequence_id": "${BENCHMARK_SEQUENCE_ID:-manual}",
+    "campaign_fingerprint": "$CAMPAIGN_FINGERPRINT",
     "position": ${BENCHMARK_ORDER_POSITION:-0}
   },
   "started_at": "$START_TIME",
@@ -311,6 +364,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "scenario": "$SCENARIO_NAME",
     "users": $LOCUST_USERS,
     "spawn_rate": $LOCUST_SPAWN_RATE,
+    "processes": $LOCUST_PROCESSES,
     "requested_duration_seconds": $WARMUP_DURATION_SECONDS,
     "retry_duration_seconds": 0,
     "total_duration_seconds": $WARMUP_TOTAL_SECONDS,
@@ -338,8 +392,9 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "api_containers": 1,
     "application_processes": 1,
     "replicas": 1,
-    "cpu_limit": "Docker Desktop host allocation",
-    "interpretation": "single application instance; not an intrinsic language ranking"
+    "quota_semantics": "maximum CPU quota, not an exclusive reservation",
+    "configured_and_effective_limits": $($PYTHON_BIN -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8"))["resource_policy"], separators=(",", ":")))' "$PREFLIGHT_PATH"),
+    "interpretation": "single application instance under recorded quotas; not an intrinsic language ranking"
   },
   "easy_execution": {
     "launcher_used": "scripts/run_one_language.sh",
@@ -348,12 +403,22 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
   "locust": {
     "users": $LOCUST_USERS,
     "spawn_rate": $LOCUST_SPAWN_RATE,
+    "processes": $LOCUST_PROCESSES,
     "duration": "$LOCUST_DURATION",
     "wait_seconds": $LOCUST_WAIT_SECONDS,
     "theoretical_rps_ceiling": $THEORETICAL_RPS_CEILING,
     "target_rps": ${LOAD_TARGET_RPS:-null},
     "achieved_rps": $ACHIEVED_RPS,
+    "reported_rps": $LOCUST_REPORTED_RPS,
+    "throughput_source": "request_count / monotonic elapsed_seconds",
     "rate_target_met": $RATE_TARGET_MET,
+    "locust_cpu_max_percent": $LOCUST_CPU_MAX_PERCENT,
+    "locust_cpu_raw_max_percent": $LOCUST_CPU_MAX_PERCENT,
+    "locust_cpu_quota": $LOCUST_CPU_QUOTA,
+    "locust_cpu_quota_percent": $LOCUST_CPU_QUOTA_PERCENT,
+    "generator_headroom_met": $GENERATOR_HEADROOM_MET,
+    "calibrated_capacity_rps": $CALIBRATION_CAPACITY_RPS,
+    "calibration_headroom_factor_required": 1.25,
     "host": "$LOCUST_HOST"
   },
   "test_phase": {
@@ -361,6 +426,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "finished_at": "$TEST_FINISHED_AT",
     "elapsed_seconds": $TEST_ELAPSED_SECONDS,
     "runner_elapsed_seconds": $RUNNER_ELAPSED_SECONDS,
+    "bounds_validation": $BOUNDS_VALIDATION_JSON,
     "excludes_warmup": true
   },
   "measurement_stability": $MEASUREMENT_STABILITY,
@@ -368,10 +434,14 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "window_source": "locust_test_start_stop",
     "response_time_source": "Locust locust_stats.csv",
     "percentile_source": "Locust locust_stats.csv",
-    "throughput_source": "Locust locust_stats.csv",
+    "throughput_source": "Locust request count divided by monotonic measurement duration",
     "request_count_source": "Locust locust_stats.csv",
     "failure_and_error_rate_source": "Locust locust_stats.csv",
-    "total_test_time_source": "Locust test_start/test_stop events",
+    "total_test_time_source": "Locust test_start/test_stop events measured with time.monotonic_ns",
+    "duration_clock": "time.monotonic_ns",
+    "boundary_clock": "time.time_ns",
+    "prometheus_boundary_method": "one-scrape padding with overlap clipping",
+    "minimum_cadvisor_coverage_percent": 90,
     "sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "container_primary_source": "cAdvisor via Prometheus",
     "container_cpu_source": "cAdvisor via Prometheus",
@@ -391,6 +461,14 @@ JSON
 
 if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" != true ]; then
   echo "A medicao oficial ficou instavel e foi registrada como non_official." >&2
+  exit 2
+fi
+if [ "$RUN_MODE" = official ] && [ "$RATE_TARGET_MET" != true ]; then
+  echo "A rodada oficial nao atingiu a taxa minima do perfil e foi registrada como non_official." >&2
+  exit 2
+fi
+if [ "$RUN_MODE" = official ] && [ "$GENERATOR_HEADROOM_MET" != true ]; then
+  echo "A medicao oficial ficou sem a folga exigida do gerador (CPU ou capacidade calibrada) e foi registrada como non_official." >&2
   exit 2
 fi
 

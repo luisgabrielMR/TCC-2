@@ -75,6 +75,10 @@ def elapsed_seconds(metadata: dict) -> float:
     return finished - started if finished > started > 0 else 0.0
 
 
+def throughput_rps(requests: object, elapsed: float, reported: object, use_exact: bool) -> float:
+    return number(requests) / elapsed if use_exact and elapsed > 0 else number(reported)
+
+
 def measurement_status(metadata: dict) -> str:
     measurement = metadata.get("measurement_stability", {})
     if not measurement:
@@ -117,6 +121,18 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
         measurement = metadata.get("measurement_stability", {})
         methodology = integer(metadata.get("methodology_version")) or 1
         classification = metadata.get("result_classification", "legacy")
+        commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
+        declared_campaign = metadata.get("execution_order", {}).get("campaign_fingerprint")
+        campaign = declared_campaign if declared_campaign not in (None, "", "manual") else commit_sha
+        duration = elapsed_seconds(metadata)
+        bounds_valid = bool(metadata.get("test_phase", {}).get("bounds_validation", {}).get("valid"))
+        window_source = metadata.get("metrics", {}).get("window_source")
+        exact_window = (
+            methodology >= 7 and bounds_valid and window_source == "locust_test_start_stop"
+        ) or (
+            5 <= methodology < 7 and window_source == "locust_test_start_stop"
+        )
+        use_exact_rps = methodology >= 7 and exact_window
         cadvisor_available = bool(cadvisor_api and cadvisor_locust and cadvisor_postgres)
         locust_metadata = metadata.get("locust", {})
         run_number = integer(run_name.removeprefix("run_"))
@@ -127,21 +143,24 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
             "load_profile": metadata.get("load_profile", "legacy"),
             "methodology": methodology,
             "classification": classification,
+            "campaign": campaign,
             "users": integer(locust_metadata.get("users")),
             "order_position": integer(metadata.get("execution_order", {}).get("position")),
             "sequence_id": metadata.get("execution_order", {}).get("sequence_id", "manual"),
             "requests": integer(aggregate.get("Request Count")),
             "failures": integer(aggregate.get("Failure Count")),
-            "rps": number(aggregate.get("Requests/s")),
+            "rps": throughput_rps(aggregate.get("Request Count"), duration, aggregate.get("Requests/s"), use_exact_rps),
+            "locust_reported_rps": number(aggregate.get("Requests/s")),
+            "throughput_source": "request_count / monotonic elapsed_seconds" if use_exact_rps else "locust_reported_rps",
             "avg_ms": number(aggregate.get("Average Response Time")),
             "p50_ms": number(aggregate.get("50%")),
             "p95_ms": number(aggregate.get("95%")),
             "p99_ms": number(aggregate.get("99%")),
-            "duration_seconds": elapsed_seconds(metadata),
+            "duration_seconds": duration,
             "warmup_seconds": number(metadata.get("warmup", {}).get("total_duration_seconds")),
             "measurement_change_percent": number(measurement.get("first_last_rps_change_percent")),
             "measurement_status": measurement_status(metadata),
-            "exact_window": methodology >= 5 and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop",
+            "exact_window": exact_window,
             "cadvisor_available": cadvisor_available,
             "postgres_metrics_available": bool(postgres_summary),
             "postgres_metric_source": postgres_summary.get("metric_source", "unavailable"),
@@ -154,12 +173,16 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
             "api_cpu_max": number(api.get("cpu_max_percent")),
             "api_memory_avg": number(api.get("memory_average_bytes")),
             "api_memory_max": number(api.get("memory_max_bytes")),
+            "api_cadvisor_coverage": number(api.get("coverage_percent")),
             "api_network_rx": number(api.get("network_rx_delta_bytes")),
             "api_network_tx": number(api.get("network_tx_delta_bytes")),
             "locust_cpu_avg": number(locust.get("cpu_average_percent")),
             "locust_cpu_max": number(locust.get("cpu_max_percent")),
+            "locust_cadvisor_coverage": number(locust.get("coverage_percent")),
             "postgres_cpu_avg": number(postgres.get("cpu_average_percent")),
             "postgres_cpu_max": number(postgres.get("cpu_max_percent")),
+            "postgres_cadvisor_coverage": number(postgres.get("coverage_percent")),
+            "postgres_exporter_coverage": number(postgres_summary.get("coverage_percent")),
             "postgres_connections_avg": number(postgres_summary.get("connections_average")),
             "postgres_connections_max": number(postgres_summary.get("connections_max")),
             "postgres_commits_total": number(postgres_summary.get("commits_total")),
@@ -183,13 +206,14 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
                 "load_profile": run["load_profile"],
                 "methodology": methodology,
                 "classification": classification,
+                "campaign": campaign,
                 "users": run["users"],
                 "run": run_number,
                 "method": row.get("Type", ""),
                 "endpoint": row.get("Name", ""),
                 "requests": integer(row.get("Request Count")),
                 "failures": integer(row.get("Failure Count")),
-                "rps": number(row.get("Requests/s")),
+                "rps": throughput_rps(row.get("Request Count"), duration, row.get("Requests/s"), use_exact_rps),
                 "avg_ms": number(row.get("Average Response Time")),
                 "p50_ms": number(row.get("50%")),
                 "p95_ms": number(row.get("95%")),
@@ -211,10 +235,14 @@ def confidence(rows: list[dict]) -> str:
         return "invalid_load_generator"
     if any(row["measurement_status"] != "stable" for row in rows):
         return "invalid_instability"
-    if len(rows) < 3:
-        return "preliminary_fewer_than_3_runs"
+    required_runs = 5 if any(
+        integer(row.get("methodology")) >= 7 and row.get("load_profile") == "fixed_200"
+        for row in rows
+    ) else 3
+    if len(rows) < required_runs:
+        return f"preliminary_fewer_than_{required_runs}_runs"
     positions = {row["order_position"] for row in rows}
-    if 0 in positions or len(positions) < 3:
+    if 0 in positions or len(positions) < required_runs:
         return "invalid_order_bias"
     values = [row["rps"] for row in rows]
     middle = statistics.median(values) if values else 0
@@ -265,6 +293,7 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
             "load_profile": row["load_profile"],
             "methodology": row["methodology"],
             "classification": row["classification"],
+            "campaign": row["campaign"],
             "users": row["users"],
             "run": row["run"],
         }
@@ -272,6 +301,21 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
         metrics.add("benchmark_run_requests", row["requests"], labels, "Requests for one benchmark run")
         metrics.add("benchmark_run_failures", row["failures"], labels, "Failures for one benchmark run")
         metrics.add("benchmark_run_duration_seconds", row["duration_seconds"], labels, "Measured duration for one benchmark run")
+        if row["resources_available"] and row["methodology"] >= 7:
+            for component, key_name in (
+                ("api", "api_cadvisor_coverage"),
+                ("locust", "locust_cadvisor_coverage"),
+                ("postgresql", "postgres_cadvisor_coverage"),
+            ):
+                metrics.add(
+                    "benchmark_run_cadvisor_coverage_percent", row[key_name],
+                    {**labels, "component": component}, "cAdvisor coverage of the measurement window",
+                )
+        if row["postgres_metrics_available"] and row["methodology"] >= 7:
+            metrics.add(
+                "benchmark_run_postgres_exporter_coverage_percent", row["postgres_exporter_coverage"],
+                labels, "postgres-exporter coverage of the measurement window",
+            )
         for quantile, key_name in (("avg", "avg_ms"), ("p50", "p50_ms"), ("p95", "p95_ms"), ("p99", "p99_ms")):
             metrics.add("benchmark_run_latency_ms", row[key_name], {**labels, "quantile": quantile}, "Latency for one benchmark run")
         if row["postgres_metrics_available"]:
@@ -297,6 +341,7 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
             "load_profile": row["load_profile"],
             "methodology": row["methodology"],
             "classification": row["classification"],
+            "campaign": row["campaign"],
             "users": row["users"],
             "run": row["run"],
             "method": row["method"],
@@ -308,15 +353,16 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
         for quantile, key_name in (("avg", "avg_ms"), ("p50", "p50_ms"), ("p95", "p95_ms"), ("p99", "p99_ms")):
             metrics.add("benchmark_endpoint_run_latency_ms", row[key_name], {**labels, "quantile": quantile}, "Endpoint latency for one run")
 
-    group_keys = ("language", "scenario", "load_profile", "users", "classification")
+    group_keys = ("campaign", "language", "scenario", "load_profile", "users", "classification")
     for key, group in sorted(latest_methodology_groups(runs, group_keys).items()):
-        language, scenario, load_profile, users, classification = key
+        campaign, language, scenario, load_profile, users, classification = key
         labels = {
             "language": language,
             "scenario": scenario,
             "load_profile": load_profile,
             "methodology": group[0]["methodology"],
             "classification": classification,
+            "campaign": campaign,
             "users": users,
         }
         rps_values = [row["rps"] for row in group]
@@ -368,15 +414,16 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
             metrics.add("benchmark_result_postgres_database_size_bytes", median(group, "postgres_database_size_avg"), {**postgres_labels, "stat": "average"}, "Median PostgreSQL database size")
             metrics.add("benchmark_result_postgres_database_size_bytes", max(row["postgres_database_size_max"] for row in group), {**postgres_labels, "stat": "max"}, "Peak PostgreSQL database size")
 
-    endpoint_keys = ("language", "scenario", "load_profile", "users", "method", "endpoint", "classification")
+    endpoint_keys = ("campaign", "language", "scenario", "load_profile", "users", "method", "endpoint", "classification")
     for key, group in sorted(latest_methodology_groups(endpoints, endpoint_keys).items()):
-        language, scenario, load_profile, users, method, endpoint, classification = key
+        campaign, language, scenario, load_profile, users, method, endpoint, classification = key
         labels = {
             "language": language,
             "scenario": scenario,
             "load_profile": load_profile,
             "methodology": group[0]["methodology"],
             "classification": classification,
+            "campaign": campaign,
             "users": users,
             "method": method,
             "endpoint": endpoint,

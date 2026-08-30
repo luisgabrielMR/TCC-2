@@ -11,21 +11,22 @@ Fonte documental verificada: `TCC_Luis_Gabriel_Mendonca_Reos (27).pdf`, paginas 
 | Texto SQL equivalente entre as cinco | OK | Nenhum cast de conversao no SQL comparado; formatacao monetaria feita na aplicacao nas cinco linguagens. |
 | Locust 2.32.6 | OK | Imagem fixada por digest e workloads comuns por cenario/perfil. |
 | Prometheus 2.55.1, Grafana 11.3.0 e postgres-exporter 0.15.0 | OK | Targets `up`, Grafana saudavel e dois dashboards provisionados. |
-| cAdvisor 0.49.1 por container | OK | Factory containerd/moby; CPU e memoria encontradas pelos IDs reais de API, PostgreSQL e Locust. |
+| cAdvisor 0.49.1 por container | Pendente | Ja houve evidencia por ID real, mas precisa ser revalidado no ambiente e commit da proxima bateria. |
 | Rejeitar cgroups genericos | OK | Teste automatizado rejeita `/`, `/docker` e `/restricted`. |
 | P50, P95, P99, media, RPS, requisicoes, falhas e erro | OK | Locust e tres CSVs processados usam o esquema metodologico atual. |
 | CPU e memoria oficiais vindas do cAdvisor | OK | `--require-cadvisor`; `docker stats` permanece apenas complementar. |
-| Metricas PostgreSQL na janela exata | OK | `postgres_summary.csv` usa postgres-exporter e deltas dentro da janela Locust. |
-| Docker Engine 29.7.2 | OK | Versao instalada, verificada pelo preflight e declarada na Tabela 1 do TCC. |
-| Docker Compose 5.3.1 | OK | Versao instalada, verificada pelo preflight e declarada na Tabela 1 do TCC. |
+| Metricas PostgreSQL na janela da medicao | OK | Consulta com margem de scrape, recorte por sobreposicao e gauges ponderados pelo tempo. |
+| Docker Engine 29.5.2 | Pendente | O TCC exige 29.5.2; o ultimo host auditado usava 29.7.2 e permanece bloqueado ate ajuste manual. |
+| Docker Compose 5.1.4 | Pendente | O TCC exige 5.1.4; o ultimo host auditado usava 5.3.1 e permanece bloqueado ate ajuste manual. |
 | Hardware registrado | OK | Ryzen 5 3600, 6 nucleos/12 threads, 31,93 GiB fisicos e NVMe registrados. |
-| Alocacao efetiva dos containers | OK | Docker registra 4 CPUs e 8.328.429.568 bytes; nao e declarada como 32 GB. |
+| Alocacao efetiva dos containers | Parcial | Host e Docker sao registrados; cotas do Compose e `NanoCpus` ativos sao validados. Cotas nao sao reservas exclusivas. |
 | Git limpo e verificacao no mesmo commit | Pendente | Arvore limpa no commit anterior; as correcoes deste bloco precisam de novo commit e nova verificacao completa. |
 | Imagens fixadas por digest | OK | Infraestrutura e `FROM` das APIs usam SHA-256. |
 | Separacao `legacy`/`non_official`/`official` | OK | Consolidador final usa somente `official` por padrao. |
 | Cinco rodadas e ordem rotacionada | Preparado | Runner retomavel implementado; bateria ainda nao iniciada. |
-| Preflight oficial sem bloqueios | Pendente | Os bloqueios de Docker/Compose foram removidos; falta reexecutar `preflight.py --mode official` apos o commit e a verificacao completa. |
+| Calibracao do gerador | Pendente | Gate implementado; falta executar `/health` 25/50/100/200/400 no commit limpo e ambiente correto. |
+| Preflight oficial sem bloqueios | Pendente | Docker/Compose, Git limpo, nova verificacao, cAdvisor e calibracao ainda precisam ser aprovados. |
 
 ## Interpretacao
 
-O projeto esta funcionalmente preparado. Os bloqueios de versao do Docker deixaram de existir, porque a Tabela 1 do TCC passou a registrar as versoes efetivamente instaladas. Restam tres passos operacionais antes da coleta: commitar as correcoes de equivalencia de SQL e de documentacao, reexecutar a verificacao completa nesse commit limpo e reexecutar o preflight oficial sem bloqueios. Qualquer conclusao futura deve permanecer limitada ao workload, a alocacao Docker e ao hardware registrados em cada rodada.
+O projeto permanece funcionalmente preparado, mas nao esta elegivel a rodada oficial neste estado. As versoes do PDF nao devem ser alteradas para acompanhar o host. Depois de revisar e versionar as correcoes, e necessario ajustar Docker/Compose manualmente, reexecutar a verificacao completa, calibrar o gerador e obter os dois gates de preflight/monitoramento sem bloqueios. Qualquer conclusao futura deve permanecer limitada ao workload, a alocacao Docker e ao hardware registrados em cada rodada.

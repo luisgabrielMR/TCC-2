@@ -137,6 +137,7 @@ def validate(
     window_seconds: int,
     max_drift_percent: float,
     expected_users: int = 0,
+    require_first_last_stability: bool = False,
 ) -> dict:
     endpoints, failures = load_stats(stats_path)
     expected = load_expected_endpoints(config_path, scenario)
@@ -172,6 +173,11 @@ def validate(
         reasons.append(f"endpoints without requests: {', '.join(missing)}")
     if drift > max_drift_percent:
         reasons.append(f"final-window RPS drift {drift:.2f}% exceeds {max_drift_percent:.2f}%")
+    if require_first_last_stability and first_last_drift > max_drift_percent:
+        reasons.append(
+            f"first-to-last RPS drift {first_last_drift:.2f}% exceeds "
+            f"{max_drift_percent:.2f}% during measurement"
+        )
 
     return {
         "stable": not reasons,
@@ -180,6 +186,7 @@ def validate(
         "observed_peak_users": observed_peak_users,
         "window_seconds": window_seconds,
         "max_rps_drift_percent": max_drift_percent,
+        "first_last_stability_required": require_first_last_stability,
         "earliest_stability_window_rps": round(earliest_rps, 3),
         "previous_window_rps": round(previous_rps, 3),
         "recent_window_rps": round(recent_rps, 3),
@@ -205,6 +212,7 @@ def main() -> None:
     parser.add_argument("--window-seconds", type=int, default=45)
     parser.add_argument("--max-rps-drift-percent", type=float, default=10.0)
     parser.add_argument("--expected-users", type=int, default=0)
+    parser.add_argument("--require-first-last-stability", action="store_true")
     parser.add_argument("--phase-label", default="Warmup")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -217,6 +225,7 @@ def main() -> None:
         args.window_seconds,
         args.max_rps_drift_percent,
         args.expected_users,
+        args.require_first_last_stability,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")

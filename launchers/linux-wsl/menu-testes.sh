@@ -24,7 +24,7 @@ Menu de testes - TCC PostgreSQL Backend Benchmark
 13 Resumir resultados
 16 Capacidade: todas com 100 usuarios
 17 Capacidade: todas com 200 usuarios
-18 Bateria completa: 50, 100 e 200
+18 Bateria de saturacao: 25, 50, 100, 200 e 400
 0  Sair
 MENU
   read -r -p "Escolha: " choice
@@ -35,11 +35,11 @@ MENU
     4) ./launchers/linux-wsl/validar-banco.sh ;;
     5) ./launchers/linux-wsl/testar-payloads-api-ativa.sh ;;
     6) ./scripts/run_warmup.sh ;;
-    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 controlled_50 ;;
-    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 0 controlled_50 ;;
-    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 0 controlled_50 ;;
-    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 0 controlled_50 ;;
-    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 0 controlled_50 ;;
+    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 fixed_200 ;;
+    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 0 fixed_200 ;;
+    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 0 fixed_200 ;;
+    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 0 fixed_200 ;;
+    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 0 fixed_200 ;;
     12) ./launchers/linux-wsl/testar-todas-sequencialmente.sh ;;
     13)
       if command -v python3 >/dev/null 2>&1; then

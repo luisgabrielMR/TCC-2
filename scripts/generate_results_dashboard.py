@@ -62,10 +62,15 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_load_generator"
     if any(not row["measurementAvailable"] or not row["measurementFinalStable"] or abs(row["measurementRpsChange"]) > 10 for row in rows):
         return "invalid_instability"
-    if len(rows) < 3:
-        return "preliminary_fewer_than_3_runs"
+    required_runs = 5 if any(
+        int(number(row.get("methodologyVersion"), 1)) >= 7
+        and row.get("loadProfile") == "fixed_200"
+        for row in rows
+    ) else 3
+    if len(rows) < required_runs:
+        return f"preliminary_fewer_than_{required_runs}_runs"
     order_positions = {row["executionOrderPosition"] for row in rows}
-    if 0 in order_positions or len(order_positions) < 3:
+    if 0 in order_positions or len(order_positions) < required_runs:
         return "invalid_order_bias"
     rps_values = [row["rps"] for row in rows]
     rps_median = statistics.median(rps_values) if rps_values else 0
@@ -113,6 +118,21 @@ def elapsed_seconds(metadata: dict) -> float:
     return finished - started if finished > started > 0 else 0.0
 
 
+def exact_throughput(requests: object, elapsed: float, reported: object, use_exact: bool) -> float:
+    request_count = number(requests)
+    return request_count / elapsed if use_exact and elapsed > 0 else number(reported)
+
+
+def scalability_family(scenario: str, load_profile: str) -> str | None:
+    if scenario.startswith("mixed_saturation_") and (load_profile.startswith("saturation_") or load_profile == "legacy"):
+        return "saturation"
+    if scenario.startswith("mixed_capacity_") and (load_profile.startswith("capacity_") or load_profile == "legacy"):
+        return "legacy_capacity"
+    if scenario == "mixed" and load_profile in {"controlled_50", "legacy"}:
+        return "legacy_capacity"
+    return None
+
+
 def collect() -> dict:
     runs: list[dict] = []
     endpoint_runs: list[dict] = []
@@ -139,6 +159,21 @@ def collect() -> dict:
         measurement = metadata.get("measurement_stability", {})
         methodology_version = int(number(metadata.get("methodology_version")) or 1)
         classification = metadata.get("result_classification", "legacy")
+        commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
+        declared_campaign = metadata.get("execution_order", {}).get("campaign_fingerprint")
+        campaign_fingerprint = declared_campaign if declared_campaign not in (None, "", "manual") else commit_sha
+        elapsed = elapsed_seconds(metadata)
+        bounds_valid = bool(metadata.get("test_phase", {}).get("bounds_validation", {}).get("valid"))
+        window_source = metadata.get("metrics", {}).get("window_source")
+        exact_window = (
+            methodology_version >= 7 and bounds_valid and window_source == "locust_test_start_stop"
+        ) or (
+            5 <= methodology_version < 7 and window_source == "locust_test_start_stop"
+        )
+        use_exact_rps = methodology_version >= 7 and exact_window
+        aggregate_rps = exact_throughput(
+            aggregate.get("Request Count"), elapsed, aggregate.get("Requests/s"), use_exact_rps
+        )
         cadvisor_available = bool(cadvisor_api and cadvisor_locust and cadvisor_postgres)
         runs.append({
             "language": language,
@@ -147,13 +182,17 @@ def collect() -> dict:
             "loadProfile": metadata.get("load_profile", "legacy"),
             "methodologyVersion": methodology_version,
             "resultClassification": classification,
+            "commitSha": commit_sha,
+            "campaignFingerprint": campaign_fingerprint,
             "executionOrderPosition": int(number(metadata.get("execution_order", {}).get("position"))),
             "users": number(locust_metadata.get("users")),
-            "testElapsedSeconds": elapsed_seconds(metadata),
+            "testElapsedSeconds": elapsed,
             "benchmarkKind": metadata.get("benchmark_kind", "controlled_load"),
             "requests": number(aggregate.get("Request Count")),
             "failures": number(aggregate.get("Failure Count")),
-            "rps": number(aggregate.get("Requests/s")),
+            "rps": aggregate_rps,
+            "locustReportedRps": number(aggregate.get("Requests/s")),
+            "throughputSource": "request_count / monotonic elapsed_seconds" if use_exact_rps else "locust_reported_rps",
             "avgMs": number(aggregate.get("Average Response Time")),
             "p50Ms": number(aggregate.get("50%")),
             "p95Ms": number(aggregate.get("95%")),
@@ -170,10 +209,7 @@ def collect() -> dict:
                 not use_cadvisor_resources(metadata)
                 or bool(metadata.get("monitoring_preflight", {}).get("official_eligible"))
             ),
-            "exactMeasurementWindow": (
-                methodology_version >= 5
-                and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
-            ),
+            "exactMeasurementWindow": exact_window,
             "measurementAvailable": bool(measurement),
             "measurementFinalStable": bool(measurement.get("stable")),
             "measurementRpsChange": number(measurement.get("first_last_rps_change_percent")),
@@ -189,12 +225,13 @@ def collect() -> dict:
                 "loadProfile": metadata.get("load_profile", "legacy"),
                 "methodologyVersion": methodology_version,
                 "resultClassification": classification,
+                "campaignFingerprint": campaign_fingerprint,
                 "users": number(locust_metadata.get("users")),
                 "endpoint": row.get("Name", ""),
                 "method": row.get("Type", ""),
                 "requests": number(row.get("Request Count")),
                 "failures": number(row.get("Failure Count")),
-                "rps": number(row.get("Requests/s")),
+                "rps": exact_throughput(row.get("Request Count"), elapsed, row.get("Requests/s"), use_exact_rps),
                 "avgMs": number(row.get("Average Response Time")),
                 "p50Ms": number(row.get("50%")),
                 "p95Ms": number(row.get("95%")),
@@ -211,30 +248,30 @@ def collect() -> dict:
     scenarios: dict[str, dict] = {}
     scenario_names = sorted({row["scenario"] for row in runs})
     for scenario in scenario_names:
-        summary_groups: dict[tuple[str, str, int, str], list[dict]] = defaultdict(list)
-        endpoint_groups: dict[tuple[str, str, str, str, int, str], list[dict]] = defaultdict(list)
+        summary_groups: dict[tuple[str, str, str, int, str], list[dict]] = defaultdict(list)
+        endpoint_groups: dict[tuple[str, str, str, str, str, int, str], list[dict]] = defaultdict(list)
         for row in runs:
             if row["scenario"] == scenario:
                 summary_groups[(
-                    row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"]
+                    row["campaignFingerprint"], row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"]
                 )].append(row)
 
         selected_run_keys = {
-            (row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"])
+            (row["campaignFingerprint"], row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"])
             for rows in summary_groups.values()
             for row in rows
         }
         for row in endpoint_runs:
             if row["scenario"] == scenario and (
-                row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"]
+                row["campaignFingerprint"], row["language"], row["loadProfile"], row["methodologyVersion"], row["resultClassification"], row["run"]
             ) in selected_run_keys:
                 endpoint_groups[(
-                    row["endpoint"], row["method"], row["language"], row["loadProfile"],
+                    row["endpoint"], row["method"], row["campaignFingerprint"], row["language"], row["loadProfile"],
                     row["methodologyVersion"], row["resultClassification"],
                 )].append(row)
 
         summary = []
-        for (language, load_profile, methodology, classification), rows in summary_groups.items():
+        for (campaign, language, load_profile, methodology, classification), rows in summary_groups.items():
             total_requests = sum(row["requests"] for row in rows)
             total_failures = sum(row["failures"] for row in rows)
             trend_rows = [row for row in rows if row["measurementAvailable"]]
@@ -244,6 +281,7 @@ def collect() -> dict:
                 "loadProfile": load_profile,
                 "methodologyVersion": methodology,
                 "resultClassification": classification,
+                "campaignFingerprint": campaign,
                 "runs": len(rows),
                 "users": median(rows, "users"),
                 "testElapsedSeconds": median(rows, "testElapsedSeconds"),
@@ -273,13 +311,14 @@ def collect() -> dict:
         summary.sort(key=lambda row: LANGUAGE_ORDER.get(row["language"], 99))
 
         endpoints: dict[str, list[dict]] = defaultdict(list)
-        for (endpoint, method, language, load_profile, methodology, classification), rows in endpoint_groups.items():
+        for (endpoint, method, campaign, language, load_profile, methodology, classification), rows in endpoint_groups.items():
             label = endpoint if endpoint.upper().startswith(f"{method.upper()} ") else f"{method} {endpoint}"
             endpoints[label].append({
                 "language": language,
                 "loadProfile": load_profile,
                 "methodologyVersion": methodology,
                 "resultClassification": classification,
+                "campaignFingerprint": campaign,
                 "runs": len(rows),
                 "requests": median(rows, "requests"),
                 "failures": sum(row["failures"] for row in rows),
@@ -300,25 +339,25 @@ def collect() -> dict:
     # A base da eficiencia de escala e a rodada de menor concorrencia da propria
     # coorte, e nao um perfil fixo: assim o calculo vale tanto para a escada de
     # saturacao quanto para os perfis antigos.
-    scalable_prefixes = ("mixed_capacity_", "mixed_saturation_")
     eligible = [
-        row
+        {**row, "workloadFamily": family}
         for scenario, scenario_data in scenarios.items()
-        if scenario == "mixed" or scenario.startswith(scalable_prefixes)
         for row in scenario_data["summary"]
+        if (family := scalability_family(scenario, row["loadProfile"])) is not None
     ]
     baseline: dict[tuple, dict] = {}
     for row in eligible:
-        cohort = (row["language"], row["methodologyVersion"], row["resultClassification"])
+        cohort = (row["workloadFamily"], row["campaignFingerprint"], row["language"], row["methodologyVersion"], row["resultClassification"])
         current = baseline.get(cohort)
         if current is None or row["users"] < current["users"]:
             baseline[cohort] = row
     scalability: dict[str, list[dict]] = defaultdict(list)
     for scenario, scenario_data in scenarios.items():
-        if scenario != "mixed" and not scenario.startswith(scalable_prefixes):
-            continue
         for row in scenario_data["summary"]:
-            cohort = (row["language"], row["methodologyVersion"], row["resultClassification"])
+            family = scalability_family(scenario, row["loadProfile"])
+            if family is None:
+                continue
+            cohort = (family, row["campaignFingerprint"], row["language"], row["methodologyVersion"], row["resultClassification"])
             base = baseline.get(cohort, row)
             base_rps = base["rps"]
             expected_rps = base_rps * row["users"] / base["users"] if base["users"] else 0
@@ -326,8 +365,10 @@ def collect() -> dict:
             cohort_key = "|".join(map(str, cohort))
             scalability[cohort_key].append({
                 "language": row["language"],
+                "workloadFamily": family,
                 "methodologyVersion": row["methodologyVersion"],
                 "resultClassification": row["resultClassification"],
+                "campaignFingerprint": row["campaignFingerprint"],
                 "scenario": scenario,
                 "users": row["users"],
                 "rps": row["rps"],
@@ -341,10 +382,11 @@ def collect() -> dict:
             })
     for rows in scalability.values():
         rows.sort(key=lambda row: row["users"])
+        baseline_users = rows[0]["users"] if rows else 0
         previous = None
         for row in rows:
             row["rpsGainPrevious"] = (row["rps"] / previous["rps"] - 1) * 100 if previous and previous["rps"] else 0
-            if row["users"] == 50:
+            if row["users"] == baseline_users:
                 row["status"] = "baseline"
             elif row["failures"]:
                 row["status"] = "failures_detected"
@@ -569,9 +611,11 @@ def render(data: dict) -> str:
       document.querySelector("#languageCount").textContent = rows.length;
       document.querySelector("#runCount").textContent = rows.reduce((sum, row) => sum + row.runs, 0);
       document.querySelector("#userCount").textContent = rows.length ? fmt.format(rows[0].users) : "0";
-      document.querySelector("#methodNote").textContent = rows.some(row => row.benchmarkKind === "capacity")
-        ? "Teste extra de escalabilidade. O resultado representa o limite prático observado neste computador."
-        : "Carga controlada com 50 usuários. Este cenário não representa a capacidade máxima da API.";
+      document.querySelector("#methodNote").textContent = rows.some(row => row.benchmarkKind === "saturation")
+        ? "Malha fechada sem pacing; limite observado neste workload e ambiente."
+        : rows.some(row => row.benchmarkKind === "fixed_rate")
+          ? "Taxa-alvo de 200 req/s; comparação principal de latência e recursos."
+          : "Carga controlada histórica; não representa a capacidade máxima da API.";
       const failureNode = document.querySelector("#failureCount");
       failureNode.textContent = fmt.format(failures);
       failureNode.classList.toggle("status-ok", failures === 0);
@@ -607,7 +651,7 @@ def render(data: dict) -> str:
     scenarioSelect.innerHTML = availableScenarios.map(([name, scenario]) => `<option value="${{name}}">${{name}} (${{fmt.format(scenario.summary[0]?.users || 0)}} usuários)</option>`).join("");
     scalingLanguageSelect.innerHTML = Object.entries(DATA.scalability).map(([key, rows]) => {{
       const row = rows[0];
-      return `<option value="${{key}}">${{displayName(row.language)}} · metodologia ${{row.methodologyVersion}} · ${{row.resultClassification}}</option>`;
+      return `<option value="${{key}}">${{displayName(row.language)}} · ${{row.workloadFamily}} · metodologia ${{row.methodologyVersion}} · ${{row.resultClassification}}</option>`;
     }}).join("");
     scenarioSelect.addEventListener("change", renderScenario);
     endpointSelect.addEventListener("change", renderEndpoint);

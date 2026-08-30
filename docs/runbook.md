@@ -16,38 +16,40 @@ Esse fluxo constroi as cinco APIs, reseta somente `benchmark_db`, valida banco/O
 
 ```bash
 python scripts/preflight.py --mode pilot --output results/summaries/preflight.json
-python scripts/preflight.py --mode official --output results/summaries/preflight-official.json
+python scripts/preflight.py --mode official --api-service python-api --load-profile fixed_200 --output results/summaries/preflight-official.json
 ```
 
-`official` falha se Docker/Compose divergirem, Git estiver sujo, imagens nao estiverem fixadas, runtimes/hardware nao puderem ser confirmados ou `results/summaries/project-verification.json` nao comprovar a verificacao completa no mesmo commit limpo. Depois de iniciar monitoramento, API e Locust, `scripts/validate_monitoring.py` exige os tres targets operacionais, exporter de resultados ativo, os dois dashboards provisionados e, para classificacao oficial, target cAdvisor e series de CPU/memoria para os tres containers.
+`official` falha se Docker/Compose divergirem, Git estiver sujo, imagens nao estiverem fixadas, cotas efetivas divergirem, runtimes/hardware nao puderem ser confirmados, a calibracao do gerador estiver ausente ou `results/summaries/project-verification.json` nao comprovar a verificacao completa no mesmo commit limpo. Depois de iniciar monitoramento, API e Locust, `scripts/validate_monitoring.py` exige os tres targets operacionais, exporter de resultados ativo, os dois dashboards provisionados e, para classificacao oficial, target cAdvisor e series de CPU/memoria para os tres containers.
 
 ## Piloto
 
 Linux/WSL:
 
 ```bash
-./scripts/run_one_language.sh python mixed 0 controlled_50 pilot
+./scripts/run_one_language.sh python mixed 0 fixed_200 pilot
 ```
 
 Windows:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -RunNumber 0 -LoadProfile controlled_50 -RunMode pilot
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot
 ```
 
 Pilotos geram `result_classification=non_official`. Eles podem validar fluxo e observar valores, mas nao entram no dashboard oficial.
 
 ## Congelar o Docker
 
-O ambiente registrado usa Docker 29.7.2/Compose 5.3.1, que sao as versoes instaladas neste host e as declaradas na Tabela 1 do TCC. Nao ha troca a fazer. Antes da bateria, siga `docs/environment-versions.md`: desative a atualizacao automatica do Docker Desktop, preserve 4 CPUs/8 GB na VM WSL2 e confirme os valores com `docker version`, `docker compose version` e `docker info`. Nao execute a bateria se Engine e Compose nao forem exatamente 29.7.2/5.3.1.
+A versao mais recente do TCC exige Docker 29.5.2/Compose 5.1.4. O host auditado estava em 29.7.2/5.3.1; ajuste as versoes manualmente, desative as atualizacoes automaticas do Docker Desktop e confirme versoes, CPU, memoria, kernel e storage driver com comandos reais antes da bateria.
 
 ## Bateria oficial
 
-Somente depois de revisar/versionar as mudancas, obter Git limpo, confirmar Docker 29.7.2/Compose 5.3.1 com a atualizacao automatica desligada e executar novamente a verificacao completa nesse ambiente e no mesmo commit.
+Somente depois de revisar/versionar as mudancas, obter Git limpo, confirmar Docker 29.5.2/Compose 5.1.4, executar novamente a verificacao completa e calibrar o gerador nesse mesmo commit e ambiente.
 
-No Windows, use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa uma das cinco rodadas oficiais do perfil `controlled_50`. Uma rodada mede as cinco linguagens sequencialmente, com ordem rotacionada, e leva aproximadamente 55 a 75 minutos. O runner detecta a proxima rodada incompleta e retoma somente as linguagens ainda ausentes.
+No menu simples, execute primeiro `Calibrar gerador de carga`. O processo usa apenas `/health`, pacing zero, cinco degraus de 60 s e cAdvisor. O artefato e sempre nao oficial; ele apenas demonstra que o Locust tem folga suficiente para instrumentar as rodadas.
 
-O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel. Pilotos de capacidade com 100 e 200 usuarios continuam disponiveis no menu avancado, separados da bateria oficial.
+No Windows, use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa uma das cinco rodadas oficiais do perfil `fixed_200`. Uma rodada mede as cinco linguagens sequencialmente, com ordem rotacionada, e leva aproximadamente 55 a 75 minutos. O runner detecta a proxima rodada incompleta e retoma somente as linguagens ainda ausentes do mesmo commit, metodologia e calibracao; mudancas nesses elementos criam uma campanha distinta.
+
+O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel, entrega pelo menos 97,5% do alvo, mantem a CPU do Locust abaixo de 90% da cota e usa no maximo 80% da capacidade calibrada. A bateria de saturacao permanece separada e e piloto por padrao.
 
 ## Monitoramento
 

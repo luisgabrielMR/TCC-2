@@ -4,19 +4,23 @@ import csv
 import json
 import os
 import random
-import threading
 import time
-from itertools import cycle
+from datetime import datetime, timezone
 from pathlib import Path
 
 from locust import HttpUser, constant, constant_pacing, events, task
+from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
+from payload_sequences import PayloadCycle, PayloadSequence
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
 LOCAL_PAYLOAD_DIR = Path(__file__).resolve().parents[2] / "common" / "payloads"
 PAYLOAD_DIR = Path(os.getenv("PAYLOAD_DIR", str(LOCAL_PAYLOAD_DIR)))
 WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
+LOCUST_PROCESSES = int(os.getenv("LOCUST_PROCESSES", "1"))
+if LOCUST_PROCESSES < 1:
+    raise RuntimeError("LOCUST_PROCESSES must be a positive integer")
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
 
 with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
@@ -24,13 +28,28 @@ with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
 
 WORKLOAD_SCENARIO = SCENARIO_CONFIG.get("aliases", {}).get(SCENARIO, SCENARIO)
 SCENARIO_ACTIONS = SCENARIO_CONFIG.get("scenarios", {}).get(WORKLOAD_SCENARIO)
-if SCENARIO != "smoke" and not SCENARIO_ACTIONS:
+if SCENARIO not in {"smoke", "health_only"} and not SCENARIO_ACTIONS:
     raise RuntimeError(f"Unknown Locust scenario: {SCENARIO}")
 
-measurement_started_epoch: float | None = None
+measurement_started_wall_ns: int | None = None
+measurement_started_monotonic_ns: int | None = None
+
+
+def utc_iso_from_ns(value: int) -> str:
+    return datetime.fromtimestamp(value / 1_000_000_000, timezone.utc).isoformat(
+        timespec="microseconds"
+    ).replace("+00:00", "Z")
+
+
+def writes_files(environment) -> bool:
+    """Somente master e runner local escrevem. Com --processes os workers herdam
+    o mesmo --csv e sobrescreveriam os arquivos uns dos outros."""
+    return not isinstance(environment.runner, WorkerRunner)
 
 
 def measurement_bounds_path(environment) -> Path | None:
+    if not writes_files(environment):
+        return None
     options = environment.parsed_options
     prefix = getattr(options, "csv_prefix", None) if options else None
     return Path(f"{prefix}_measurement_bounds.json") if prefix else None
@@ -38,24 +57,43 @@ def measurement_bounds_path(environment) -> Path | None:
 
 @events.test_start.add_listener
 def record_measurement_start(environment, **_kwargs) -> None:
-    global measurement_started_epoch
-    measurement_started_epoch = time.time()
+    global measurement_started_wall_ns, measurement_started_monotonic_ns
+    measurement_started_wall_ns = time.time_ns()
+    measurement_started_monotonic_ns = time.monotonic_ns()
     path = measurement_bounds_path(environment)
     if path:
-        path.write_text(json.dumps({"started_epoch": measurement_started_epoch, "finished_epoch": None}), encoding="utf-8")
+        path.write_text(json.dumps({
+            "schema_version": 2,
+            "started_epoch": measurement_started_wall_ns / 1_000_000_000,
+            "started_at_utc": utc_iso_from_ns(measurement_started_wall_ns),
+            "finished_epoch": None,
+            "elapsed_seconds": None,
+            "duration_clock": "time.monotonic_ns",
+            "boundary_clock": "time.time_ns",
+        }, separators=(",", ":")), encoding="utf-8")
 
 
 @events.test_stop.add_listener
 def record_measurement_stop(environment, **_kwargs) -> None:
-    finished_epoch = time.time()
+    finished_wall_ns = time.time_ns()
+    finished_monotonic_ns = time.monotonic_ns()
     path = measurement_bounds_path(environment)
-    if not path or measurement_started_epoch is None:
+    if path is None or measurement_started_wall_ns is None or measurement_started_monotonic_ns is None:
         return
+    elapsed_seconds = (finished_monotonic_ns - measurement_started_monotonic_ns) / 1_000_000_000
+    wall_elapsed_seconds = (finished_wall_ns - measurement_started_wall_ns) / 1_000_000_000
     path.write_text(
         json.dumps({
-            "started_epoch": measurement_started_epoch,
-            "finished_epoch": finished_epoch,
-            "elapsed_seconds": finished_epoch - measurement_started_epoch,
+            "schema_version": 2,
+            "started_epoch": measurement_started_wall_ns / 1_000_000_000,
+            "finished_epoch": finished_wall_ns / 1_000_000_000,
+            "started_at_utc": utc_iso_from_ns(measurement_started_wall_ns),
+            "finished_at_utc": utc_iso_from_ns(finished_wall_ns),
+            "elapsed_seconds": elapsed_seconds,
+            "wall_elapsed_seconds": wall_elapsed_seconds,
+            "clock_drift_seconds": wall_elapsed_seconds - elapsed_seconds,
+            "duration_clock": "time.monotonic_ns",
+            "boundary_clock": "time.time_ns",
         }, separators=(",", ":")),
         encoding="utf-8",
     )
@@ -63,6 +101,8 @@ def record_measurement_stop(environment, **_kwargs) -> None:
 
 @events.quitting.add_listener
 def write_final_csv_snapshot(environment, **_kwargs) -> None:
+    if not writes_files(environment):
+        return
     options = environment.parsed_options
     prefix = getattr(options, "csv_prefix", None) if options else None
     if not prefix:
@@ -81,44 +121,52 @@ def write_final_csv_snapshot(environment, **_kwargs) -> None:
             write_rows(writer)
 
 
-class PayloadCycle:
-    def __init__(self, path: Path, parse_json: bool = True) -> None:
-        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not lines:
-            raise RuntimeError(f"Payload file is empty: {path}")
-        values = [json.loads(line) if parse_json else line for line in lines]
-        self._cycle = cycle(values)
-        self._lock = threading.Lock()
-
-    def next(self):
-        with self._lock:
-            return next(self._cycle)
-
-
-class PayloadSequence:
-    def __init__(self, path: Path) -> None:
-        lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-        if not lines:
-            raise RuntimeError(f"Payload file is empty: {path}")
-        self._values = [json.loads(line) for line in lines]
-        self._index = 0
-        self._lock = threading.Lock()
-
-    def next(self):
-        with self._lock:
-            if self._index >= len(self._values):
-                raise RuntimeError("customers_create.jsonl exhausted; generate more payloads before the benchmark")
-            value = self._values[self._index]
-            self._index += 1
-            return value
-
-
 customers_create = PayloadSequence(PAYLOAD_DIR / "customers_create.jsonl")
 customers_update = PayloadCycle(PAYLOAD_DIR / "customers_update.jsonl")
 orders_create = PayloadCycle(PAYLOAD_DIR / "orders_create.jsonl")
 customer_ids = PayloadCycle(PAYLOAD_DIR / "ids_customers.jsonl", parse_json=False)
 category_ids = PayloadCycle(PAYLOAD_DIR / "ids_categories.jsonl", parse_json=False)
 order_ids = PayloadCycle(PAYLOAD_DIR / "ids_orders.jsonl", parse_json=False)
+
+
+@events.test_start.add_listener
+def configure_payload_streams(environment, **_kwargs) -> None:
+    """Distribui payloads unicos e defasa os ciclos deterministas por worker."""
+    runner = environment.runner
+    if isinstance(runner, MasterRunner):
+        if runner.worker_count != LOCUST_PROCESSES:
+            raise RuntimeError(
+                f"Locust connected {runner.worker_count} workers, expected {LOCUST_PROCESSES}"
+            )
+        return
+    if isinstance(runner, WorkerRunner):
+        worker_index = int(runner.worker_index)
+        if worker_index < 0 or worker_index >= LOCUST_PROCESSES:
+            raise RuntimeError(
+                f"Locust worker index {worker_index} is outside LOCUST_PROCESSES={LOCUST_PROCESSES}"
+            )
+        stride = LOCUST_PROCESSES
+    else:
+        if LOCUST_PROCESSES != 1:
+            raise RuntimeError(
+                "LOCUST_PROCESSES is greater than one, but Locust is not running in distributed mode"
+            )
+        worker_index = 0
+        stride = 1
+
+    customers_create.configure_shard(worker_index, stride)
+    for stream in (customers_update, orders_create, customer_ids, category_ids, order_ids):
+        stream.configure_worker_offset(worker_index)
+
+
+@events.init.add_listener
+def validate_process_configuration(environment, **_kwargs) -> None:
+    options = environment.parsed_options
+    configured = int(getattr(options, "processes", 0) or 1) if options else 1
+    if not isinstance(environment.runner, WorkerRunner) and configured != LOCUST_PROCESSES:
+        raise RuntimeError(
+            f"--processes={configured} differs from LOCUST_PROCESSES={LOCUST_PROCESSES}"
+        )
 
 
 # Com WAIT_SECONDS > 0 o pacing impoe um teto de usuarios/WAIT_SECONDS req/s ao
@@ -163,6 +211,9 @@ class BenchmarkUser(HttpUser):
 
     @task
     def run_selected_scenario(self) -> None:
+        if SCENARIO == "health_only":
+            self.get_health()
+            return
         if SCENARIO == "smoke":
             for action in (
                 self.get_health,

@@ -2,8 +2,7 @@ services:
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3}
     container_name: tcc_benchmark_postgres
-    # Alocacao fixa: sem isso API, banco e gerador disputam livremente os 4
-    # processadores do Docker e "capacidade" viraria capacidade da maquina.
+    # Cota maxima, nao reserva exclusiva: o valor efetivo e validado pelo preflight.
     cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-benchmark_db}
@@ -111,7 +110,9 @@ services:
     image: ${LOCUST_IMAGE:-locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3}
     container_name: tcc_benchmark_locust
     profiles: ["load"]
-    cpus: 1.0
+    # Quatro processos Locust, um por core: um unico processo gevent satura um
+    # core em torno de 900 req/s e viraria o gargalo antes das APIs rapidas.
+    cpus: 4.0
     working_dir: /mnt/locust
     environment:
       PAYLOAD_DIR: /mnt/payloads

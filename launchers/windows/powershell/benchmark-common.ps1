@@ -1,4 +1,4 @@
-$script:BenchmarkRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
+﻿$script:BenchmarkRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")
 
 function Get-BenchmarkEnvironment {
     $values = @{}
@@ -121,7 +121,10 @@ function Invoke-BenchmarkLocust {
         [string]$Duration,
         [string]$HostUrl,
         [string]$CsvPrefix,
-        [string]$WaitSeconds = "0.1"
+        [string]$WaitSeconds = "0.1",
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, 64)]
+        [int]$Processes
     )
 
     $containerRoot = "/mnt/results/"
@@ -138,7 +141,8 @@ function Invoke-BenchmarkLocust {
         "-e", "SCENARIO=$Scenario",
         "-e", "PAYLOAD_DIR=/mnt/payloads",
         "-e", "LOCUST_WAIT_SECONDS=$WaitSeconds",
-        "locust", "-f", "locustfile.py", "--headless",
+        "-e", "LOCUST_PROCESSES=$Processes",
+        "locust", "-f", "locustfile.py", "--headless", "--processes", "$Processes",
         "-u", "$Users", "-r", "$SpawnRate", "-t", $Duration,
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )
@@ -155,6 +159,8 @@ function Invoke-BenchmarkWarmup {
         [int]$StabilityWindowSeconds,
         [double]$MaxRpsDriftPercent,
         [string]$WaitSeconds,
+        [ValidateRange(1, 64)]
+        [int]$Processes,
         [string]$HostUrl,
         [string]$ResultRelative
     )
@@ -166,7 +172,7 @@ function Invoke-BenchmarkWarmup {
     $attemptDirectory = Join-Path $script:BenchmarkRoot $attemptRelative
     New-Item -ItemType Directory -Force $attemptDirectory | Out-Null
     Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
-    Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds | Out-Host
+    Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds -Processes $Processes | Out-Host
 
     $validationPath = Join-Path $attemptDirectory "validation.json"
     Invoke-BenchmarkPython @(
@@ -240,7 +246,6 @@ function Start-BenchmarkMeasurements {
         StopPath = $stopPath
         SummaryPath = (Join-Path $ResultDirectory "docker_stats_summary.csv")
         ErrorPath = $stderrPath
-        StartEpoch = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         Stopped = $false
     }
 }
@@ -269,7 +274,8 @@ function Export-BenchmarkPrometheus {
         [double]$EndEpoch,
         [string]$ApiService,
         [ValidateSet("pilot", "official")]
-        [string]$RunMode = "pilot"
+        [string]$RunMode = "pilot",
+        [double]$MinimumCadvisorCoveragePercent = 90
     )
     $prometheusPort = Get-BenchmarkValue $Environment "PROMETHEUS_PORT" "9090"
     $prometheusUrl = "http://127.0.0.1:$prometheusPort"
@@ -284,6 +290,7 @@ function Export-BenchmarkPrometheus {
         "--end", $endArgument,
         "--step", "5",
         "--require-postgres",
+        "--minimum-cadvisor-coverage-percent", $MinimumCadvisorCoveragePercent.ToString("R", [Globalization.CultureInfo]::InvariantCulture),
         "--component", "api=$ApiService,tcc_benchmark_$($ApiService.Replace('-', '_'))",
         "--component", "postgresql=postgres,tcc_benchmark_postgres",
         "--component", "locust=locust,tcc_benchmark_locust"

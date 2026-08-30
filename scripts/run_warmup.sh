@@ -26,9 +26,11 @@ run_attempt() {
     -e SCENARIO="$SCENARIO_NAME" \
     -e PAYLOAD_DIR=/mnt/payloads \
     -e LOCUST_WAIT_SECONDS="$LOCUST_WAIT_SECONDS" \
+    -e LOCUST_PROCESSES="$LOCUST_PROCESSES" \
     locust \
     -f locustfile.py \
     --headless \
+    --processes "$LOCUST_PROCESSES" \
     -u "$USERS" \
     -r "$SPAWN_RATE" \
     -t "${duration_seconds}s" \

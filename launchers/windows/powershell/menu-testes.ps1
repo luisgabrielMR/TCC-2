@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$Action = ""
 )
 
@@ -82,12 +82,14 @@ function Invoke-Warmup {
     $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
     $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
     $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
+    $locustProcesses = [int](Get-BenchmarkValue $environment "LOCUST_PROCESSES" "4")
     $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
     Invoke-BenchmarkWarmup `
         -Environment $environment -Scenario "mixed" -Users $users -SpawnRate $spawnRate `
         -InitialDurationSeconds $seconds `
         -StabilityWindowSeconds $windowSeconds -MaxRpsDriftPercent $maxDrift `
-        -WaitSeconds $waitSeconds -HostUrl $hostUrl -ResultRelative "results/raw/warmup/manual_$stamp" | Out-Host
+        -WaitSeconds $waitSeconds -Processes $locustProcesses `
+        -HostUrl $hostUrl -ResultRelative "results/raw/warmup/manual_$stamp" | Out-Host
 }
 
 function Invoke-RunAllProfile(
@@ -120,7 +122,30 @@ function Get-ResultScenarioName([string]$Profile) {
     return "mixed"
 }
 
-function Get-OfficialLanguagesForSequence([string]$SequenceId, [string]$Profile = "fixed_200") {
+function Get-OfficialCampaignIdentity($Environment) {
+    $methodologyVersion = [int](Get-BenchmarkValue $Environment "METHODOLOGY_VERSION" "7")
+    $commitSha = (& git rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $commitSha) { throw "Nao foi possivel identificar o commit atual." }
+    $calibrationRelative = Get-BenchmarkValue $Environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
+    $calibrationPath = Join-Path $Root $calibrationRelative
+    $calibrationHash = if (Test-Path $calibrationPath) {
+        (Get-FileHash -Algorithm SHA256 $calibrationPath).Hash.ToLowerInvariant()
+    } else { "no_calibration" }
+    $commitToken = $commitSha.Substring(0, [Math]::Min(12, $commitSha.Length))
+    $calibrationToken = $calibrationHash.Substring(0, [Math]::Min(12, $calibrationHash.Length))
+    return [pscustomobject]@{
+        methodology_version = $methodologyVersion
+        commit_sha = $commitSha
+        fingerprint = "m${methodologyVersion}_${commitToken}_${calibrationToken}"
+    }
+}
+
+function Get-OfficialLanguagesForSequence(
+    [string]$SequenceId,
+    [string]$Profile,
+    [int]$MethodologyVersion,
+    [string]$CommitSha
+) {
     $completed = @()
     $resultScenario = Get-ResultScenarioName $Profile
     foreach ($language in @("python", "node", "java", "go", "dotnet")) {
@@ -132,7 +157,10 @@ function Get-OfficialLanguagesForSequence([string]$SequenceId, [string]$Profile 
             try {
                 $metadata = Get-Content $metadataPath -Raw | ConvertFrom-Json
                 if ($metadata.result_classification -eq "official" -and
-                    $metadata.execution_order.sequence_id -eq $SequenceId) {
+                    $metadata.execution_order.sequence_id -eq $SequenceId -and
+                    $metadata.load_profile -eq $Profile -and
+                    [int]$metadata.methodology_version -eq $MethodologyVersion -and
+                    $metadata.commit_sha -eq $CommitSha) {
                     $completed += $language
                     break
                 }
@@ -148,13 +176,15 @@ function Get-OfficialLanguagesForSequence([string]$SequenceId, [string]$Profile 
 function Get-NextOfficialRoundPlan {
     $environment = Get-BenchmarkEnvironment
     $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_200"
-    $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_CONTROLLED_ROUNDS" "5")
-    if ($totalRounds -lt 1) { throw "OFFICIAL_CONTROLLED_ROUNDS deve ser maior que zero." }
+    $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_ROUNDS" "5")
+    if ($totalRounds -lt 1) { throw "OFFICIAL_ROUNDS deve ser maior que zero." }
+    $campaign = Get-OfficialCampaignIdentity $environment
 
     $languages = @("python", "node", "java", "go", "dotnet")
     for ($round = 1; $round -le $totalRounds; $round++) {
-        $sequenceId = "${officialProfile}_official_round_${round}_of_${totalRounds}"
-        $completed = @(Get-OfficialLanguagesForSequence $sequenceId $officialProfile)
+        $sequenceId = "${officialProfile}_$($campaign.fingerprint)_official_round_${round}_of_${totalRounds}"
+        $completed = @(Get-OfficialLanguagesForSequence `
+            $sequenceId $officialProfile $campaign.methodology_version $campaign.commit_sha)
         if ($completed.Count -lt $languages.Count) {
             $offset = ($round - 1) % $languages.Count
             $ordered = for ($index = 0; $index -lt $languages.Count; $index++) {
@@ -162,9 +192,11 @@ function Get-NextOfficialRoundPlan {
             }
             return [pscustomobject]@{
                 all_complete = $false
+                load_profile = $officialProfile
                 round = $round
                 total_rounds = $totalRounds
                 sequence_id = $sequenceId
+                campaign_fingerprint = $campaign.fingerprint
                 ordered_languages = @($ordered)
                 completed_languages = @($completed)
             }
@@ -173,9 +205,11 @@ function Get-NextOfficialRoundPlan {
 
     return [pscustomobject]@{
         all_complete = $true
+        load_profile = $officialProfile
         round = $totalRounds
         total_rounds = $totalRounds
         sequence_id = ""
+        campaign_fingerprint = $campaign.fingerprint
         ordered_languages = @()
         completed_languages = @($languages)
     }
@@ -188,6 +222,8 @@ function Show-OfficialStatus {
         return
     }
     Write-Host "Proxima rodada oficial: $($plan.round)/$($plan.total_rounds)" -ForegroundColor Cyan
+    Write-Host "Perfil: $($plan.load_profile)"
+    Write-Host "Campanha: $($plan.campaign_fingerprint)"
     Write-Host "Concluidas nesta rodada: $($plan.completed_languages.Count)/5"
     Write-Host "Ordem: $($plan.ordered_languages -join ' -> ')"
 }
@@ -207,7 +243,7 @@ function Invoke-NextOfficialRound {
     $preflightPath = Join-Path $Root "results/summaries/preflight-official-next.json"
     Invoke-BenchmarkPython @(
         (Join-Path $Root "scripts/preflight.py"),
-        "--mode", "official", "--output", $preflightPath
+        "--mode", "official", "--load-profile", $plan.load_profile, "--output", $preflightPath
     )
 
     Write-Host ""
@@ -228,15 +264,16 @@ function Invoke-NextOfficialRound {
                 continue
             }
             $env:BENCHMARK_SEQUENCE_ID = $plan.sequence_id
+            $env:BENCHMARK_CAMPAIGN_FINGERPRINT = $plan.campaign_fingerprint
             $env:BENCHMARK_ORDER_POSITION = "$($index + 1)"
             Write-Host "Iniciando $language, posicao $($index + 1)/5, rodada oficial $($plan.round)/$($plan.total_rounds)."
             & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" `
-                -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $officialProfile -RunMode official
+                -Language $language -Scenario mixed -RunNumber 0 -LoadProfile $plan.load_profile -RunMode official
             if ($LASTEXITCODE -ne 0) { throw "A execucao oficial de $language falhou." }
         }
     }
     finally {
-        Remove-Item Env:BENCHMARK_SEQUENCE_ID, Env:BENCHMARK_ORDER_POSITION -ErrorAction SilentlyContinue
+        Remove-Item Env:BENCHMARK_SEQUENCE_ID, Env:BENCHMARK_CAMPAIGN_FINGERPRINT, Env:BENCHMARK_ORDER_POSITION -ErrorAction SilentlyContinue
     }
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/gerar-graficos.ps1" -NoOpen
@@ -275,6 +312,7 @@ function Invoke-Action([string]$SelectedAction) {
         "capacity-100" { Invoke-RunAllProfile "capacity_100" }
         "capacity-200" { Invoke-RunAllProfile "capacity_200" }
         "official-status" { Show-OfficialStatus }
+        "calibrate" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/calibrar-gerador.ps1" }
         "official-next" { Invoke-NextOfficialRound }
         "summarize" { Invoke-Summarize }
         "verify" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/verificar-projeto.ps1" }
@@ -307,8 +345,9 @@ function Show-AdvancedMenu {
         Write-Host "15 Gerar graficos e abrir painel"
         Write-Host "16 Piloto de capacidade: 100 usuarios"
         Write-Host "17 Piloto de capacidade: 200 usuarios"
-        Write-Host "18 Proxima rodada oficial (perfil de taxa fixa)"
-        Write-Host "19 Abrir Grafana completo"
+        Write-Host "18 Calibrar gerador de carga"
+        Write-Host "19 Proxima rodada oficial (perfil de taxa fixa)"
+        Write-Host "20 Abrir Grafana completo"
         Write-Host "0  Voltar"
         Write-Host ""
         $choice = Read-Host "Escolha"
@@ -330,8 +369,9 @@ function Show-AdvancedMenu {
             "15" { Invoke-Action "charts"; Read-Host "Enter para continuar" }
             "16" { Invoke-Action "capacity-100"; Read-Host "Enter para continuar" }
             "17" { Invoke-Action "capacity-200"; Read-Host "Enter para continuar" }
-            "18" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
-            "19" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
+            "18" { Invoke-Action "calibrate"; Read-Host "Enter para continuar" }
+            "19" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
+            "20" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
             "0" { break }
             default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
         }
@@ -346,17 +386,19 @@ function Show-SimpleMenu {
         Show-OfficialStatus
         Write-Host ""
         Write-Host "1  Verificar projeto"
-        Write-Host "2  Executar proxima rodada oficial"
-        Write-Host "3  Abrir Grafana"
-        Write-Host "4  Menu avancado"
+        Write-Host "2  Calibrar gerador de carga"
+        Write-Host "3  Executar proxima rodada oficial"
+        Write-Host "4  Abrir Grafana"
+        Write-Host "5  Menu avancado"
         Write-Host "0  Sair"
         Write-Host ""
         $choice = Read-Host "Escolha"
         switch ($choice) {
             "1" { Invoke-Action "verify"; Read-Host "Enter para continuar" }
-            "2" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
-            "3" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
-            "4" { Show-AdvancedMenu }
+            "2" { Invoke-Action "calibrate"; Read-Host "Enter para continuar" }
+            "3" { Invoke-Action "official-next"; Read-Host "Enter para continuar" }
+            "4" { Invoke-Action "grafana"; Read-Host "Enter para continuar" }
+            "5" { Show-AdvancedMenu }
             "0" { break }
             default { Write-Host "Opcao invalida"; Start-Sleep -Seconds 1 }
         }

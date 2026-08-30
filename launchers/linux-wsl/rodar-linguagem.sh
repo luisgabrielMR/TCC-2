@@ -3,4 +3,4 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
-./scripts/run_one_language.sh "${1:-python}" "${2:-mixed}" "${3:-0}" "${4:-controlled_50}" "${5:-pilot}"
+./scripts/run_one_language.sh "${1:-python}" "${2:-mixed}" "${3:-0}" "${4:-fixed_200}" "${5:-pilot}"
