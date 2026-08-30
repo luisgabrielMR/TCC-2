@@ -32,7 +32,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$CALIBRATION_ROOT"
-docker compose --profile monitoring up -d postgres-exporter prometheus grafana cadvisor
+docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter prometheus grafana cadvisor
 "$SCRIPT_DIR/reset_db.sh"
 docker compose --profile "$LANGUAGE" up -d --build "$API_SERVICE"
 API_STARTED=true

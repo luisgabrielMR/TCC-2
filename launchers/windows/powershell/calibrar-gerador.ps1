@@ -28,7 +28,7 @@ $locustStarted = $false
 New-Item -ItemType Directory -Force $calibrationRoot | Out-Null
 
 try {
-    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "prometheus", "grafana", "cadvisor")
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "prometheus", "grafana", "cadvisor")
     Reset-BenchmarkDatabase $environment
     Invoke-BenchmarkCompose @("--profile", $Language, "up", "-d", "--build", $service)
     $apiStarted = $true

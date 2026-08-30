@@ -654,6 +654,20 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
         ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("results/calibration/**", ignore.splitlines())
 
+    def test_calibrators_start_every_required_monitoring_target(self) -> None:
+        scripts = [
+            ROOT / "scripts" / "calibrate_load_generator.sh",
+            ROOT / "launchers" / "windows" / "powershell" / "calibrar-gerador.ps1",
+        ]
+        for script in scripts:
+            content = script.read_text(encoding="utf-8")
+            with self.subTest(script=script.name):
+                self.assertIn("postgres-exporter", content)
+                self.assertIn("benchmark-results-exporter", content)
+                self.assertIn("prometheus", content)
+                self.assertIn("grafana", content)
+                self.assertIn("cadvisor", content)
+
     def test_saturation_battery_cannot_duplicate_the_fixed_profile(self) -> None:
         environment = (ROOT / ".env.example").read_text(encoding="utf-8")
         profile_line = next(line for line in environment.splitlines() if line.startswith("BENCHMARK_PROFILES="))
