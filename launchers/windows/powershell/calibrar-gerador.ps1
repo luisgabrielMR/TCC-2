@@ -113,9 +113,11 @@ try {
         }
     }
 
-    $validSamples = @($samples | Where-Object { $_.failures -eq 0 })
-    $validatedCapacity = if ($validSamples.Count) {
-        ($validSamples | Measure-Object -Property throughput_rps_exact -Maximum).Maximum
+    $validRps = @($samples |
+        Where-Object { [int64]$_["failures"] -eq 0 } |
+        ForEach-Object { [double]$_["throughput_rps_exact"] })
+    $validatedCapacity = if ($validRps.Count) {
+        ($validRps | Measure-Object -Maximum).Maximum
     } else { 0 }
     $locustImage = $preflight.configured_images.images |
         Where-Object { $_.configured_reference -like "locustio/locust:2.32.6@sha256:*" } |

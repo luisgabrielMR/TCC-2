@@ -667,6 +667,9 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
                 self.assertIn("prometheus", content)
                 self.assertIn("grafana", content)
                 self.assertIn("cadvisor", content)
+        powershell = scripts[1].read_text(encoding="utf-8")
+        self.assertIn('$_["failures"]', powershell)
+        self.assertIn('$_["throughput_rps_exact"]', powershell)
 
     def test_saturation_battery_cannot_duplicate_the_fixed_profile(self) -> None:
         environment = (ROOT / ".env.example").read_text(encoding="utf-8")
