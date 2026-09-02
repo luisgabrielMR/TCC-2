@@ -172,6 +172,31 @@ class WarmupValidationTests(unittest.TestCase):
         self.assertFalse(result["stable"])
         self.assertEqual(result["rps_drift_percent"], 50)
 
+    def test_warmup_smooths_batched_multiprocess_counter_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            stats, history = self.write_fixture(root)
+            with history.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(
+                    handle,
+                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
+                )
+                writer.writeheader()
+                for timestamp in range(1, 137):
+                    # Distributed workers report counters in batches. A report delayed
+                    # across a window boundary must not look like a throughput change.
+                    lag = 3 if 46 <= timestamp <= 91 else 0
+                    requests = max(0, ((timestamp - lag) // 3) * 600)
+                    writer.writerow({
+                        "Timestamp": timestamp,
+                        "User Count": 50,
+                        "Name": "Aggregated",
+                        "Total Request Count": requests,
+                    })
+            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
+        self.assertTrue(result["stable"])
+        self.assertLess(result["rps_drift_percent"], 10)
+
     def test_warmup_rejects_when_expected_user_count_is_not_reached(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             stats, history = self.write_fixture(Path(temp))

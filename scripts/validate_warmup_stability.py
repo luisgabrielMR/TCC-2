@@ -73,6 +73,30 @@ def steady_history(samples: list[tuple[int, int, int]]) -> list[tuple[int, int, 
     return [sample for sample in samples if sample[2] == max_users]
 
 
+def window_rate(
+    samples: list[tuple[int, int, int]],
+    start: tuple[int, int, int],
+    finish: tuple[int, int, int],
+) -> float:
+    points = [sample for sample in samples if start[0] <= sample[0] <= finish[0]]
+    timestamps = {sample[0] for sample in points}
+    if len(timestamps) < 3:
+        return (finish[1] - start[1]) / (finish[0] - start[0])
+
+    origin = points[0][0]
+    xs = [sample[0] - origin for sample in points]
+    ys = [sample[1] for sample in points]
+    mean_x = sum(xs) / len(xs)
+    mean_y = sum(ys) / len(ys)
+    denominator = sum((value - mean_x) ** 2 for value in xs)
+    if denominator <= 0:
+        return (finish[1] - start[1]) / (finish[0] - start[0])
+    return sum(
+        (x_value - mean_x) * (y_value - mean_y)
+        for x_value, y_value in zip(xs, ys)
+    ) / denominator
+
+
 def throughput_windows(
     samples: list[tuple[int, int, int]], window_seconds: int
 ) -> tuple[float, float, float, float]:
@@ -90,7 +114,7 @@ def throughput_windows(
         seconds = finish[0] - start[0]
         if seconds < window_seconds * 0.8:
             raise ValueError("Warmup history is shorter than the three stability windows")
-        rates.append((finish[1] - start[1]) / seconds)
+        rates.append(window_rate(samples, start, finish))
 
     drifts = [
         abs(current - previous) / previous * 100 if previous else 100.0
@@ -123,8 +147,8 @@ def first_last_windows(
     ):
         raise ValueError("Warmup history is too short for first-to-last stability windows")
 
-    first_rps = (first_end[1] - first_start[1]) / first_seconds
-    last_rps = (last_end[1] - last_start[1]) / last_seconds
+    first_rps = window_rate(samples, first_start, first_end)
+    last_rps = window_rate(samples, last_start, last_end)
     change = (last_rps / first_rps - 1) * 100 if first_rps else 100.0
     return first_rps, last_rps, abs(change), change
 

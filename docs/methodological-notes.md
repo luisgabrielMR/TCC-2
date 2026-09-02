@@ -38,7 +38,7 @@ Valores `numeric` chegam como texto nos drivers `lib/pq` (Go) e `pg` (Node.js), 
 
 ## Warmup
 
-O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada principal:
+O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada principal. A vazao de cada janela e estimada pela inclinacao de regressao do contador cumulativo sobre todos os pontos da janela; isso preserva a tendencia sem transformar a entrega em lotes dos workers Locust multiprocesso em falsa instabilidade:
 
 - duracao fixa: 300 segundos para todas as linguagens
 - usuarios e spawn rate: iguais aos da medicao (50/10, 100/20 ou 200/40)
