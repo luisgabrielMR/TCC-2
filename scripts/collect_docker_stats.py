@@ -39,6 +39,16 @@ def pair(value: str) -> tuple[int, int]:
     return bytes_value(parts[0]), bytes_value(parts[1]) if len(parts) == 2 else 0
 
 
+def percent_value(value: object) -> float | None:
+    text = str(value or "").strip().rstrip("%")
+    if not text or text == "--":
+        return None
+    try:
+        return float(text)
+    except ValueError:
+        return None
+
+
 def sample() -> list[dict[str, object]]:
     completed = subprocess.run(
         ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
@@ -50,6 +60,9 @@ def sample() -> list[dict[str, object]]:
         if not line.strip():
             continue
         value = json.loads(line)
+        cpu_percent = percent_value(value.get("CPUPerc"))
+        if cpu_percent is None:
+            continue
         memory, memory_limit = pair(value.get("MemUsage", ""))
         network_rx, network_tx = pair(value.get("NetIO", ""))
         block_read, block_write = pair(value.get("BlockIO", ""))
@@ -57,7 +70,7 @@ def sample() -> list[dict[str, object]]:
             "timestamp_utc": timestamp,
             "container_name": value.get("Name", ""),
             "container_id": value.get("ID", value.get("Container", "")),
-            "cpu_percent": float(value.get("CPUPerc", "0").rstrip("%") or 0),
+            "cpu_percent": cpu_percent,
             "memory_usage_bytes": memory,
             "memory_limit_bytes": memory_limit,
             "network_rx_bytes": network_rx,

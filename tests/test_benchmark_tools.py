@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "load-tests" / "locust"))
 
-from scripts.collect_docker_stats import measured_rows
+from scripts.collect_docker_stats import measured_rows, percent_value, sample as docker_stats_sample
 from scripts.compare_json import first_difference
 from scripts.export_prometheus_data import (
     counter_window_delta,
@@ -342,6 +342,15 @@ class SummaryTests(unittest.TestCase):
 
 
 class ResourceWindowTests(unittest.TestCase):
+    def test_docker_stats_ignores_transient_unavailable_cpu(self) -> None:
+        self.assertIsNone(percent_value("--"))
+        self.assertIsNone(percent_value("invalid"))
+        self.assertEqual(percent_value("12.5%"), 12.5)
+        unavailable = json.dumps({"Name": "stopping", "ID": "abc", "CPUPerc": "--"})
+        with patch("scripts.collect_docker_stats.subprocess.run") as run:
+            run.return_value.stdout = unavailable
+            self.assertEqual(docker_stats_sample(), [])
+
     def test_docker_summary_uses_only_exact_load_window(self) -> None:
         rows = [
             {"timestamp_utc": "2026-01-01T00:00:00.000Z"},
