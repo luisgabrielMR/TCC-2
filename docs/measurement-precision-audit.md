@@ -168,6 +168,16 @@ reconciliacao: 90,927, 89,924 e 90,771 requisicoes, sem falhas HTTP, cancelament
 ou pendencias. Evidencias: `results/summaries/graceful-stop-20260904/attempt_*`.
 Os 69 testes automatizados passaram, incluindo a regressao de parada em WAITING.
 
+## Selecao de metricas ao vivo
+
+A verificacao seguinte reproduziu 17 falhas em 200 execucoes do teste de
+exportacao ao vivo. A selecao misturava timestamps do CSV consolidado e dos
+arquivos de coleta; empates podiam selecionar uma rodada sem dados ao vivo.
+Agora somente os arquivos de coleta participam, com timestamps inteiros em
+nanossegundos. Empate entre fluxos diferentes nao escolhe arbitrariamente uma
+linguagem. Os testes reproduzem timestamps iguais e consolidacao mais recente
+explicitamente, sem sleeps ou repeticoes para esconder a falha.
+
 ## Referencias primarias
 
 - PostgreSQL 17, protocolo: https://www.postgresql.org/docs/17/protocol-flow.html

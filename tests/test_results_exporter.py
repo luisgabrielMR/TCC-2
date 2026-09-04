@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -11,10 +12,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from monitoring.results_exporter import collect_completed_runs, confidence, read_resources, render_metrics
+from monitoring.results_exporter import collect_completed_runs, confidence, freshest_run_directory, read_resources, render_metrics
 
 
 class ResultsExporterTests(unittest.TestCase):
+    def test_live_selection_ignores_consolidation_and_rejects_ambiguous_ties(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            first = root / "raw/python/mixed/run_1"
+            second = root / "raw/python/mixed/run_2"
+            self.write_csv(first / "locust_stats_history.csv", [{"Name": "Aggregated"}])
+            self.write_csv(second / "locust_stats.csv", [{"Name": "Aggregated"}])
+            os.utime(first / "locust_stats_history.csv", ns=(1_000_000_000, 1_000_000_000))
+            os.utime(second / "locust_stats.csv", ns=(3_000_000_000, 3_000_000_000))
+            self.assertEqual(freshest_run_directory(root), first)
+            self.write_csv(second / "docker_stats_raw.csv", [{"cpu_percent": "10"}])
+            os.utime(second / "docker_stats_raw.csv", ns=(1_000_000_000, 1_000_000_000))
+            self.assertIsNone(freshest_run_directory(root))
+            os.utime(second / "docker_stats_raw.csv", ns=(2_000_000_000, 2_000_000_000))
+            self.assertEqual(freshest_run_directory(root), second)
+
     def test_methodology_seven_cpu_uses_average_divided_by_quota(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -122,6 +139,10 @@ class ResultsExporterTests(unittest.TestCase):
                 "block_read_bytes": "0", "block_write_bytes": "0", "pids": "12",
             }])
 
+            # Deliberately tie all mtimes, as can happen on a fast filesystem.
+            timestamp_ns = (latest / "docker_stats_raw.csv").stat().st_mtime_ns
+            for path in results.rglob("*.csv"):
+                os.utime(path, ns=(timestamp_ns, timestamp_ns))
             output = render_metrics(results)
 
         self.assertIn("benchmark_results_completed_runs 3", output)

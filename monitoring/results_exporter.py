@@ -445,17 +445,20 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
 
 
 def freshest_run_directory(results_root: Path) -> Path | None:
-    candidates: list[tuple[float, Path]] = []
+    candidates: list[tuple[int, Path]] = []
     for run_directory in (results_root / "raw").glob("*/*/run_*"):
         paths = [
             run_directory / "locust_stats_history.csv",
             run_directory / "docker_stats_raw.csv",
-            run_directory / "locust_stats.csv",
         ]
-        modified = max((path.stat().st_mtime for path in paths if path.exists()), default=0)
+        modified = max((path.stat().st_mtime_ns for path in paths if path.exists()), default=0)
         if modified:
             candidates.append((modified, run_directory))
-    return max(candidates, default=(0, None), key=lambda item: item[0])[1]
+    newest = max((modified for modified, _ in candidates), default=0)
+    matches = [directory for modified, directory in candidates if modified == newest]
+    # Consolidation timestamps do not identify a live run. Do not guess if two
+    # independent live streams have indistinguishable modification times.
+    return matches[0] if len(matches) == 1 else None
 
 
 def add_live_metrics(metrics: Metrics, results_root: Path) -> None:
