@@ -258,6 +258,8 @@ def run_contract(label: str, base_url: str) -> dict[str, Any]:
     expect(label, base_url, "POST", "/customers", 400, validation_error(detail("address.state", "Must contain exactly 2 ASCII letters")), payload={**customer, "address": {**customer["address"], "state": "Sã"}})
 
     update = base_update()
+    expect(label, base_url, "GET", "/customers?page=2147483647&pageSize=100", 200,
+           {"page": 2147483647, "pageSize": 100, "total": 200, "items": []})
     expect(label, base_url, "PUT", "/customers/1", 400, validation_error(detail("status", "Must be active or inactive")), payload={**update, "status": "blocked"})
     expect(label, base_url, "PUT", "/customers/1", 400, validation_error(detail("phone", "Must be a string or null")), payload={**update, "phone": True})
 

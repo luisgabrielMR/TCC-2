@@ -301,9 +301,9 @@ def compose_command(*arguments: str) -> list[str]:
 def methodology_version(environment: dict[str, str] | None = None) -> int:
     values = environment or load_env()
     try:
-        return int(values.get("METHODOLOGY_VERSION", "7"))
+        return int(values.get("METHODOLOGY_VERSION", "8"))
     except ValueError:
-        return 7
+        return 0
 
 
 def configured_locust_processes(environment: dict[str, str] | None = None) -> int | None:
@@ -342,6 +342,7 @@ def configured_resource_policy(api_service: str | None = None) -> dict[str, Any]
         "available": True,
         "compose_config_sha256": hashlib.sha256(output.encode("utf-8")).hexdigest(),
         "limits": limits,
+        "go_parallelism": services.get("go-api", {}).get("environment", {}).get("GOMAXPROCS"),
     }
 
 
@@ -375,7 +376,30 @@ def runtime_resource_policy(api_service: str | None = None) -> dict[str, Any]:
             "matches_expected": effective_cpus == EXPECTED_CPU_LIMITS.get(service),
             "error": inspect_error if inspect_code != 0 else None,
         }
+        if service == "go-api":
+            probe_code, probe_output, _ = run(
+                ["docker", "exec", container, "/app/go-api", "--runtime-info"]
+            )
+            try:
+                probe = json.loads(probe_output) if probe_code == 0 else None
+            except json.JSONDecodeError:
+                probe = None
+            limits[service]["runtime_parallelism"] = probe if isinstance(probe, dict) else {}
+            limits[service]["runtime_parallelism_source"] = "same_binary_probe_in_active_container"
     return {"limits": limits, "available": all(item.get("available") for item in limits.values()), "required": True}
+
+
+def go_parallelism_violations(configured: dict, effective: dict, api_service: str | None) -> list[str]:
+    expected = int(EXPECTED_CPU_LIMITS["go-api"])
+    violations = []
+    if str(configured.get("go_parallelism")) != str(expected):
+        violations.append(f"Go GOMAXPROCS must be explicitly configured as {expected} in Compose")
+    if api_service == "go-api":
+        probe = effective.get("limits", {}).get("go-api", {}).get("runtime_parallelism", {})
+        if (type(probe.get("gomaxprocs")) is not int or probe["gomaxprocs"] != expected
+                or probe.get("configured_gomaxprocs") != str(expected)):
+            violations.append(f"Active Go container must report GOMAXPROCS={expected} from its runtime")
+    return violations
 
 
 def configured_images() -> dict[str, Any]:
@@ -519,10 +543,13 @@ def runtime_versions() -> dict[str, Any]:
 def postgres_version() -> dict[str, Any]:
     environment = load_env()
     code, output, error = run(
-        ["docker", "compose", "exec", "-T", "postgres", "psql", "-Atq", "-U", environment.get("POSTGRES_USER", "benchmark_user"), "-d", environment.get("POSTGRES_DB", "benchmark_db"), "-c", "SELECT version();"],
+        ["docker", "compose", "exec", "-T", "postgres", "psql", "-Atq", "-U", environment.get("POSTGRES_USER", "benchmark_user"), "-d", environment.get("POSTGRES_DB", "benchmark_db"), "-c", "SELECT version(); SELECT setting FROM pg_settings WHERE name='statement_timeout';"],
         timeout=30,
     )
-    return {"available": code == 0, "version_output": output or None, "error": error if code != 0 else None}
+    lines = output.splitlines() if output else []
+    return {"available": code == 0, "version_output": lines[0] if lines else None,
+            "statement_timeout_ms": int(lines[1]) if len(lines) == 2 and lines[1].isdigit() else None,
+            "error": error if code != 0 else None}
 
 
 def configured_pool(environment: dict[str, str]) -> dict[str, Any]:
@@ -590,6 +617,7 @@ def verification_matches_current_project(
         and verification.get("openapi_valid") is True
         and verification.get("database_state_equivalent") is True
         and verification.get("all_executable_tests_passed") is True
+        and (expected_methodology < 8 or verification.get("sql_wait_policy_languages") == REQUIRED_CONTRACT_LANGUAGES)
     )
 
 
@@ -651,6 +679,9 @@ def build_report(mode: str, api_service: str | None = None, load_profile: str = 
     )
     calibration["required"] = calibration_required
     violations: list[str] = []
+    violations.extend(go_parallelism_violations(configured_resources, runtime_resources, api_service))
+    if methodology_version(environment) != 8:
+        violations.append("Current execution requires methodology version 8; historical revisions are read-only")
     if not docker.get("available"):
         violations.append("Docker Engine, Compose and allocation information must all be available")
     if expected_locust_processes is None:
@@ -685,6 +716,8 @@ def build_report(mode: str, api_service: str | None = None, load_profile: str = 
         version_output = str(details.get("version_output") or "")
         if not details.get("available") or not re.search(pattern, version_output):
             violations.append(f"{runtime} runtime is unavailable or differs from the required major/minor version")
+    if postgres.get("statement_timeout_ms") != 30000:
+        violations.append("PostgreSQL statement_timeout must be 30000 ms for equivalent SQL deadlines")
     if not postgres.get("available") or "PostgreSQL 17" not in str(postgres.get("version_output") or ""):
         violations.append("PostgreSQL 17 runtime version could not be confirmed")
     for name, details in libraries.items():

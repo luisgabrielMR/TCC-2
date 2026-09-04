@@ -172,7 +172,7 @@ public class Main {
         var page = positiveInt(params.getOrDefault("page", "1"), "page");
         var pageSize = positiveInt(params.getOrDefault("pageSize", "50"), "pageSize");
         if (pageSize > 100) throw new ApiError(400, "VALIDATION_ERROR", "Invalid request parameter", detail("pageSize", "Must be between 1 and 100"));
-        var offset = (page - 1) * pageSize;
+        long offset = (long) (page - 1) * pageSize;
         try (var conn = dataSource.getConnection()) {
             int total;
             try (var ps = conn.prepareStatement("SELECT count(*)::int FROM customers"); var rs = ps.executeQuery()) {
@@ -182,7 +182,7 @@ public class Main {
             var items = new ArrayList<Map<String, Object>>();
             try (var ps = conn.prepareStatement(LIST_CUSTOMERS)) {
                 ps.setInt(1, pageSize);
-                ps.setInt(2, offset);
+                ps.setLong(2, offset);
                 try (var rs = ps.executeQuery()) {
                     while (rs.next()) items.add(customerFromRow(rs));
                 }

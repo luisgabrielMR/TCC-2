@@ -1,5 +1,40 @@
 # Notas metodologicas
 
+## Paralelismo e escopo dos recursos
+
+As APIs mantem cota de 2 CPUs, sem afinidade exclusiva. Go 1.23 usa
+`GOMAXPROCS=2` explicitamente no Compose, pois seu valor padrao nao acompanha
+a cota do cgroup. O preflight verifica essa configuracao em todos os perfis;
+quando Go esta ativo, executa o mesmo binario com `--runtime-info` dentro do
+container e exige valor efetivo 2. Essa sondagem nao abre conexoes ao banco nem
+adiciona endpoints HTTP. O JSON do preflight, incluido no metadata da rodada,
+registra CPUs visiveis, GOMAXPROCS e origem da sondagem. Nao mede a quantidade
+total de threads do processo, nem garante ausencia de throttling.
+
+Os modelos de concorrencia sao distintos: Python tem um processo Uvicorn,
+event loop e limitador AnyIO de 40 tarefas sincronas; Java usa virtual threads;
+Node executa JavaScript no event loop, enquanto Go e .NET possuem seus proprios
+escalonadores. O pool PostgreSQL tem limite comum de 20 conexoes. Comparar
+essas implementacoes nao equivale a isolar o custo da linguagem ou igualar
+todas as filas internas. Causalidade de latencia exige diagnostico, nao apenas
+conhecimento desses limites.
+
+Nao ha teto individual de memoria dos containers. O limite compartilhado e a
+memoria efetivamente alocada ao Docker; consumo observado inclui as politicas
+de heap, GC e alocacao de cada runtime. Backlogs HTTP permanecem os padroes
+dos servidores; uma investigacao de saturacao deve distinguir fila de conexoes,
+pool do banco, throttling e saturacao do gerador.
+
+Em `summary_by_endpoint.csv`, `resource_metric_scope` vale
+`whole_container_whole_run_not_endpoint_attribution`. CPU, memoria e indicadores
+PostgreSQL nessa linha sao repetidos da rodada inteira, NAO atribuicoes ao
+endpoint. Apenas latencia, requisicoes, falhas e vazao HTTP sao por endpoint.
+Medianas de percentis entre rodadas nao representam percentis globais de todas
+as requisicoes. Recursos sao amostrados e bordas temporais interpoladas.
+
+Alterar GOMAXPROCS exige novo commit, verificacao e calibracao antes de uma
+campanha oficial; nao completar campanhas antigas com essa configuracao nova.
+
 ## Justificativa para uso mínimo de frameworks
 
 O experimento busca reduzir interferencias de frameworks completos, ORMs e abstracoes automaticas. Cada API usa apenas o necessario para HTTP, JSON, acesso PostgreSQL, pool de conexoes e execucao das operacoes.
@@ -103,10 +138,30 @@ O `campaign_fingerprint` vincula os agregados ao commit, metodologia e artefato 
 
 ## Proveniencia e classificacao
 
-A metodologia atual e `7`, pois rede de carga, fronteiras transacionais de leitura, cotas de CPU, perfis e calculo temporal mudaram a linha de base. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, cotas configuradas/efetivas, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
+A metodologia atual e `8`: alem das mudancas da revisao 7, padroniza o limite SQL e exige estabilidade de latencia por endpoint e integridade dos snapshots. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, cotas configuradas/efetivas, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 
 - Quando houver rodadas antigas e atuais para o mesmo nivel de carga, os relatorios usam apenas o maior `methodology_version` dentro da mesma familia, linguagem e classificacao. `legacy_capacity` e `saturation` nunca compartilham baseline.
 
 O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
+# Measurement revision 8
+
+New runs use methodology 8. Do not combine them with revision 7: SQL deadlines
+and measurement instrumentation changed. Historical results remain untouched.
+Regenerate verification and load-generator calibration for the new clean commit.
+
+In addition to throughput stability, each worker accumulates per-endpoint
+response-time sums and request counts in completion-second buckets, entirely in
+memory. Final reports reconcile these buckets with endpoint totals. Warmup checks
+the last three windows; measurement also compares the first and last steady-user
+windows. Every endpoint needs at least 30 requests per window, and mean-latency
+drift must not exceed the configured stability limit (10% by default).
+This detects latency changes hidden by fixed pacing; it does not prove that tail
+latency is stationary. P50/P95/P99 remain Locust rounded-histogram estimates.
+
+CSV publication retains original final files, stages a host-owned copy, retries
+transient permission failures at most six times, then fails closed. A final hash
+manifest covers stats, failures and exceptions. Revision-8 summaries and completed
+Grafana results accept only the validated snapshot. Missing worker reports,
+nonfinite timestamps and mismatched weighted aggregate latency are rejected.

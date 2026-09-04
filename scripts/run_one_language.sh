@@ -240,6 +240,7 @@ rm -f "$METRICS_STOP_FILE"
   --expected-users "$LOCUST_USERS" \
   --phase-label "Measurement" \
   --require-first-last-stability \
+  --require-latency-stability \
   --window-seconds "$WARMUP_STABILITY_WINDOW_SECONDS" \
   --max-rps-drift-percent "$WARMUP_MAX_RPS_DRIFT_PERCENT" \
   --output "$RESULT_DIR/measurement_stability.json"
@@ -282,7 +283,7 @@ import csv, sys
 try:
     rows=csv.DictReader(open(sys.argv[1], encoding="utf-8-sig"))
     row=next((row for row in rows if row.get("component") == "locust"), None)
-    print(f'{row["cpu_average_percent"]} {row["cpu_max_percent"]}' if row else "null null")
+    print("{} {}".format(row["cpu_average_percent"], row["cpu_max_percent"]) if row else "null null")
 except OSError:
     print("null null")
 ' "$RESULT_DIR/cadvisor_summary.csv")

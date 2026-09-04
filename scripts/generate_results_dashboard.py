@@ -147,6 +147,13 @@ def collect() -> dict:
             continue
 
         metadata = read_metadata(stats_path.parent)
+        if int(metadata.get("methodology_version", 1)) >= 8:
+            try:
+                from scripts.snapshot_integrity import verified_stats
+            except ModuleNotFoundError:
+                from snapshot_integrity import verified_stats
+            rows = verified_stats(stats_path.parent / "locust")
+            aggregate = next(row for row in rows if row.get("Name") == "Aggregated")
         resources, resource_source = read_resources(stats_path.parent, metadata)
         cadvisor_rows = read_csv_rows(stats_path.parent / "cadvisor_summary.csv")
         api = find_resource(resources, lambda name: name == f"tcc_benchmark_{language}_api")

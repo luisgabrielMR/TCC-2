@@ -101,12 +101,16 @@ class WorkerAuditTests(unittest.TestCase):
                 writer.writeheader()
                 writer.writerow({"Type": "GET", "Name": "GET /health", "Request Count": 10,
                                  "Failure Count": 0, "Average Response Time": 2})
+                writer.writerow({"Type": "", "Name": "Aggregated", "Request Count": 10,
+                                 "Failure Count": 0, "Average Response Time": 2})
             result = validate_worker_reports(prefix, stats)
             self.assertEqual(result["requests"], 10)
             self.assertEqual(result["workers"], 2)
             self.assertEqual(result["drain_and_coordination_seconds"], 2)
             for change in ({"cancelled": 1}, {"in_flight": 1}, {"started": 6},
                            {"worker_id": "wrong"}, {"started_epoch": 90}, {"finished_epoch": 132},
+                           {"started_epoch": float("nan")}, {"started_epoch": float("inf")},
+                           {"started_epoch": True}, {"finished_epoch": float("nan")},
                            {"endpoints": [{**row, "total_response_time": 99}]},
                            {"endpoints": [{**row, "failures": 1}]}):
                 with self.subTest(change=change):

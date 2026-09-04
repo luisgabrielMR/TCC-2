@@ -24,7 +24,7 @@ ENDPOINT_FIELDS = [
     "throughput_rps", "locust_reported_rps", "throughput_source", "test_elapsed_seconds",
     "exact_measurement_window",
     "resource_metrics_available", "cadvisor_metrics_available", "postgres_metrics_available",
-    "resource_metric_source", "cpu_average_percent", "cpu_max_percent",
+    "resource_metric_source", "resource_metric_scope", "cpu_average_percent", "cpu_max_percent",
     "memory_average_bytes", "memory_max_bytes", "cadvisor_coverage_percent", "locust_cpu_average_percent",
     "postgres_cpu_average_percent", "postgres_connections_average", "postgres_cache_hit_ratio",
 ]
@@ -220,6 +220,13 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
 
         run_directory = stats_file.parent
         metadata = read_json(run_directory / "metadata.json")
+        if int(metadata.get("methodology_version", 1)) >= 8:
+            try:
+                from scripts.snapshot_integrity import verified_stats
+            except ModuleNotFoundError:
+                from snapshot_integrity import verified_stats
+            stats = verified_stats(run_directory / "locust")
+            aggregate = next(row for row in stats if row.get("Name") == "Aggregated")
         resources, resource_source = read_resource_rows(run_directory, metadata)
         postgres_summary = next(iter(read_csv_rows(run_directory / "postgres_summary.csv")), {})
         cadvisor_rows = read_csv_rows(run_directory / "cadvisor_summary.csv")
@@ -375,6 +382,7 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
                 "cadvisor_metrics_available": run["cadvisor_metrics_available"],
                 "postgres_metrics_available": run["postgres_metrics_available"],
                 "resource_metric_source": run["resource_metric_source"],
+                "resource_metric_scope": "whole_container_whole_run_not_endpoint_attribution",
                 "cpu_average_percent": run["cpu_average_percent"],
                 "cpu_max_percent": run["cpu_max_percent"],
                 "memory_average_bytes": run["memory_average_bytes"],

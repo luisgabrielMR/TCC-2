@@ -538,13 +538,14 @@ class OfficialVerificationGateTests(unittest.TestCase):
         self.evidence = {
             "available": True,
             "completed": True,
-            "methodology_version": 7,
+            "methodology_version": 8,
             "commit_sha": "abc123",
             "tracked_diff_sha256": "tracked",
             "untracked_files_sha256": "untracked",
             "git_dirty": False,
             "monitoring_official_eligible": True,
             "contract_languages": ["python", "node", "java", "go", "dotnet"],
+            "sql_wait_policy_languages": ["python", "node", "java", "go", "dotnet"],
             "openapi_valid": True,
             "database_state_equivalent": True,
             "all_executable_tests_passed": True,
@@ -573,6 +574,7 @@ class OfficialVerificationGateTests(unittest.TestCase):
             "git_dirty": True,
             "monitoring_official_eligible": False,
             "contract_languages": ["python"],
+            "sql_wait_policy_languages": ["python"],
             "openapi_valid": False,
             "database_state_equivalent": False,
             "all_executable_tests_passed": False,
@@ -876,6 +878,7 @@ class SummaryFixtureTests(unittest.TestCase):
         self.assertEqual(endpoints[0]["methodology_version"], 6)
         self.assertEqual(endpoints[0]["result_classification"], "non_official")
         self.assertEqual(endpoints[0]["error_rate"], "0.010000")
+        self.assertEqual(endpoints[0]["resource_metric_scope"], "whole_container_whole_run_not_endpoint_attribution")
         self.assertEqual(runs[0]["postgres_connections_average"], 12)
         self.assertEqual(runs[0]["postgres_metric_source"], "postgres_exporter_via_prometheus")
 

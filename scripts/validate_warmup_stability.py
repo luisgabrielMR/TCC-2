@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
+import sys
 from pathlib import Path
 
 
@@ -162,6 +164,7 @@ def validate(
     max_drift_percent: float,
     expected_users: int = 0,
     require_first_last_stability: bool = False,
+    require_latency_stability: bool = False,
 ) -> dict:
     endpoints, failures = load_stats(stats_path)
     expected = load_expected_endpoints(config_path, scenario)
@@ -203,8 +206,19 @@ def validate(
             f"{max_drift_percent:.2f}% during measurement"
         )
 
+    latency = {}
+    if require_latency_stability:
+        try:
+            latency = latency_windows(stats_path, history, window_seconds, max_drift_percent,
+                                      require_first_last_stability)
+            reasons.extend(latency["reasons"])
+        except (ValueError, RuntimeError, KeyError, TypeError, OSError, IndexError) as exc:
+            reasons.append(f"Latency stability unavailable: {exc}")
+
     return {
         "stable": not reasons,
+        "latency_stability_required": require_latency_stability,
+        "latency_stability": latency,
         "scenario": scenario,
         "expected_users": expected_users,
         "observed_peak_users": observed_peak_users,
@@ -227,6 +241,71 @@ def validate(
     }
 
 
+def latency_windows(stats_path, history, seconds, limit, compare_first):
+    audit_path = ROOT / "load-tests" / "locust"
+    if not audit_path.exists():
+        audit_path = ROOT / "locust"
+    sys.path.insert(0, str(audit_path))
+    from measurement_audit import validate_worker_reports
+    prefix = Path(str(stats_path).removesuffix("_stats.csv"))
+    validate_worker_reports(prefix, stats_path)
+    manifest = json.loads(Path(f"{prefix}_expected_workers.json").read_text())
+    samples = steady_history(history)
+    end = samples[-1][0]
+    starts = [end - offset * seconds for offset in (3, 2, 1)]
+    if compare_first:
+        starts.insert(0, samples[0][0])
+    buckets = []
+    for index in manifest["workers"].values():
+        report = json.loads(Path(f"{prefix}_worker_{index}_final.json").read_text())
+        totals = {}
+        seen = set()
+        for row in report["latency_buckets"]:
+            key = (row["method"], row["name"])
+            identity = (row["second"], *key)
+            if (identity in seen or type(row["second"]) is not int
+                    or not int(report["started_epoch"]) <= row["second"] <= int(report["finished_epoch"])
+                    or type(row["requests"]) is not int or row["requests"] <= 0
+                    or not math.isfinite(row["total_response_time"]) or row["total_response_time"] < 0):
+                raise ValueError("Invalid latency bucket")
+            seen.add(identity)
+            value = totals.setdefault(key, [0, 0.0])
+            value[0] += row["requests"]
+            value[1] += row["total_response_time"]
+            buckets.append(row)
+        expected = {(row["method"], row["name"]): row for row in report["endpoints"]}
+        if set(expected) != set(totals):
+            raise ValueError("Latency bucket endpoint sets differ")
+        for key, row in expected.items():
+            count, total = totals[key]
+            if count != row["requests"] or not math.isclose(total, row["total_response_time"], rel_tol=1e-8, abs_tol=0.001):
+                raise ValueError(f"Latency bucket totals differ: {key}")
+    endpoints = sorted({(row["method"], row["name"]) for row in buckets})
+    result = {"reasons": [], "endpoints": [], "max_drift_percent": limit,
+              "minimum_requests_per_window": 30, "scope": "completion-second buckets; per-endpoint mean latency"}
+    for method, name in endpoints:
+        windows = []
+        for start in starts:
+            selected = [row for row in buckets if row["method"] == method and row["name"] == name
+                        and start <= row["second"] < start + seconds]
+            count = sum(row["requests"] for row in selected)
+            mean = math.fsum(row["total_response_time"] for row in selected) / count if count else 0
+            windows.append({"start_epoch": start, "end_epoch": start + seconds, "requests": count, "mean_ms": mean})
+            if count < 30:
+                result["reasons"].append(f"Insufficient latency samples: {method} {name} window {start}")
+        means = [window["mean_ms"] for window in windows]
+        pairs = list(zip(means[-3:-1], means[-2:]))
+        if compare_first:
+            pairs.append((means[0], means[-1]))
+        drift = max((abs(b - a) / a * 100 if a else (0 if b == 0 else 100)) for a, b in pairs)
+        if drift > limit:
+            result["reasons"].append(f"Latency drift {method} {name}: {drift:.2f}% exceeds {limit:.2f}%")
+        result["endpoints"].append({"method": method, "endpoint": name, "windows": windows, "drift_percent": drift})
+    if not endpoints:
+        raise ValueError("No endpoint latency samples")
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--stats", type=Path, required=True)
@@ -237,6 +316,7 @@ def main() -> None:
     parser.add_argument("--max-rps-drift-percent", type=float, default=10.0)
     parser.add_argument("--expected-users", type=int, default=0)
     parser.add_argument("--require-first-last-stability", action="store_true")
+    parser.add_argument("--require-latency-stability", action="store_true")
     parser.add_argument("--phase-label", default="Warmup")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -250,6 +330,7 @@ def main() -> None:
         args.max_rps_drift_percent,
         args.expected_users,
         args.require_first_last_stability,
+        args.require_latency_stability,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")

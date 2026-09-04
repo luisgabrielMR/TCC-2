@@ -5,9 +5,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import math
+import os
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
@@ -21,8 +25,32 @@ from measurement_audit import validate_worker_reports
 KINDS = ("stats", "failures", "exceptions")
 
 
+def publish(source: Path, destination: Path) -> None:
+    # Docker bind-mounted source files need not support a Windows rename.
+    # Keep the evidence and atomically publish a host-owned copy instead.
+    data = source.read_bytes()
+    descriptor, temporary = tempfile.mkstemp(prefix=destination.name + ".", dir=destination.parent)
+    temporary = Path(temporary)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        for attempt in range(6):
+            try:
+                temporary.replace(destination)
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(0.1 * (attempt + 1))
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def prepare(prefix: Path) -> None:
     prefix.parent.mkdir(parents=True, exist_ok=True)
+    Path(f"{prefix}_snapshot_validation.json").unlink(missing_ok=True)
     for path in prefix.parent.glob(f"{prefix.name}_*.csv"):
         path.unlink()
     Path(f"{prefix}_measurement_bounds.json").unlink(missing_ok=True)
@@ -58,6 +86,10 @@ def validate_stats(path: Path) -> dict:
             raise RuntimeError(f"Final CSV endpoint sum differs from Aggregated: {field}")
     if int(totals[0]["Request Count"]) <= 0:
         raise RuntimeError("Final CSV contains no completed requests")
+    endpoint_time = math.fsum(int(row["Request Count"]) * float(row["Average Response Time"]) for row in endpoints)
+    aggregate_time = int(totals[0]["Request Count"]) * float(totals[0]["Average Response Time"])
+    if not math.isclose(endpoint_time, aggregate_time, rel_tol=1e-8, abs_tol=0.001):
+        raise RuntimeError("Final CSV weighted mean differs from Aggregated")
     return {"valid": True, "requests": int(totals[0]["Request Count"]),
             "failures": int(totals[0]["Failure Count"]), "endpoint_count": len(endpoints),
             "scope": "CSV internal consistency; does not prove delivery of every worker report",
@@ -65,6 +97,7 @@ def validate_stats(path: Path) -> dict:
 
 
 def promote(prefix: Path) -> None:
+    Path(f"{prefix}_snapshot_validation.json").unlink(missing_ok=True)
     # Validate all files before replacing any previous snapshot.
     for kind in KINDS:
         source = Path(f"{prefix}_final_{kind}.csv")
@@ -73,12 +106,16 @@ def promote(prefix: Path) -> None:
     report = validate_stats(Path(f"{prefix}_final_stats.csv"))
     report["worker_reconciliation"] = validate_worker_reports(prefix, Path(f"{prefix}_final_stats.csv"))
     report["scope"] = "CSV consistency and independent final reports from every expected worker"
+    report["sha256"] = {}
     for kind in KINDS:
         source = Path(f"{prefix}_final_{kind}.csv")
         destination = Path(f"{prefix}_{kind}.csv")
         if not source.exists():
             raise RuntimeError(f"Locust did not produce final snapshot: {source}")
-        source.replace(destination)
+        report["sha256"][kind] = hashlib.sha256(source.read_bytes()).hexdigest()
+        publish(source, destination)
+        if hashlib.sha256(destination.read_bytes()).hexdigest() != report["sha256"][kind]:
+            raise RuntimeError(f"Published snapshot differs from final source: {kind}")
     Path(f"{prefix}_snapshot_validation.json").write_text(
         json.dumps(report, indent=2) + "\n", encoding="utf-8")
 

@@ -71,7 +71,7 @@ app.MapGet("/customers", async (HttpRequest request) =>
 
     await using var cmd = new NpgsqlCommand(Sql.ListCustomers, conn);
     cmd.Parameters.AddWithValue("limit", parsed.PageSize);
-    cmd.Parameters.AddWithValue("offset", (parsed.Page - 1) * parsed.PageSize);
+    cmd.Parameters.AddWithValue("offset", (long)(parsed.Page - 1) * parsed.PageSize);
     await using var reader = await cmd.ExecuteReaderAsync();
     var items = new List<Dictionary<string, object?>>();
     while (await reader.ReadAsync())
@@ -768,6 +768,7 @@ record Settings(string ConnectionString)
         builder.MinPoolSize = IntEnv("DB_POOL_MIN", 1);
         builder.MaxPoolSize = IntEnv("DB_POOL_MAX", 20);
         builder.Timeout = IntEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10);
+        builder.CommandTimeout = 0; // PostgreSQL enforces the shared statement timeout.
         builder.ConnectionIdleLifetime = IntEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60);
         builder.ConnectionLifetime = IntEnv("DB_POOL_MAX_LIFETIME_SECONDS", 1800);
         return new Settings(builder.ConnectionString);

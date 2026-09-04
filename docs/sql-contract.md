@@ -134,3 +134,18 @@ Indices usados:
 - chave primaria de `orders`.
 - `idx_order_items_order`.
 - indice `UNIQUE` de `payments.order_id`.
+# Execution deadlines (methodology 8)
+
+Pool acquisition has a 10-second deadline in every API. It does not limit the
+whole HTTP request or a transaction. Go acquires one explicit connection per
+endpoint, then executes with the original request context.
+
+PostgreSQL enforces `statement_timeout=30000` milliseconds for each SQL statement,
+including lock waits. The .NET driver command timeout is disabled so the server
+deadline is authoritative. This is not a 30-second whole-transaction deadline:
+an endpoint executing several statements can take longer. Transactions still
+roll back on failure. Official preflight checks the running PostgreSQL setting.
+
+`verify_api_wait_policy.py` verifies a 12-second table-lock wait succeeds and a
+33-second lock triggers the same `500 DATABASE_ERROR` near 30 seconds in all five
+APIs. It always releases the lock with rollback and only allows `benchmark_db`.

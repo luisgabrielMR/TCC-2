@@ -41,6 +41,7 @@ run_attempt() {
   "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$host_prefix" || return 2
   "$PYTHON_BIN" "$SCRIPT_DIR/validate_warmup_stability.py" \
     --stats "${host_prefix}_stats.csv" \
+    --require-latency-stability \
     --history "${host_prefix}_stats_history.csv" \
     --scenario "$SCENARIO_NAME" \
     --expected-users "$USERS" \

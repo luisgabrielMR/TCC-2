@@ -3,7 +3,7 @@
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "7")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "8")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $languages = @("python", "node", "java", "go", "dotnet")
 $services = $languages | ForEach-Object { "$_-api" }
@@ -76,6 +76,16 @@ try {
         if ($language -eq "python") { $contractArguments += @("--snapshot", $contractBaseline) }
         else { $contractArguments += @("--compare", $contractBaseline) }
         Invoke-BenchmarkCompose -Arguments $contractArguments
+        $waitPolicyOutput = Invoke-BenchmarkCompose -Arguments @(
+            "--profile", "python", "run", "--rm", "--no-deps", "--entrypoint", "python",
+            "-v", "./scripts:/mnt/scripts:ro", "python-api", "/mnt/scripts/verify_api_wait_policy.py",
+            "--base-url", $activeLocustHost
+        )
+        $waitPolicyJson = $waitPolicyOutput | Where-Object { $_.Trim().StartsWith("{") } | Select-Object -Last 1
+        if (-not $waitPolicyJson) { throw "Diagnostico de timeout ausente para $language." }
+        $waitPolicyJson | ConvertFrom-Json | Out-Null
+        $waitPolicyJson | Set-Content -Encoding utf8 (Join-Path $verificationDirectory "wait-policy-$language.json")
+        Write-Host $waitPolicyJson
 
         $databaseStatePath = Join-Path $verificationDirectory "database-state-$language.json"
         $stateOutput = Invoke-BenchmarkCompose -Arguments @(
@@ -294,6 +304,7 @@ try {
         untracked_files_sha256 = $finalPreflight.git.untracked_files_sha256
         monitoring_official_eligible = [bool]$monitoringEvidence.official_eligible
         contract_languages = $languages
+        sql_wait_policy_languages = $languages
         openapi_valid = $true
         database_state_equivalent = $true
         all_executable_tests_passed = $true

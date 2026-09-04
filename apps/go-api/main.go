@@ -140,6 +140,15 @@ type app struct {
 }
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--runtime-info" {
+		if err := json.NewEncoder(os.Stdout).Encode(map[string]any{
+			"version": runtime.Version(), "num_cpu": runtime.NumCPU(),
+			"gomaxprocs": runtime.GOMAXPROCS(0), "configured_gomaxprocs": os.Getenv("GOMAXPROCS"),
+		}); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if len(os.Args) == 2 && os.Args[1] == "--runtime-version" {
 		fmt.Println(runtime.Version())
 		return
@@ -165,11 +174,11 @@ func main() {
 	application := &app{db: db, settings: cfg}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", application.health)
-	mux.HandleFunc("/customers", application.withDatabaseTimeout(application.customers))
-	mux.HandleFunc("/customers/", application.withDatabaseTimeout(application.customerByID))
-	mux.HandleFunc("/products", application.withDatabaseTimeout(application.products))
-	mux.HandleFunc("/orders", application.withDatabaseTimeout(application.orders))
-	mux.HandleFunc("/orders/", application.withDatabaseTimeout(application.orderByID))
+	mux.HandleFunc("/customers", application.customers)
+	mux.HandleFunc("/customers/", application.customerByID)
+	mux.HandleFunc("/products", application.products)
+	mux.HandleFunc("/orders", application.orders)
+	mux.HandleFunc("/orders/", application.orderByID)
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_, pattern := mux.Handler(r)
 		if pattern == "" {
@@ -219,12 +228,11 @@ func warmPool(ctx context.Context, db *sql.DB, minimum int) error {
 	return nil
 }
 
-func (a *app) withDatabaseTimeout(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), time.Duration(a.settings.acquireTimeout)*time.Second)
-		defer cancel()
-		next(w, r.WithContext(ctx))
-	}
+func (a *app) acquire(ctx context.Context) (*sql.Conn, error) {
+	acquireContext, cancel := context.WithTimeout(ctx, time.Duration(a.settings.acquireTimeout)*time.Second)
+	defer cancel()
+	// Only pool acquisition uses this deadline. PostgreSQL limits SQL execution.
+	return a.db.Conn(acquireContext)
 }
 
 func loadSettings() settings {
@@ -314,11 +322,17 @@ func (a *app) products(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var existingCategory int
-	if err := a.db.QueryRowContext(r.Context(), "SELECT id FROM categories WHERE id = $1", categoryID).Scan(&existingCategory); err != nil {
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	if err := conn.QueryRowContext(r.Context(), "SELECT id FROM categories WHERE id = $1", categoryID).Scan(&existingCategory); err != nil {
 		writeError(w, notFoundOrDB(err, "Category not found"))
 		return
 	}
-	rows, err := a.db.QueryContext(r.Context(), listProductsSQL, categoryID)
+	rows, err := conn.QueryContext(r.Context(), listProductsSQL, categoryID)
 	if err != nil {
 		writeError(w, dbError(err))
 		return
@@ -368,7 +382,13 @@ func (a *app) orderByID(w http.ResponseWriter, r *http.Request) {
 		writeError(w, apiError{Status: 405, Code: "METHOD_NOT_ALLOWED", Message: "Method not allowed"})
 		return
 	}
-	order, err := a.fetchOrder(r.Context(), a.db, id)
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	order, err := a.fetchOrder(r.Context(), conn, id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -377,7 +397,13 @@ func (a *app) orderByID(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *app) getCustomer(w http.ResponseWriter, r *http.Request, id int) {
-	customer, err := a.fetchCustomer(r.Context(), a.db, id)
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	customer, err := a.fetchCustomer(r.Context(), conn, id)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -391,13 +417,19 @@ func (a *app) listCustomers(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	offset := (page - 1) * pageSize
-	var total int
-	if err := a.db.QueryRowContext(r.Context(), "SELECT count(*)::int FROM customers").Scan(&total); err != nil {
+	conn, err := a.acquire(r.Context())
+	if err != nil {
 		writeError(w, dbError(err))
 		return
 	}
-	rows, err := a.db.QueryContext(r.Context(), listCustomersSQL, pageSize, offset)
+	defer conn.Close()
+	offset := int64(page-1) * int64(pageSize)
+	var total int
+	if err := conn.QueryRowContext(r.Context(), "SELECT count(*)::int FROM customers").Scan(&total); err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	rows, err := conn.QueryContext(r.Context(), listCustomersSQL, pageSize, offset)
 	if err != nil {
 		writeError(w, dbError(err))
 		return
@@ -431,7 +463,13 @@ func (a *app) createCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	address := payload.Address
-	tx, err := a.db.BeginTx(r.Context(), nil)
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, dbError(err))
 		return
@@ -481,7 +519,13 @@ func (a *app) updateCustomer(w http.ResponseWriter, r *http.Request, id int) {
 		return
 	}
 	address := payload.Address
-	tx, err := a.db.BeginTx(r.Context(), nil)
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, dbError(err))
 		return
@@ -537,7 +581,13 @@ func (a *app) createOrder(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	tx, err := a.db.BeginTx(r.Context(), nil)
+	conn, err := a.acquire(r.Context())
+	if err != nil {
+		writeError(w, dbError(err))
+		return
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(r.Context(), nil)
 	if err != nil {
 		writeError(w, dbError(err))
 		return

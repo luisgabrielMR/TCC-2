@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "7")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "8")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -188,6 +188,7 @@ try {
         "--expected-users", "$users",
         "--phase-label", "Measurement",
         "--require-first-last-stability",
+        "--require-latency-stability",
         "--window-seconds", "$warmupWindowSeconds",
         "--max-rps-drift-percent", "$warmupMaxDriftPercent",
         "--output", $measurementValidationPath

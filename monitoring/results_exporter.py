@@ -8,6 +8,7 @@ import csv
 import json
 import math
 import statistics
+import sys
 import time
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -109,6 +110,14 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
 
         run_directory = stats_path.parent
         metadata = read_json(run_directory / "metadata.json")
+        if integer(metadata.get("methodology_version")) >= 8:
+            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+            from snapshot_integrity import verified_stats
+            try:
+                stats = verified_stats(run_directory / "locust")
+                aggregate = next(row for row in stats if row.get("Name") == "Aggregated")
+            except (OSError, ValueError, RuntimeError, StopIteration):
+                continue  # Incomplete publication is not a completed result.
         resources, resource_source = read_resources(run_directory, metadata)
         postgres_summary = next(iter(read_csv(run_directory / "postgres_summary.csv")), {})
         cadvisor_rows = read_csv(run_directory / "cadvisor_summary.csv")

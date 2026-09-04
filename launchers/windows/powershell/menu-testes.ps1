@@ -123,7 +123,7 @@ function Get-ResultScenarioName([string]$Profile) {
 }
 
 function Get-OfficialCampaignIdentity($Environment) {
-    $methodologyVersion = [int](Get-BenchmarkValue $Environment "METHODOLOGY_VERSION" "7")
+    $methodologyVersion = [int](Get-BenchmarkValue $Environment "METHODOLOGY_VERSION" "8")
     $commitSha = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or -not $commitSha) { throw "Nao foi possivel identificar o commit atual." }
     $calibrationRelative = Get-BenchmarkValue $Environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"

@@ -78,3 +78,16 @@ docker compose down
 ```
 
 Encerre os containers sem remover volumes. O reset oficial atua somente em `benchmark_db`.
+## Revisao de medicao 8
+
+A configuracao atual usa `METHODOLOGY_VERSION=8`. Depois de atualizar o codigo,
+refaca a verificacao completa e a calibracao do gerador para o commit limpo.
+Nao reutilize a verificacao ou a calibracao da revisao 7. O verificador inclui
+esperas controladas de 12 e 33 segundos por API para conferir o limite SQL;
+essas esperas sao diagnostico, nao resultados oficiais.
+
+O PostgreSQL deve reportar `SHOW statement_timeout` como `30s`. O Compose aplica
+essa configuracao ao recriar o servico; o preflight bloqueia valores diferentes.
+Os novos resultados exigem estabilidade de RPS e de latencia media por endpoint.
+As falhas de publicacao de CSV interrompem a execucao; os arquivos `locust_final_*`
+sao preservados para diagnostico. Nao promova resultados manualmente para `official`.

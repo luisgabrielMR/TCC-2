@@ -218,6 +218,7 @@ function Invoke-BenchmarkWarmup {
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
         "--stats", (Join-Path $attemptDirectory "locust_stats.csv"),
+        "--require-latency-stability",
         "--history", (Join-Path $attemptDirectory "locust_stats_history.csv"),
         "--scenario", $Scenario,
         "--expected-users", "$Users",

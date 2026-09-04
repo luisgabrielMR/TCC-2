@@ -22,12 +22,24 @@ def validate_worker_reports(prefix: Path, stats_path: Path) -> dict:
     manifest = json.loads(Path(f"{prefix}_expected_workers.json").read_text())
     bounds = json.loads(Path(f"{prefix}_measurement_bounds.json").read_text())
     expected = manifest["workers"]
-    if not expected or len(set(expected.values())) != len(expected) or len(expected) != manifest["processes"]:
+    def valid_time(value):
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not all(valid_time(value) for value in (manifest["started_epoch"], manifest["stop_requested_epoch"], bounds["finished_epoch"])):
+        raise RuntimeError("Invalid measurement timestamps")
+    if not manifest["started_epoch"] <= manifest["stop_requested_epoch"] <= bounds["finished_epoch"]:
+        raise RuntimeError("Invalid measurement timestamp order")
+    if (not expected or type(manifest["processes"]) is not int or len(expected) != manifest["processes"]
+            or any(type(index) is not int or index < 0 for index in expected.values())
+            or set(expected.values()) != set(range(manifest["processes"]))):
         raise RuntimeError("Invalid expected worker manifest")
     combined = {}
     for identity, index in expected.items():
         path = Path(f"{prefix}_worker_{index}_final.json")
         report = json.loads(path.read_text())
+        if not valid_time(report["started_epoch"]) or not valid_time(report["finished_epoch"]):
+            raise RuntimeError(f"Invalid worker timestamps: {path}")
+        if report["started_epoch"] > manifest["stop_requested_epoch"] or report["finished_epoch"] < manifest["stop_requested_epoch"]:
+            raise RuntimeError(f"Worker timestamps outside run lifecycle: {path}")
         if report["worker_id"] != identity or report["started_epoch"] < manifest["started_epoch"] - 0.05:
             raise RuntimeError(f"Stale or unexpected worker report: {path}")
         if not math.isfinite(report["finished_epoch"]) or report["finished_epoch"] < report["started_epoch"]:
@@ -39,14 +51,35 @@ def validate_worker_reports(prefix: Path, stats_path: Path) -> dict:
         completed = sum(row["requests"] for row in report["endpoints"])
         if completed != report["started"]:
             raise RuntimeError(f"Worker {index} request lifecycle does not reconcile")
+        endpoint_keys = [(row["method"], row["name"]) for row in report["endpoints"]]
+        if len(endpoint_keys) != len(set(endpoint_keys)):
+            raise RuntimeError(f"Duplicate worker endpoint: {path}")
         for row in report["endpoints"]:
+            if (type(row["requests"]) is not int or type(row["failures"]) is not int
+                    or not 0 <= row["failures"] <= row["requests"]
+                    or not valid_time(row["total_response_time"]) or row["total_response_time"] < 0):
+                raise RuntimeError(f"Invalid worker endpoint counters: {path}")
             key = (row["method"], row["name"])
             value = combined.setdefault(key, [0, 0, 0.0])
             value[0] += row["requests"]
             value[1] += row["failures"]
             value[2] += row["total_response_time"]
     with stats_path.open(encoding="utf-8-sig", newline="") as handle:
-        master = {(row["Type"], row["Name"]): row for row in csv.DictReader(handle) if row["Name"] != "Aggregated"}
+        rows = list(csv.DictReader(handle))
+    aggregate = [row for row in rows if row["Name"] == "Aggregated"]
+    if len(aggregate) != 1:
+        raise RuntimeError("Worker reconciliation requires one Aggregated row")
+    total_count = sum(value[0] for value in combined.values())
+    total_failures = sum(value[1] for value in combined.values())
+    total_time = math.fsum(value[2] for value in combined.values())
+    if (int(aggregate[0]["Request Count"]) != total_count
+            or int(aggregate[0]["Failure Count"]) != total_failures
+            or not math.isclose(float(aggregate[0]["Average Response Time"]) * total_count,
+                                total_time, rel_tol=1e-8, abs_tol=0.001)):
+        raise RuntimeError("Worker/Aggregated totals differ")
+    master = {(row["Type"], row["Name"]): row for row in rows if row["Name"] != "Aggregated"}
+    if len(master) != len(rows) - 1:
+        raise RuntimeError("Duplicate master endpoint")
     if set(master) != set(combined):
         raise RuntimeError("Worker/master endpoint sets differ")
     for key, (count, failures, total_time) in combined.items():
@@ -101,7 +134,7 @@ def install(events, processes):
     @events.test_start.add_listener
     def start(environment, **kwargs):
         state.clear()
-        state.update(started_epoch=time.time(), started=0, in_flight=0, cancelled=0, endpoints={})
+        state.update(started_epoch=time.time(), started=0, in_flight=0, cancelled=0, endpoints={}, latency_buckets={})
         path = prefix(environment)
         if path is None:
             return
@@ -124,6 +157,13 @@ def install(events, processes):
         row["requests"] += 1
         row["failures"] += int(exception is not None)
         row["total_response_time"] += response_time
+        second = int(time.time())
+        bucket = state["latency_buckets"].setdefault((second, request_type, name), {
+            "second": second, "method": request_type, "name": name,
+            "requests": 0, "total_response_time": 0.0,
+        })
+        bucket["requests"] += 1
+        bucket["total_response_time"] += response_time
 
     @events.test_stopping.add_listener
     def stopping(environment, **kwargs):
@@ -145,6 +185,7 @@ def install(events, processes):
         index = runner.worker_index if isinstance(runner, WorkerRunner) else 0
         identity = runner.client_id if isinstance(runner, WorkerRunner) else "local"
         report = {**state, "worker_id": identity, "finished_epoch": time.time(),
+                  "latency_buckets": list(state["latency_buckets"].values()),
                   "endpoints": list(state["endpoints"].values())}
         Path(f"{path}_worker_{index}_final.json").write_text(json.dumps(report), encoding="utf-8")
         if isinstance(runner, WorkerRunner):
