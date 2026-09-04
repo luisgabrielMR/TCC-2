@@ -11,10 +11,37 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from monitoring.results_exporter import read_resources, render_metrics
+from monitoring.results_exporter import collect_completed_runs, confidence, read_resources, render_metrics
 
 
 class ResultsExporterTests(unittest.TestCase):
+    def test_methodology_seven_cpu_uses_average_divided_by_quota(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.write_run(root, 1, 200)
+            directory = root / "raw" / "python" / "mixed" / "run_1"
+            path = directory / "metadata.json"
+            metadata = json.loads(path.read_text())
+            metadata.update(methodology_version=7, load_profile="fixed_200")
+            metadata["test_phase"]["bounds_validation"] = {"valid": True}
+            metadata["locust"]["locust_cpu_quota"] = 4
+            path.write_text(json.dumps(metadata))
+            with (directory / "cadvisor_summary.csv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            locust = next(row for row in rows if row["container_name"] == "tcc_benchmark_locust")
+            locust.update(cpu_average_percent="33.813628", cpu_max_percent="118.79232")
+            self.write_csv(directory / "cadvisor_summary.csv", rows)
+            runs, _ = collect_completed_runs(root)
+            self.assertAlmostEqual(runs[0]["locust_cpu_quota_avg"], 8.453407)
+            self.assertEqual(confidence(runs), "preliminary_fewer_than_5_runs")
+            self.assertEqual(runs[0]["locust_cpu_max"], 118.79232)
+            locust["cpu_average_percent"] = "360"
+            self.write_csv(directory / "cadvisor_summary.csv", rows)
+            self.assertEqual(confidence(collect_completed_runs(root)[0]), "invalid_load_generator")
+            metadata["locust"].pop("locust_cpu_quota")
+            path.write_text(json.dumps(metadata))
+            self.assertEqual(confidence(collect_completed_runs(root)[0]), "invalid_load_generator")
+
     def write_csv(self, path: Path, rows: list[dict]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w", encoding="utf-8", newline="") as handle:

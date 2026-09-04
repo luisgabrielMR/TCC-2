@@ -12,6 +12,7 @@ from locust import HttpUser, constant, constant_pacing, events, task
 from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 from payload_sequences import PayloadCycle, PayloadSequence
+from measurement_audit import install
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
@@ -21,6 +22,7 @@ WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
 LOCUST_PROCESSES = int(os.getenv("LOCUST_PROCESSES", "1"))
 if LOCUST_PROCESSES < 1:
     raise RuntimeError("LOCUST_PROCESSES must be a positive integer")
+audit_client = install(events, LOCUST_PROCESSES)
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
 
 with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
@@ -177,6 +179,9 @@ WAIT_STRATEGY = constant(0) if WAIT_SECONDS <= 0 else constant_pacing(WAIT_SECON
 
 class BenchmarkUser(HttpUser):
     wait_time = WAIT_STRATEGY
+
+    def on_start(self):
+        audit_client(self.client)
 
     def get_health(self) -> None:
         self.client.get("/health", name="GET /health")

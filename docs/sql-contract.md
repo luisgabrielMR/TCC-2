@@ -14,7 +14,10 @@ Todas as APIs devem usar SQL direto, parametrizado e logicamente equivalente. A 
 - Implementar `POST /customers` e `PUT /customers/{id}` em transacao.
 - Executar as leituras em autocommit, uma transacao implicita por consulta, sem
   agrupar consultas de um mesmo endpoint em transacao explicita. `GET /customers`
-  e `GET /products` fazem duas consultas e, portanto, duas transacoes.
+  e `GET /products` fazem duas consultas e, portanto, duas transacoes logicas de
+  leitura. `pg_stat_database.xact_commit` pode contar transacoes adicionais de
+  protocolo, reset do pool e monitoramento; nao e um contador de operacoes de
+  negocio. Ver [auditoria de precisao](measurement-precision-audit.md).
 - Reverter a transacao em qualquer erro, inclusive `404`, `409` e falha do driver.
 - Registrar diferenças inevitáveis de sintaxe no README da API correspondente.
 

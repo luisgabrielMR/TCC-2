@@ -75,7 +75,7 @@ for users in 25 50 100 200 400; do
   SCENARIO=health_only docker compose --profile load run --rm \
     -e SCENARIO=health_only -e PAYLOAD_DIR=/mnt/payloads -e LOCUST_WAIT_SECONDS=0 \
     -e LOCUST_PROCESSES="$LOCUST_PROCESSES" \
-    locust -f locustfile.py --headless --processes "$LOCUST_PROCESSES" -u "$users" -r "$users" -t 60s \
+    locust -f locustfile.py --headless --stop-timeout 5 --processes "$LOCUST_PROCESSES" -u "$users" -r "$users" -t 60s \
     --host "$LOCUST_HOST" --csv "/mnt/$STEP_DIR/locust" --only-summary
   "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$STEP_DIR/locust"
   touch "$METRICS_STOP_FILE"

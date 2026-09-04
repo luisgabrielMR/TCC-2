@@ -178,6 +178,10 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
             "api_network_tx": number(api.get("network_tx_delta_bytes")),
             "locust_cpu_avg": number(locust.get("cpu_average_percent")),
             "locust_cpu_max": number(locust.get("cpu_max_percent")),
+            "locust_cpu_quota_avg": (
+                number(locust.get("cpu_average_percent")) / number(locust_metadata.get("locust_cpu_quota"))
+                if number(locust_metadata.get("locust_cpu_quota")) > 0 else None
+            ),
             "locust_cadvisor_coverage": number(locust.get("coverage_percent")),
             "postgres_cpu_avg": number(postgres.get("cpu_average_percent")),
             "postgres_cpu_max": number(postgres.get("cpu_max_percent")),
@@ -231,7 +235,12 @@ def confidence(rows: list[dict]) -> str:
         return "invalid_missing_resources"
     if any(not row["exact_window"] for row in rows):
         return "invalid_measurement_window"
-    if any(row["locust_cpu_max"] >= 90 for row in rows):
+    # Methodology 7 gates on window-average CPU normalized by container quota.
+    if any(
+        (row.get("locust_cpu_quota_avg") is None or row["locust_cpu_quota_avg"] >= 90)
+        if integer(row.get("methodology")) >= 7 else row["locust_cpu_max"] >= 90
+        for row in rows
+    ):
         return "invalid_load_generator"
     if any(row["measurement_status"] != "stable" for row in rows):
         return "invalid_instability"

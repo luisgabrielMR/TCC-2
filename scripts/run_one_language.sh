@@ -208,6 +208,7 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   locust \
   -f locustfile.py \
   --headless \
+  --stop-timeout 5 \
   --processes "$LOCUST_PROCESSES" \
   -u "$LOCUST_USERS" \
   -r "$LOCUST_SPAWN_RATE" \
@@ -441,23 +442,36 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
   "metrics": {
     "window_source": "locust_test_start_stop",
     "response_time_source": "Locust locust_stats.csv",
-    "percentile_source": "Locust locust_stats.csv",
+    "percentile_source": "Locust rounded response-time histogram in locust_stats.csv",
+    "snapshot_validation_file": "locust_snapshot_validation.json",
+    "worker_reports_required": true,
+    "measurement_protocol_revision": 2,
+    "monitoring_priming_seconds_outside_measurement": 10,
+    "stop_timeout_seconds": 5,
+    "measurement_includes_drain_and_coordination": true,
+    "prometheus_collector_revision": 2,
+    "resource_sample_source": "prometheus_raw_range_vector",
+    "resource_peaks_are_sampled": true,
+    "postgres_counter_scope": "database_wide_including_drivers_and_monitoring",
     "throughput_source": "Locust request count divided by monotonic measurement duration",
     "request_count_source": "Locust locust_stats.csv",
     "failure_and_error_rate_source": "Locust locust_stats.csv",
     "total_test_time_source": "Locust test_start/test_stop events measured with time.monotonic_ns",
     "duration_clock": "time.monotonic_ns",
     "boundary_clock": "time.time_ns",
-    "prometheus_boundary_method": "one-scrape padding with overlap clipping",
+    "prometheus_boundary_method": "two-scrape padding; raw timestamps; boundary interpolation",
     "minimum_cadvisor_coverage_percent": 90,
     "sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
+    "docker_stats_sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
+    "prometheus_scrape_interval_seconds": 5,
+    "cadvisor_housekeeping_interval_seconds": 1,
     "container_primary_source": "cAdvisor via Prometheus",
     "container_cpu_source": "cAdvisor via Prometheus",
     "container_memory_source": "cAdvisor via Prometheus",
     "cadvisor_summary_file": "cadvisor_summary.csv",
     "docker_stats_source": "continuous docker stats (complementary or contingency)",
     "docker_stats_summary_file": "docker_stats_summary.csv",
-    "postgresql_metrics_source": "postgres-exporter via Prometheus query_range",
+    "postgresql_metrics_source": "postgres-exporter via Prometheus raw range vector",
     "postgresql_summary_file": "postgres_summary.csv",
     "prometheus_series_file": "prometheus_series.json",
     "started_epoch": $METRICS_START_EPOCH,

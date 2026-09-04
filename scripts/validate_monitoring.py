@@ -55,6 +55,11 @@ def container_id(container_name: str) -> str | None:
 
 
 def metric_matches(metric: dict[str, str], compose_service: str, name: str, identifier: str | None) -> bool:
+    cgroup = metric.get("id", "")
+    if cgroup in {"/", "/docker", "/restricted"}:
+        return False
+    if identifier:
+        return identifier in cgroup or identifier[:12] in cgroup
     service_labels = {
         metric.get("container_label_com_docker_compose_service"),
         metric.get("container_label_com_docker_compose_service_legacy"),
@@ -74,6 +79,20 @@ def query_series(base_url: str, metric_name: str) -> list[dict[str, Any]]:
     return payload.get("data", {}).get("result", [])
 
 
+def cadvisor_collection_config() -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            ["docker", "inspect", "tcc_benchmark_cadvisor", "--format", "{{json .Config.Cmd}}"],
+            capture_output=True, text=True, timeout=15, check=True,
+        )
+        command = json.loads(completed.stdout)
+        flags = dict(argument.lstrip("-").split("=", 1) for argument in command if "=" in argument)
+        valid = flags.get("allow_dynamic_housekeeping") == "false" and flags.get("housekeeping_interval") == "1s"
+        return {"command": command, "fixed_interval_valid": valid}
+    except (OSError, subprocess.SubprocessError, ValueError, TypeError):
+        return {"command": [], "fixed_interval_valid": False}
+
+
 def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -> dict[str, Any]:
     targets_payload = prometheus_get(base_url, "/api/v1/targets")
     targets = targets_payload.get("data", {}).get("activeTargets", [])
@@ -90,6 +109,9 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
     }
     component_status: dict[str, Any] = {}
     cadvisor_blockers: list[str] = []
+    collection_config = cadvisor_collection_config()
+    if not collection_config["fixed_interval_valid"]:
+        cadvisor_blockers.append("cAdvisor must use fixed one-second housekeeping (dynamic collection disabled)")
     operational_blockers: list[str] = []
     for component, (service, name) in components.items():
         identifier = container_id(name)
@@ -160,6 +182,7 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         "prometheus_targets": target_health,
         "cadvisor_target_up": target_health.get("cadvisor") == "up",
         "cadvisor_components": component_status,
+        "cadvisor_collection_config": collection_config,
         "postgres_exporter_series": len(postgres_series),
         "results_exporter_series": len(results_exporter_series),
         "results_exporter_healthy": results_exporter_healthy,

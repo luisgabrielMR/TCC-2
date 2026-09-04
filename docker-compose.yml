@@ -96,6 +96,8 @@ services:
     command:
       - "--containerd-namespace=moby"
       - "--docker=unix:///var/run/cadvisor-disabled-docker.sock"
+      - "--allow_dynamic_housekeeping=false"
+      - "--housekeeping_interval=1s"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro

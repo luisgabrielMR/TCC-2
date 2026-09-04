@@ -49,7 +49,8 @@ def validate_bounds(bounds: dict) -> dict:
             reasons.append(f"{timestamp_name} is missing or invalid")
 
     observed_wall_elapsed = finished - started if finished > started else 0.0
-    tolerance = max(0.5, elapsed * 0.005)
+    # A long run must not silently permit seconds of wall-clock displacement.
+    tolerance = 0.05
     drift = wall_elapsed - elapsed
     if abs(observed_wall_elapsed - wall_elapsed) > 0.001:
         reasons.append("wall_elapsed_seconds does not match epoch boundaries")

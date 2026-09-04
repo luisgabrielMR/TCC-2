@@ -64,6 +64,21 @@ O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark dura
 
 ## Metricas comparaveis
 
+O protocolo de encerramento revisao 2 aguarda a parada dos workers antes de
+fechar a janela. Cada worker envia seus ultimos deltas antes da confirmacao e
+grava um relatorio independente; o CSV final so e aceito se contagens, falhas e
+somas de latencia por endpoint coincidirem. Cancelamentos e pendencias rejeitam
+a execucao. Drenagem de ate 5 s e coordenacao entram na duracao medida; 10 s de
+preparacao do monitoramento ficam fora. cAdvisor usa housekeeping fixo de 1 s,
+verificado no container. Essas alteracoes exigem nova calibracao e campanha.
+
+O coletor Prometheus revisao 2 preserva timestamps originais de scrape, usa padding
+de dois scrapes e rejeita lacunas/reinicios e identidades ambiguas. As fronteiras
+interpoladas e picos de recursos continuam sendo estimativas amostradas. O CSV
+HTTP final passa por checagem de consistencia; percentis usam o histograma
+arredondado do Locust. A deriva UTC/monotonico e limitada a 50 ms. Detalhes,
+evidencias e limites: [auditoria de precisao](measurement-precision-audit.md).
+
 Latencia e falhas HTTP sao medidas pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. Os limites UTC usam `time.time_ns`, enquanto a duracao usa `time.monotonic_ns` e passa por validacao de deriva. A vazao canonica e `Request Count / elapsed_seconds`; `Requests/s` do Locust permanece armazenado como valor informado pelo instrumento. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`; disponibilidade, conexoes, transacoes, blocos, cache hit ratio e tamanho do banco sao reduzidos para `postgres_summary.csv` na mesma janela. Pela especificacao do TCC, cAdvisor e a fonte primaria de CPU e memoria da API, PostgreSQL e Locust. `docker stats` e coletado na mesma janela apenas como evidencia complementar ou contingencial.
 
 Para CPU oficial, o exportador consulta o contador bruto `container_cpu_usage_seconds_total` com a margem de um scrape antes e depois. Cada delta e ponderado somente pela parte que intercepta `test_start`/`test_stop`; gauges usam media trapezoidal ponderada pelo tempo. Isso reduz a perda nas bordas sem incorporar aquecimento. Como o cAdvisor pode manter um valor em um scrape e publicar o incremento acumulado no seguinte, o maximo bruto por intervalo e preservado para diagnostico, mas o gate do gerador usa a media ponderada da janela normalizada pela cota. A cobertura e registrada e deve ser de pelo menos 90% para cAdvisor; PostgreSQL exige cobertura integral interpolavel. IDs observados pelo coletor continuo identificam inclusive o container Locust transitorio; labels/nome sao apenas fallback.

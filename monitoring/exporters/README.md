@@ -1,5 +1,16 @@
 # Exportadores
 
+cAdvisor deve usar `--allow_dynamic_housekeeping=false` e
+`--housekeeping_interval=1s`. O validador verifica os argumentos efetivos do
+container; apenas editar o Compose sem recriar o servico nao satisfaz o gate.
+
+O coletor `scripts/export_prometheus_data.py` revisao 2 consulta vetores de intervalo
+brutos do Prometheus, preservando timestamps de scrape. Exportacoes obrigatorias
+rejeitam lacunas maiores que 1.5 intervalos, resets de contadores e series ambiguas.
+CPU maxima e memoria maxima sao picos amostrados; transacoes PostgreSQL sao do
+banco inteiro, incluindo drivers e monitoramento. Ver
+`docs/measurement-precision-audit.md` antes de interpretar comparacoes.
+
 - `postgres-exporter`: metricas internas do PostgreSQL para Prometheus.
 - `cadvisor`: fonte exigida pelo TCC para CPU e memoria dos containers.
 - `benchmark-results-exporter`: publica CSV/JSON ja gerados como series para Grafana, sem instrumentar as APIs. Em metodologias oficiais atuais, aceita CPU e memoria somente de `cadvisor_summary.csv`, exige `postgres_summary.csv` para os recursos da rodada e mantem `docker_stats_summary.csv` restrito a pilotos e legado. A vazao da metodologia 7 usa contagem de requisicoes dividida pela duracao monotonica validada.

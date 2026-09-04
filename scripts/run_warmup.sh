@@ -30,6 +30,7 @@ run_attempt() {
     locust \
     -f locustfile.py \
     --headless \
+    --stop-timeout 5 \
     --processes "$LOCUST_PROCESSES" \
     -u "$USERS" \
     -r "$SPAWN_RATE" \

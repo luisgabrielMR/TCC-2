@@ -37,9 +37,49 @@ function Get-BenchmarkValue {
 function Invoke-BenchmarkCompose {
     param([string[]]$Arguments)
 
+    if ($Arguments -contains "build") {
+        Invoke-BenchmarkComposeBuild -Arguments $Arguments
+        return
+    }
+
     & docker compose @Arguments
     if ($LASTEXITCODE -ne 0) {
         throw "docker compose falhou: $($Arguments -join ' ')"
+    }
+}
+
+function Invoke-BenchmarkComposeBuild {
+    param([string[]]$Arguments)
+
+    $logDirectory = Join-Path $script:BenchmarkRoot "results\summaries\build-logs"
+    New-Item -ItemType Directory -Force -Path $logDirectory | Out-Null
+    $buildId = [Guid]::NewGuid().ToString("N")
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        $logPath = Join-Path $logDirectory "$buildId-attempt-$attempt.log"
+        $previousPreference = $ErrorActionPreference
+        try {
+            # Windows PowerShell treats redirected native stderr as ErrorRecord.
+            $ErrorActionPreference = "Continue"
+            $PSNativeCommandUseErrorActionPreference = $false
+            & docker compose --progress plain @Arguments 2>&1 |
+                ForEach-Object { $_.ToString() } |
+                Tee-Object -FilePath $logPath | Out-Host
+            $buildExitCode = $LASTEXITCODE
+        }
+        finally {
+            $ErrorActionPreference = $previousPreference
+        }
+        if ($buildExitCode -eq 0) { return }
+
+        $log = Get-Content -LiteralPath $logPath -Raw
+        $registryNetworkFailure = $log -match '(?im)(failed to do request|failed to resolve source metadata|failed to fetch oauth token)[^\r\n]*(no such host|i/o timeout|TLS handshake timeout|connection reset by peer|temporary failure in name resolution)'
+        if ($registryNetworkFailure -and $attempt -lt 3) {
+            Write-Warning "Falha de rede ao acessar o registro de imagens. Nova tentativa em 5 segundos ($attempt/3). Log: $logPath"
+            Start-Sleep -Seconds 5
+            continue
+        }
+        $cause = ($log -split '\r?\n' | Where-Object { $_ -match '(?i)error|failed|no such host' } | Select-Object -Last 5) -join "`n"
+        throw "docker compose build falhou (codigo $buildExitCode). Log: $logPath`n$cause"
     }
 }
 
@@ -142,7 +182,7 @@ function Invoke-BenchmarkLocust {
         "-e", "PAYLOAD_DIR=/mnt/payloads",
         "-e", "LOCUST_WAIT_SECONDS=$WaitSeconds",
         "-e", "LOCUST_PROCESSES=$Processes",
-        "locust", "-f", "locustfile.py", "--headless", "--processes", "$Processes",
+        "locust", "-f", "locustfile.py", "--headless", "--stop-timeout", "5", "--processes", "$Processes",
         "-u", "$Users", "-r", "$SpawnRate", "-t", $Duration,
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )

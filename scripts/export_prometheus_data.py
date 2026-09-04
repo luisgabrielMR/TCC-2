@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import subprocess
+import time
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -14,22 +16,28 @@ from pathlib import Path
 
 QUERIES = {
     "targets_up": "up",
-    "postgres_up": "pg_up",
+    "postgres_up": 'pg_up{job="postgres"}',
     "postgres_connections": 'pg_stat_database_numbackends{datname="benchmark_db"}',
     "postgres_commits_total": 'pg_stat_database_xact_commit{datname="benchmark_db"}',
     "postgres_rollbacks_total": 'pg_stat_database_xact_rollback{datname="benchmark_db"}',
     "postgres_blocks_read": 'pg_stat_database_blks_read{datname="benchmark_db"}',
     "postgres_blocks_hit": 'pg_stat_database_blks_hit{datname="benchmark_db"}',
     "postgres_database_size_bytes": 'pg_database_size_bytes{datname="benchmark_db"}',
-    "cadvisor_cpu_usage_seconds_total": "sum by (id,name,container_label_com_docker_compose_service) (container_cpu_usage_seconds_total)",
-    "cadvisor_memory_working_set_bytes": "max by (id,name,container_label_com_docker_compose_service) (container_memory_working_set_bytes)",
+    "cadvisor_cpu_usage_seconds_total": 'container_cpu_usage_seconds_total{job="cadvisor",cpu="total"}',
+    "cadvisor_memory_working_set_bytes": 'container_memory_working_set_bytes{job="cadvisor"}',
 }
 
 
 def query_range(base_url: str, query: str, start: float, end: float, step: int) -> dict:
-    params = urllib.parse.urlencode({"query": query, "start": start, "end": end, "step": step})
-    with urllib.request.urlopen(f"{base_url.rstrip('/')}/api/v1/query_range?{params}", timeout=15) as response:
-        return json.load(response)
+    # A range query resamples via lookback, hiding missed scrapes and shifting timestamps.
+    # An instant query with a range selector returns the original scrape timestamps.
+    duration_ms = math.ceil((end - start) * 1000) + 1
+    params = urllib.parse.urlencode({"query": f"{query}[{duration_ms}ms]", "time": end})
+    with urllib.request.urlopen(f"{base_url.rstrip('/')}/api/v1/query?{params}", timeout=15) as response:
+        result = json.load(response)
+    if result.get("status") != "success" or result.get("data", {}).get("resultType") != "matrix":
+        raise RuntimeError(f"Prometheus did not return raw samples for {query}")
+    return result
 
 
 def container_id(container_name: str) -> str | None:
@@ -53,6 +61,8 @@ def metric_matches(
     name_pattern: str,
     identifiers: str | list[str] | None = None,
 ) -> bool:
+    if metric.get("id") in {"/", "/docker", "/restricted"}:
+        return False
     if metric.get("container_label_com_docker_compose_service") == service:
         return True
     name = metric.get("name", "")
@@ -76,8 +86,7 @@ def matching_series(
                 for identifier in values
             )
         ]
-        if by_identifier:
-            return by_identifier
+        return by_identifier
     return [row for row in series if metric_matches(row.get("metric", {}), service, name_pattern)]
 
 
@@ -94,8 +103,27 @@ def clean_samples(row: dict) -> list[tuple[float, float]]:
     return sorted(
         (float(timestamp), float(value))
         for timestamp, value in row.get("values", [])
-        if value not in ("NaN", "+Inf", "-Inf")
+        if math.isfinite(float(value)) and math.isfinite(float(timestamp))
     )
+
+
+def sample_quality(samples: list[tuple[float, float]], start: float, end: float,
+                   maximum_gap: float, counter: bool = False) -> dict:
+    covered = 0.0
+    largest_gap = 0.0
+    resets = 0
+    for (left, previous), (right, current) in zip(samples, samples[1:]):
+        overlap = min(right, end) - max(left, start)
+        if overlap <= 0:
+            continue
+        gap = right - left
+        largest_gap = max(largest_gap, gap)
+        reset = counter and current < previous
+        resets += int(reset)
+        if 0 < gap <= maximum_gap and not reset:
+            covered += overlap
+    return {"covered_seconds": min(covered, max(end - start, 0)),
+            "maximum_gap_seconds": largest_gap, "counter_resets": resets}
 
 
 def clipped_samples(samples: list[tuple[float, float]], start: float, end: float) -> list[tuple[float, float]]:
@@ -206,6 +234,8 @@ def query_values(result: dict, key: str) -> list[float]:
 
 def query_samples(result: dict, key: str) -> list[tuple[float, float]]:
     series = result["queries"][key]["response"].get("data", {}).get("result", [])
+    if len(series) > 1:
+        raise RuntimeError(f"Ambiguous metric {key}: {len(series)} series; refusing to select an arbitrary target")
     return clean_samples(series[0]) if series else []
 
 
@@ -229,10 +259,17 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
     start = float(result["start_epoch"])
     end = float(result["end_epoch"])
     elapsed = max(end - start, 0.0)
+    maximum_gap = float(result.get("step_seconds", 5)) * 1.5
+    quality = {key: sample_quality(series, start, end, maximum_gap,
+               key in {"postgres_commits_total", "postgres_rollbacks_total", "postgres_blocks_read", "postgres_blocks_hit"})
+               for key, series in samples.items()}
+    invalid_quality = [key for key, details in quality.items()
+                       if details["counter_resets"] or details["maximum_gap_seconds"] > maximum_gap]
+    if require and invalid_quality:
+        raise RuntimeError("PostgreSQL counter reset or scrape gap: " + ", ".join(invalid_quality))
     observed_by_metric = {}
     for key, series in samples.items():
-        clipped = clipped_samples(series, start, end)
-        observed_by_metric[key] = clipped[-1][0] - clipped[0][0] if len(clipped) >= 2 else 0.0
+        observed_by_metric[key] = quality[key]["covered_seconds"]
     clipped_up = clipped_samples(samples["postgres_up"], start, end)
     if clipped_up and any(value != 1 for _, value in clipped_up):
         missing.append("postgres_up_not_continuously_healthy")
@@ -277,6 +314,10 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         "cache_hit_ratio": f"{(blocks_hit / cache_total) if cache_total else 0:.9f}",
         "database_size_average_bytes": f"{size_average:.3f}",
         "database_size_max_bytes": f"{size_max:.3f}",
+        "sample_source": result.get("sample_source", "legacy_resampled_or_unspecified"),
+        "counter_scope": "database_wide_including_drivers_and_monitoring",
+        "counter_totals_are_estimates": True,
+        "sample_quality": json.dumps(quality, sort_keys=True, separators=(",", ":")),
         "boundary_method": "scrape-padded overlap clipping; time-weighted gauges",
         "metric_source": "postgres_exporter_via_prometheus",
     }
@@ -303,6 +344,14 @@ def write_cadvisor_summary(
         current_identifier = container_id(name_pattern)
         if current_identifier:
             identifiers.append(current_identifier)
+        selected_cpu = matching_series(cpu, service, name_pattern, identifiers)
+        selected_memory = matching_series(memory, service, name_pattern, identifiers)
+        if len(selected_cpu) != 1 or len(selected_memory) != 1:
+            missing.append(f"{component}:expected_one_cpu_and_memory_series")
+            continue
+        maximum_gap = float(result.get("step_seconds", 5)) * 1.5
+        cpu_quality = sample_quality(clean_samples(selected_cpu[0]), start, end, maximum_gap, True)
+        memory_quality = sample_quality(clean_samples(selected_memory[0]), start, end, maximum_gap)
         cpu_observations = series_cpu_observations(
             cpu, service, name_pattern, identifiers, start, end
         )
@@ -315,7 +364,11 @@ def write_cadvisor_summary(
             if cpu_observed else 0.0
         )
         cpu_max = max((rate for rate, _ in cpu_observations), default=0.0)
-        coverage = min(cpu_observed, memory_observed) / elapsed * 100 if elapsed else 0.0
+        coverage = min(cpu_quality["covered_seconds"], memory_quality["covered_seconds"]) / elapsed * 100 if elapsed else 0.0
+        if require and (cpu_quality["counter_resets"] or
+                        max(cpu_quality["maximum_gap_seconds"], memory_quality["maximum_gap_seconds"]) > maximum_gap):
+            missing.append(f"{component}:counter_reset_or_scrape_gap")
+            continue
         if not cpu_observations or not memory_samples:
             missing.append(component)
             continue
@@ -337,6 +390,10 @@ def write_cadvisor_summary(
             "cpu_max_percent": f"{cpu_max:.6f}",
             "memory_average_bytes": round(memory_average),
             "memory_max_bytes": round(memory_max),
+            "sample_source": result.get("sample_source", "legacy_resampled_or_unspecified"),
+            "maximum_scrape_gap_seconds": max(cpu_quality["maximum_gap_seconds"], memory_quality["maximum_gap_seconds"]),
+            "cpu_counter_resets": cpu_quality["counter_resets"],
+            "peak_scope": "maximum_scrape_interval_average_cpu_and_sampled_memory",
             "boundary_method": "scrape-padded overlap clipping; time-weighted samples",
             "metric_source": "cadvisor_via_prometheus",
         })
@@ -344,6 +401,7 @@ def write_cadvisor_summary(
         "component", "container_name", "samples", "observed_seconds", "coverage_percent",
         "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
         "boundary_method", "metric_source",
+        "sample_source", "maximum_scrape_gap_seconds", "cpu_counter_resets", "peak_scope",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
@@ -365,15 +423,24 @@ def main() -> int:
     parser.add_argument("--require-postgres", action="store_true")
     parser.add_argument("--minimum-cadvisor-coverage-percent", type=float, default=90)
     args = parser.parse_args()
-    query_start = args.start - args.step
-    query_end = args.end + args.step
+    if not all(math.isfinite(value) for value in (args.start, args.end)) or args.end <= args.start or args.step <= 0:
+        parser.error("Require finite start < end and a positive scrape interval")
+    query_start = args.start - 2 * args.step
+    query_end = args.end + 2 * args.step
+    remaining = query_end - time.time()
+    if remaining > 3 * args.step:
+        parser.error("Measurement end is in the future")
+    if remaining > 0:
+        time.sleep(remaining)
     result = {
         "start_epoch": args.start,
         "end_epoch": args.end,
         "query_start_epoch": query_start,
         "query_end_epoch": query_end,
         "step_seconds": args.step,
-        "boundary_method": "one-scrape padding with overlap clipping to wall-clock boundaries; duration is monotonic",
+        "collector_revision": 2,
+        "sample_source": "prometheus_raw_range_vector",
+        "boundary_method": "two-scrape padding; original scrape timestamps; overlap interpolation at wall-clock boundaries",
         "queries": {},
     }
     for name, query in QUERIES.items():
