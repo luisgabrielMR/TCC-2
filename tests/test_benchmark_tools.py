@@ -771,6 +771,19 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             self.assertTrue(report["valid"])
             self.assertEqual(report["validated_capacity_rps"], 300)
             self.assertEqual(report["safe_operating_rps"], 240)
+            for field in ("throughput_rps_exact", "locust_cpu_raw_average_percent", "locust_cpu_raw_max_percent",
+                          "locust_cpu_quota_average_percent", "locust_cpu_quota_max_percent", "cadvisor_coverage_percent"):
+                previous = artifact["samples"][0][field]
+                for invalid in (float("nan"), float("inf"), -1):
+                    with self.subTest(field=field, invalid=invalid):
+                        artifact["samples"][0][field] = invalid
+                        path.write_text(json.dumps(artifact), encoding="utf-8")
+                        self.assertFalse(validate_calibration(path, 7, git, docker, images, 4, 4)["valid"])
+                artifact["samples"][0][field] = previous
+            artifact["validated_capacity_rps"] = float("nan")
+            path.write_text(json.dumps(artifact), encoding="utf-8")
+            self.assertFalse(validate_calibration(path, 7, git, docker, images, 4, 4)["valid"])
+            artifact["validated_capacity_rps"] = 300
             artifact["git"]["commit_sha"] = "stale"
             path.write_text(json.dumps(artifact), encoding="utf-8")
             report = validate_calibration(path, 7, git, docker, images, 4, 4)

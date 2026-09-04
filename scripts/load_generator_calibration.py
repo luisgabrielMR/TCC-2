@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +16,10 @@ MINIMUM_CADVISOR_COVERAGE_PERCENT = 80.0
 
 
 def quota_normalized_cpu_percent(raw_cpu_percent: float, cpu_quota: float) -> float:
-    if cpu_quota <= 0:
+    if not math.isfinite(cpu_quota) or cpu_quota <= 0:
         raise ValueError("cpu_quota must be positive")
+    if not math.isfinite(raw_cpu_percent) or raw_cpu_percent < 0:
+        raise ValueError("raw_cpu_percent must be finite and nonnegative")
     return raw_cpu_percent / cpu_quota
 
 
@@ -112,6 +115,13 @@ def validate_calibration(
         except (TypeError, ValueError):
             reasons.append(f"calibration sample for {users} users has invalid numeric fields")
             continue
+        values = (elapsed, exact_rps, locust_cpu_raw_average, locust_cpu_raw_max,
+                  locust_cpu_quota_average, locust_cpu_quota_max, cadvisor_coverage)
+        if not all(math.isfinite(value) and value >= 0 for value in values):
+            reasons.append(f"calibration sample for {users} users has nonfinite or negative numeric fields")
+            continue
+        if cadvisor_coverage > 100:
+            reasons.append(f"calibration sample for {users} users has coverage above 100%")
         if not 55 <= elapsed <= 75:
             reasons.append(f"calibration sample for {users} users has unexpected duration {elapsed:.3f}s")
         if failures != 0:
@@ -163,7 +173,7 @@ def validate_calibration(
         )
     declared_capacity = artifact.get("validated_capacity_rps")
     try:
-        if abs(float(declared_capacity) - validated_capacity) > 0.001:
+        if not math.isfinite(float(declared_capacity)) or abs(float(declared_capacity) - validated_capacity) > 0.001:
             reasons.append("declared validated_capacity_rps does not match the samples")
     except (TypeError, ValueError):
         reasons.append("validated_capacity_rps is missing or invalid")
