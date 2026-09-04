@@ -6,6 +6,18 @@ import time
 from pathlib import Path
 
 
+class CooperativeStopMixin:
+    def stop(self, force=False):
+        from locust.user.task import LOCUST_STATE_RUNNING, LOCUST_STATE_STOPPING, LOCUST_STATE_WAITING
+
+        if not force and self._state in (LOCUST_STATE_RUNNING, LOCUST_STATE_WAITING, LOCUST_STATE_STOPPING):
+            # killone() yields: a WAITING user can resume into its next request
+            # before the kill arrives. TaskSet.wait() checks STOPPING after sleep.
+            self._state = LOCUST_STATE_STOPPING
+            return False
+        return super().stop(force=force)
+
+
 def validate_worker_reports(prefix: Path, stats_path: Path) -> dict:
     manifest = json.loads(Path(f"{prefix}_expected_workers.json").read_text())
     bounds = json.loads(Path(f"{prefix}_measurement_bounds.json").read_text())

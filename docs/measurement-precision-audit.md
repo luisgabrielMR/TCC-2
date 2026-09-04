@@ -148,6 +148,26 @@ calibracao e verificacao do commit antes de iniciar uma nova campanha final.
 Nao mesclar as execucoes antigas com as novas, nem afirmar que os contadores
 historicos foram reconciliados sem os arquivos independentes que nao existiam.
 
+## Corrida de parada com 400 usuarios
+
+A recalibracao `results/calibration/20260904T140410959Z/users_400` foi rejeitada:
+270,018 respostas HTTP sem falhas, mas oito chamadas canceladas ao encerrar.
+Os quatro arquivos independentes comprovaram a diferenca; nenhum resultado
+desse degrau foi promovido ou marcado como oficial.
+
+`User.stop()` do Locust 2.32.6 usa `killone()` mesmo com parada graciosa quando
+o usuario esta WAITING. Esse agendamento pode atingir a proxima requisicao,
+pois o usuario com pacing zero pode retomar antes da interrupcao. A classe
+BenchmarkUser agora marca RUNNING e WAITING como STOPPING sem agendar kill;
+o proprio TaskSet verifica esse estado antes da proxima tarefa e apos esperar.
+A parada forcada e o limite de 5 s do runner continuam ativos. Cancelamentos
+continuam invalidando a medicao. Essa correcao exige nova verificacao/calibracao.
+
+Tres pilotos posteriores com 400 usuarios e quatro workers passaram na
+reconciliacao: 90,927, 89,924 e 90,771 requisicoes, sem falhas HTTP, cancelamentos
+ou pendencias. Evidencias: `results/summaries/graceful-stop-20260904/attempt_*`.
+Os 69 testes automatizados passaram, incluindo a regressao de parada em WAITING.
+
 ## Referencias primarias
 
 - PostgreSQL 17, protocolo: https://www.postgresql.org/docs/17/protocol-flow.html
@@ -155,3 +175,4 @@ historicos foram reconciliados sem os arquivos independentes que nao existiam.
 - lib/pq 1.10.9: https://github.com/lib/pq/blob/v1.10.9/conn.go
 - Npgsql, pooling/reset: https://www.npgsql.org/doc/performance.html
 - Locust 2.32.6: https://docs.locust.io/en/2.32.6/_modules/locust/stats.html
+- Locust 2.32.6, parada: https://docs.locust.io/en/2.32.6/_modules/locust/user/users.html

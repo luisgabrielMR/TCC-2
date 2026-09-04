@@ -8,13 +8,39 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "load-tests" / "locust"))
-from measurement_audit import install, validate_worker_reports
+from measurement_audit import CooperativeStopMixin, install, validate_worker_reports
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.validate_monitoring import cadvisor_collection_config
 
 
 class WorkerAuditTests(unittest.TestCase):
+    def test_graceful_stop_never_schedules_a_kill_for_waiting_users(self):
+        calls = []
+
+        class Parent:
+            def stop(self, force=False):
+                calls.append(force)
+                return True
+
+        class User(CooperativeStopMixin, Parent):
+            pass
+
+        states = SimpleNamespace(LOCUST_STATE_RUNNING="running", LOCUST_STATE_WAITING="waiting",
+                                 LOCUST_STATE_STOPPING="stopping")
+        with patch.dict(sys.modules, {"locust.user.task": states}):
+            user = User()
+            for state in ("running", "waiting", "stopping"):
+                user._state = state
+                self.assertFalse(user.stop())
+                self.assertEqual(user._state, "stopping")
+                self.assertEqual(calls, [])
+            self.assertTrue(user.stop(force=True))
+            self.assertEqual(calls, [True])
+            user._state = None
+            self.assertTrue(user.stop())
+            self.assertEqual(calls, [True, False])
+
     def test_cadvisor_requires_fixed_runtime_sampling(self):
         with patch("scripts.validate_monitoring.subprocess.run") as run:
             run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=1s"])

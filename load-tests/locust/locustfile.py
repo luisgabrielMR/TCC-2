@@ -12,7 +12,7 @@ from locust import HttpUser, constant, constant_pacing, events, task
 from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 from payload_sequences import PayloadCycle, PayloadSequence
-from measurement_audit import install
+from measurement_audit import CooperativeStopMixin, install
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
@@ -173,11 +173,12 @@ def validate_process_configuration(environment, **_kwargs) -> None:
 
 # Com WAIT_SECONDS > 0 o pacing impoe um teto de usuarios/WAIT_SECONDS req/s ao
 # gerador. Com WAIT_SECONDS = 0 a malha e fechada: cada usuario dispara a proxima
-# requisicao assim que a anterior responde, e o teto passa a ser da propria API.
+# requisicao assim que a anterior responde. API, banco e gerador ainda podem
+# limitar a vazao; a calibracao e o gate de CPU verificam o ultimo caso.
 WAIT_STRATEGY = constant(0) if WAIT_SECONDS <= 0 else constant_pacing(WAIT_SECONDS)
 
 
-class BenchmarkUser(HttpUser):
+class BenchmarkUser(CooperativeStopMixin, HttpUser):
     wait_time = WAIT_STRATEGY
 
     def on_start(self):
