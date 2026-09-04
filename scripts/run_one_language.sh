@@ -116,6 +116,23 @@ START_TIME="$(date -Iseconds)"
 PYTHON_BIN="$(python_bin)"
 PREFLIGHT_PATH="$RESULT_DIR/preflight.json"
 MONITORING_PREFLIGHT_PATH="$RESULT_DIR/monitoring-preflight.json"
+PROTOCOL_PATH="$RESULT_DIR/protocol-manifest.json"
+"$PYTHON_BIN" "$SCRIPT_DIR/benchmark_protocol.py" --load-profile "$LOAD_PROFILE" \
+  --scenario "$SCENARIO_NAME" --output "$PROTOCOL_PATH"
+IFS='|' read -r PROTOCOL_SHA CAMPAIGN_FINGERPRINT MEASUREMENT_DURATION_SECONDS DURATION_TOLERANCE_SECONDS PROTOCOL_USERS PROTOCOL_SPAWN PROTOCOL_WAIT PROTOCOL_PROCESSES <<EOF
+$("$PYTHON_BIN" -c 'import json,sys; m=json.load(open(sys.argv[1], encoding="utf-8")); p=m["protocol"]["load"]; print("|".join(map(str,(m["protocol_sha256"],m["campaign_fingerprint"],p["measurement_duration_seconds"],m["protocol"]["execution"]["duration_tolerance_seconds"],p["users"],p["spawn_rate"],p["wait_seconds"],p["processes"]))))' "$PROTOCOL_PATH")
+EOF
+if [ "$PROTOCOL_USERS" != "$LOCUST_USERS" ] || [ "$PROTOCOL_SPAWN" != "$LOCUST_SPAWN_RATE" ] || \
+   [ "$PROTOCOL_PROCESSES" != "$LOCUST_PROCESSES" ] || \
+   ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) == float(sys.argv[2]) else 1)' "$PROTOCOL_WAIT" "$LOCUST_WAIT_SECONDS"; then
+  echo "O runner divergiu do manifesto canonico do protocolo." >&2
+  exit 2
+fi
+if [ -n "${BENCHMARK_CAMPAIGN_FINGERPRINT:-}" ] && [ "$BENCHMARK_CAMPAIGN_FINGERPRINT" != manual ] && \
+   [ "$BENCHMARK_CAMPAIGN_FINGERPRINT" != "$CAMPAIGN_FINGERPRINT" ]; then
+  echo "A campanha solicitada usa outro protocolo." >&2
+  exit 2
+fi
 
 docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter prometheus grafana cadvisor
 "$SCRIPT_DIR/reset_db.sh"
@@ -126,7 +143,8 @@ wait_for_api "$API_BASE_URL"
 docker compose --profile load up -d locust
 LOCUST_PREFLIGHT_STARTED=true
 "$PYTHON_BIN" "$SCRIPT_DIR/preflight.py" --mode "$RUN_MODE" --api-service "$API_SERVICE" \
-  --load-profile "$LOAD_PROFILE" --output "$PREFLIGHT_PATH"
+  --load-profile "$LOAD_PROFILE" --scenario "$SCENARIO_NAME" \
+  --protocol-manifest "$PROTOCOL_PATH" --output "$PREFLIGHT_PATH"
 "$PYTHON_BIN" "$SCRIPT_DIR/validate_monitoring.py" \
   --prometheus-url "http://127.0.0.1:${PROMETHEUS_PORT:-9090}" \
   --grafana-url "http://127.0.0.1:${GRAFANA_PORT:-3000}" \
@@ -164,12 +182,6 @@ if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) > 0 
   exit 2
 fi
 UNTRACKED_FILES_JSON="$("$PYTHON_BIN" -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8"))["git"].get("untracked_files", []), ensure_ascii=True))' "$PREFLIGHT_PATH")"
-CAMPAIGN_FINGERPRINT="${BENCHMARK_CAMPAIGN_FINGERPRINT:-manual}"
-if [ "$CAMPAIGN_FINGERPRINT" = manual ]; then
-  CALIBRATION_HASH="$($PYTHON_BIN -c 'import hashlib,sys; from pathlib import Path; p=Path(sys.argv[1]); print(hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else "no_calibration")' "$LOAD_GENERATOR_CALIBRATION_FILE")"
-  CAMPAIGN_FINGERPRINT="m${METHODOLOGY_VERSION}_${COMMIT_SHA:0:12}_${CALIBRATION_HASH:0:12}"
-fi
-
 docker compose --profile load run --rm --no-deps --entrypoint python locust \
   /mnt/scripts/contract_test_api.py --base-url "$LOCUST_HOST"
 "$SCRIPT_DIR/smoke_test_api.sh" "$API_BASE_URL"
@@ -212,7 +224,8 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   --processes "$LOCUST_PROCESSES" \
   -u "$LOCUST_USERS" \
   -r "$LOCUST_SPAWN_RATE" \
-  -t "$LOCUST_DURATION" \
+  -t "$("$PYTHON_BIN" -c 'import math,sys; print(f"{math.ceil(float(sys.argv[1])+float(sys.argv[2])/float(sys.argv[3])+30)}s")' "$MEASUREMENT_DURATION_SECONDS" "$LOCUST_USERS" "$LOCUST_SPAWN_RATE")" \
+  --benchmark-measurement-seconds "$MEASUREMENT_DURATION_SECONDS" \
   --host "$LOCUST_HOST" \
   --csv "/mnt/$RESULT_DIR/locust" \
   --only-summary
@@ -222,7 +235,8 @@ RUNNER_ELAPSED_SECONDS="$($PYTHON_BIN -c 'import sys; print(f"{(int(sys.argv[2])
 
 BOUNDS_VALIDATION_FILE="$RESULT_DIR/measurement-bounds-validation.json"
 "$PYTHON_BIN" "$SCRIPT_DIR/validate_measurement_bounds.py" \
-  --bounds "$BOUNDS_FILE" --output "$BOUNDS_VALIDATION_FILE"
+  --bounds "$BOUNDS_FILE" --expected-duration-seconds "$MEASUREMENT_DURATION_SECONDS" \
+  --duration-tolerance-seconds "$DURATION_TOLERANCE_SECONDS" --output "$BOUNDS_VALIDATION_FILE"
 BOUNDS_VALIDATION_JSON="$(cat "$BOUNDS_VALIDATION_FILE")"
 
 IFS='|' read -r TEST_STARTED_AT TEST_FINISHED_AT TEST_ELAPSED_SECONDS METRICS_START_EPOCH METRICS_END_EPOCH <<EOF
@@ -312,6 +326,8 @@ fi
 "$SCRIPT_DIR/reset_db.sh"
 MAIN_RUN_STARTED=false
 DATABASE_NEEDS_RESET=false
+"$PYTHON_BIN" "$SCRIPT_DIR/benchmark_protocol.py" --load-profile "$LOAD_PROFILE" \
+  --scenario "$SCENARIO_NAME" --assert-sha256 "$PROTOCOL_SHA" --output "$PROTOCOL_PATH"
 
 END_TIME="$(date -Iseconds)"
 API_IMAGE="$(docker compose images -q "$API_SERVICE" 2>/dev/null || echo unknown)"
@@ -343,6 +359,8 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
   "workload_scenario": "$SCENARIO_NAME",
   "load_profile": "$LOAD_PROFILE",
   "methodology_version": $METHODOLOGY_VERSION,
+  "protocol_sha256": "$PROTOCOL_SHA",
+  "protocol": $($PYTHON_BIN -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8"))["protocol"], separators=(",",":")))' "$PROTOCOL_PATH"),
   "benchmark_kind": "$BENCHMARK_KIND",
   "run_number": $RUN_NUMBER,
   "execution_order": {
@@ -441,15 +459,17 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
   },
   "measurement_stability": $MEASUREMENT_STABILITY,
   "metrics": {
-    "window_source": "locust_test_start_stop",
+    "window_source": "locust_spawning_complete_to_last_worker_stop",
     "response_time_source": "Locust locust_stats.csv",
-    "percentile_source": "Locust rounded response-time histogram in locust_stats.csv",
+    "percentile_source": "independently reconciled Locust rounded response-time histograms from every worker",
     "snapshot_validation_file": "locust_snapshot_validation.json",
     "worker_reports_required": true,
-    "measurement_protocol_revision": 2,
+    "measurement_protocol_revision": 3,
     "monitoring_priming_seconds_outside_measurement": 10,
     "stop_timeout_seconds": 5,
-    "measurement_includes_drain_and_coordination": true,
+    "measurement_includes_ramp_up": false,
+    "measurement_includes_drain_and_coordination": false,
+    "drained_requests_scope": "requests started before the stop boundary and completed during bounded shutdown",
     "prometheus_collector_revision": 2,
     "resource_sample_source": "prometheus_raw_range_vector",
     "resource_peaks_are_sampled": true,
@@ -457,7 +477,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "throughput_source": "Locust request count divided by monotonic measurement duration",
     "request_count_source": "Locust locust_stats.csv",
     "failure_and_error_rate_source": "Locust locust_stats.csv",
-    "total_test_time_source": "Locust test_start/test_stop events measured with time.monotonic_ns",
+    "total_test_time_source": "Locust spawning_complete/last-worker-stop boundaries measured with time.monotonic_ns",
     "duration_clock": "time.monotonic_ns",
     "boundary_clock": "time.time_ns",
     "prometheus_boundary_method": "two-scrape padding; raw timestamps; boundary interpolation",

@@ -176,6 +176,10 @@ function Invoke-BenchmarkLocust {
     $finalizer = Join-Path $script:BenchmarkRoot "scripts/finalize_locust_csv.py"
     Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix, "--prepare")
 
+    $durationSeconds = ConvertTo-BenchmarkDurationSeconds $Duration
+    $rampAllowanceSeconds = [math]::Ceiling($Users / [double]$SpawnRate)
+    $watchdogSeconds = [math]::Ceiling($durationSeconds + $rampAllowanceSeconds + 30)
+
     Invoke-BenchmarkCompose @(
         "--profile", "load", "run", "--rm",
         "-e", "SCENARIO=$Scenario",
@@ -183,10 +187,25 @@ function Invoke-BenchmarkLocust {
         "-e", "LOCUST_WAIT_SECONDS=$WaitSeconds",
         "-e", "LOCUST_PROCESSES=$Processes",
         "locust", "-f", "locustfile.py", "--headless", "--stop-timeout", "5", "--processes", "$Processes",
-        "-u", "$Users", "-r", "$SpawnRate", "-t", $Duration,
+        "-u", "$Users", "-r", "$SpawnRate", "-t", "${watchdogSeconds}s",
+        "--benchmark-measurement-seconds", "$durationSeconds",
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )
     Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix)
+}
+
+function ConvertTo-BenchmarkDurationSeconds {
+    param([Parameter(Mandatory = $true)][string]$Duration)
+    if ($Duration -notmatch '^([0-9]+(?:\.[0-9]+)?)(ms|s|m|h)?$') {
+        throw "Duracao invalida: $Duration"
+    }
+    $value = [double]::Parse($matches[1], [Globalization.CultureInfo]::InvariantCulture)
+    $factor = switch ($matches[2]) { "ms" { 0.001 }; "m" { 60 }; "h" { 3600 }; default { 1 } }
+    $seconds = $value * $factor
+    if ($seconds -le 0 -or [double]::IsNaN($seconds) -or [double]::IsInfinity($seconds)) {
+        throw "A duracao deve ser finita e positiva."
+    }
+    return $seconds
 }
 
 function Invoke-BenchmarkWarmup {

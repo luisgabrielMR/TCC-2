@@ -21,6 +21,16 @@ MONEY = re.compile(r"^\d+\.\d{2}$")
 MAX_INT = 2_147_483_647
 
 
+def validate_content_type(headers: Any, method: str, path: str) -> None:
+    media_type = headers.get_content_type().lower()
+    charset = headers.get_content_charset()
+    if media_type != "application/json" or (charset is not None and charset.lower() != "utf-8"):
+        raise AssertionError(
+            f"{method} {path}: expected application/json with optional UTF-8 charset; "
+            f"got {headers.get('Content-Type')!r}"
+        )
+
+
 def request(
     base_url: str,
     method: str,
@@ -37,9 +47,11 @@ def request(
         try:
             with urllib.request.urlopen(req, timeout=25) as response:
                 body = response.read()
+                validate_content_type(response.headers, method, path)
                 return response.status, body, json.loads(body)
         except urllib.error.HTTPError as exc:
             body = exc.read()
+            validate_content_type(exc.headers, method, path)
             try:
                 decoded = json.loads(body)
             except json.JSONDecodeError as json_error:

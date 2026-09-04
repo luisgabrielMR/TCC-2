@@ -125,11 +125,13 @@ frescor temporal, presenca de todos os workers, nenhuma requisicao cancelada ou
 pendente, contagens por endpoint e soma dos tempos de resposta. A comparacao de
 somas usa tolerancia numerica de ponto flutuante, nao tolerancia de contagens.
 
-Ha ate 5 s de drenagem; ela e parte da duracao medida, junto com a coordenacao.
-O manifesto registra o instante da solicitacao de parada e o relatorio registra
-`drain_and_coordination_seconds`. Dez segundos iniciais de preparacao do
-monitoramento ficam fora da janela. Isto nao transforma a carga fechada em
-chegadas abertas nem garante exatamente 200 req/s.
+Ha ate 5 s de drenagem, mas ela fica fora da duracao medida. O master registra a
+solicitacao de parada; cada worker registra quando a recebeu, bloqueia novas
+chamadas e conclui somente as que ja estavam em voo. A fronteira agregada e o
+ultimo recebimento entre os workers, e a propagacao master-worker e validada com
+tolerancia maxima de 0,25 s. Dez segundos iniciais de preparacao do monitoramento
+tambem ficam fora da janela. Isto nao transforma a carga fechada em chegadas
+abertas nem garante exatamente 200 req/s.
 
 O cAdvisor estava usando housekeeping dinamico e produziu uma lacuna de 8.096 s
 nas amostras PostgreSQL. Agora usa `--allow_dynamic_housekeeping=false` e

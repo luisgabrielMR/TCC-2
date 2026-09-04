@@ -8,7 +8,9 @@ from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "load-tests" / "locust"))
-from measurement_audit import CooperativeStopMixin, install, validate_worker_reports
+from measurement_audit import (
+    CooperativeStopMixin, align_bounds_to_worker_stop, install, validate_worker_reports,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.validate_monitoring import cadvisor_collection_config
@@ -69,10 +71,15 @@ class WorkerAuditTests(unittest.TestCase):
                 calls.append(("quit",))
 
         events = SimpleNamespace(**{key: Event() for key in
-            ("init_command_line_parser", "init", "test_start", "request", "test_stopping", "test_stop")})
+            ("init_command_line_parser", "init", "test_start", "spawning_complete", "request", "test_stopping", "test_stop")})
         runners = SimpleNamespace(MasterRunner=Master, WorkerRunner=type("Worker", (), {}))
+        class ReadyEvent:
+            def clear(self): pass
+            def set(self): pass
+            def wait(self): pass
         fake_gevent = SimpleNamespace(sleep=lambda seconds: None)
-        with patch.dict(sys.modules, {"locust.runners": runners, "gevent": fake_gevent}):
+        with patch.dict(sys.modules, {"locust.runners": runners, "gevent": fake_gevent,
+                                      "gevent.event": SimpleNamespace(Event=ReadyEvent)}):
             install(events, 4)
         environment = SimpleNamespace(runner=Master(), parsed_options=SimpleNamespace(csv_prefix="/tmp/locust"))
         events.init.listeners[0](environment)
@@ -86,33 +93,39 @@ class WorkerAuditTests(unittest.TestCase):
             manifest = {"workers": {"worker-a": 0, "worker-b": 1}, "processes": 2,
                         "started_epoch": 100, "stop_requested_epoch": 129}
             Path(f"{prefix}_expected_workers.json").write_text(json.dumps(manifest))
-            Path(f"{prefix}_measurement_bounds.json").write_text(json.dumps({"finished_epoch": 131}))
+            Path(f"{prefix}_measurement_bounds.json").write_text(json.dumps({"started_epoch": 99.99, "finished_epoch": 129.1}))
             row = {"method": "GET", "name": "GET /health", "requests": 5,
-                   "failures": 0, "total_response_time": 10.0}
-            report = {"started_epoch": 100.01, "finished_epoch": 130, "in_flight": 0,
-                      "cancelled": 0, "started": 5, "endpoints": [row]}
+                   "failures": 0, "total_response_time": 10.0, "response_times": {"2": 5}}
+            report = {"started_epoch": 100.01, "started_monotonic_ns": 10_000_000_000,
+                      "stop_requested_epoch": 129.1, "stop_requested_monotonic_ns": 39_090_000_000,
+                      "finished_epoch": 130, "in_flight": 0,
+                      "cancelled": 0, "started": 5, "started_at_stop": 5, "endpoints": [row]}
             first = Path(f"{prefix}_worker_0_final.json")
             second = Path(f"{prefix}_worker_1_final.json")
             first.write_text(json.dumps({**report, "worker_id": "worker-a"}))
             second.write_text(json.dumps({**report, "worker_id": "worker-b"}))
             stats = Path(f"{prefix}_final_stats.csv")
             with stats.open("w", newline="") as handle:
-                writer = csv.DictWriter(handle, fieldnames=["Type", "Name", "Request Count", "Failure Count", "Average Response Time"])
+                writer = csv.DictWriter(handle, fieldnames=["Type", "Name", "Request Count", "Failure Count", "Average Response Time", "50%", "95%", "99%"])
                 writer.writeheader()
                 writer.writerow({"Type": "GET", "Name": "GET /health", "Request Count": 10,
-                                 "Failure Count": 0, "Average Response Time": 2})
+                                 "Failure Count": 0, "Average Response Time": 2, "50%": 2, "95%": 2, "99%": 2})
                 writer.writerow({"Type": "", "Name": "Aggregated", "Request Count": 10,
-                                 "Failure Count": 0, "Average Response Time": 2})
+                                 "Failure Count": 0, "Average Response Time": 2, "50%": 2, "95%": 2, "99%": 2})
             result = validate_worker_reports(prefix, stats)
             self.assertEqual(result["requests"], 10)
             self.assertEqual(result["workers"], 2)
-            self.assertEqual(result["drain_and_coordination_seconds"], 2)
-            for change in ({"cancelled": 1}, {"in_flight": 1}, {"started": 6},
-                           {"worker_id": "wrong"}, {"started_epoch": 90}, {"finished_epoch": 132},
+            self.assertAlmostEqual(result["drain_seconds"], 0.9)
+            self.assertTrue(result["measurement_excludes_drain_and_coordination"])
+            for change in ({"cancelled": 1}, {"in_flight": 1}, {"started": 6}, {"started_at_stop": 4},
+                           {"worker_id": "wrong"}, {"started_epoch": 90}, {"started_epoch": 101}, {"finished_epoch": 135},
                            {"started_epoch": float("nan")}, {"started_epoch": float("inf")},
                            {"started_epoch": True}, {"finished_epoch": float("nan")},
+                           {"stop_requested_epoch": 128}, {"stop_requested_monotonic_ns": 9_000_000_000},
                            {"endpoints": [{**row, "total_response_time": 99}]},
-                           {"endpoints": [{**row, "failures": 1}]}):
+                           {"endpoints": [{**row, "failures": 1}]},
+                           {"endpoints": [{**row, "response_times": {"3": 5}}]},
+                           {"endpoints": [{**row, "response_times": {"2": 4}}]}):
                 with self.subTest(change=change):
                     first.write_text(json.dumps({**report, "worker_id": "worker-a", **change}))
                     with self.assertRaises(RuntimeError):
@@ -121,6 +134,27 @@ class WorkerAuditTests(unittest.TestCase):
             second.unlink()
             with self.assertRaises(FileNotFoundError):
                 validate_worker_reports(prefix, stats)
+
+    def test_bounds_align_to_latest_worker_stop(self):
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / "locust"
+            Path(f"{prefix}_expected_workers.json").write_text(json.dumps({
+                "workers": {"a": 0, "b": 1}, "processes": 2,
+                "started_epoch": 100.01, "stop_requested_epoch": 130.0,
+            }))
+            Path(f"{prefix}_measurement_bounds.json").write_text(json.dumps({
+                "started_epoch": 100.0, "started_monotonic_ns": 10_000_000_000,
+                "finished_epoch": 130.0, "finished_monotonic_ns": 40_000_000_000,
+            }))
+            for index, epoch, monotonic in ((0, 130.05, 40_050_000_000), (1, 130.08, 40_080_000_000)):
+                Path(f"{prefix}_worker_{index}_final.json").write_text(json.dumps({
+                    "stop_requested_epoch": epoch, "stop_requested_monotonic_ns": monotonic,
+                }))
+            bounds = align_bounds_to_worker_stop(prefix)
+            self.assertEqual(bounds["window_end_event"], "last_worker_stop_received_before_bounded_drain")
+            self.assertAlmostEqual(bounds["elapsed_seconds"], 30.08)
+            self.assertAlmostEqual(bounds["stop_propagation_seconds"], 0.08)
+            self.assertEqual(bounds["master_timer_finished_epoch"], 130.0)
 
 
 if __name__ == "__main__":

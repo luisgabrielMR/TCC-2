@@ -3,7 +3,7 @@
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "8")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "9")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $languages = @("python", "node", "java", "go", "dotnet")
 $services = $languages | ForEach-Object { "$_-api" }
@@ -251,6 +251,8 @@ try {
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/validate_measurement_bounds.py"),
         "--bounds", $verificationBounds,
+        "--expected-duration-seconds", "15",
+        "--duration-tolerance-seconds", "0.25",
         "--output", (Join-Path $verificationDirectory "measurement-bounds-validation.json")
     )
     Stop-BenchmarkMeasurements $measurement
@@ -293,6 +295,8 @@ try {
     )
     $finalPreflight = Get-Content $finalPreflightPath -Raw | ConvertFrom-Json
     $monitoringEvidence = Get-Content (Join-Path $verificationDirectory "monitoring-preflight.json") -Raw | ConvertFrom-Json
+    $measurementBoundsEvidence = Get-Content (Join-Path $verificationDirectory "measurement-bounds-validation.json") -Raw | ConvertFrom-Json
+    $snapshotEvidence = Get-Content (Join-Path $verificationDirectory "locust_snapshot_validation.json") -Raw | ConvertFrom-Json
     $verificationReport = [ordered]@{
         available = $true
         completed = $true
@@ -308,6 +312,10 @@ try {
         openapi_valid = $true
         database_state_equivalent = $true
         all_executable_tests_passed = $true
+        measurement_bounds_valid = [bool]$measurementBoundsEvidence.valid
+        measurement_window_excludes_ramp_up = ($loadBounds.window_start_event -eq "spawning_complete_after_stats_reset")
+        worker_histograms_reconciled = [bool]$snapshotEvidence.worker_reconciliation.valid
+        worker_percentiles_recalculated = @($snapshotEvidence.worker_reconciliation.percentiles_recalculated)
         artifact_directory = "results/raw/verification/$verificationId"
     }
     $verificationReport | ConvertTo-Json -Depth 6 |

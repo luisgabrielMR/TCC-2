@@ -13,6 +13,7 @@ from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 from payload_sequences import PayloadCycle, PayloadSequence
 from measurement_audit import CooperativeStopMixin, install
+import gevent
 
 
 SCENARIO = os.getenv("SCENARIO", "mixed")
@@ -22,7 +23,6 @@ WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
 LOCUST_PROCESSES = int(os.getenv("LOCUST_PROCESSES", "1"))
 if LOCUST_PROCESSES < 1:
     raise RuntimeError("LOCUST_PROCESSES must be a positive integer")
-audit_client = install(events, LOCUST_PROCESSES)
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
 
 with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
@@ -35,6 +35,8 @@ if SCENARIO not in {"smoke", "health_only"} and not SCENARIO_ACTIONS:
 
 measurement_started_wall_ns: int | None = None
 measurement_started_monotonic_ns: int | None = None
+measurement_finished = False
+active_environment = None
 
 
 def utc_iso_from_ns(value: int) -> str:
@@ -57,26 +59,11 @@ def measurement_bounds_path(environment) -> Path | None:
     return Path(f"{prefix}_measurement_bounds.json") if prefix else None
 
 
-@events.test_start.add_listener
-def record_measurement_start(environment, **_kwargs) -> None:
-    global measurement_started_wall_ns, measurement_started_monotonic_ns
-    measurement_started_wall_ns = time.time_ns()
-    measurement_started_monotonic_ns = time.monotonic_ns()
-    path = measurement_bounds_path(environment)
-    if path:
-        path.write_text(json.dumps({
-            "schema_version": 2,
-            "started_epoch": measurement_started_wall_ns / 1_000_000_000,
-            "started_at_utc": utc_iso_from_ns(measurement_started_wall_ns),
-            "finished_epoch": None,
-            "elapsed_seconds": None,
-            "duration_clock": "time.monotonic_ns",
-            "boundary_clock": "time.time_ns",
-        }, separators=(",", ":")), encoding="utf-8")
-
-
-@events.test_stop.add_listener
-def record_measurement_stop(environment, **_kwargs) -> None:
+def write_measurement_stop(environment) -> None:
+    global measurement_finished
+    if measurement_finished:
+        return
+    measurement_finished = True
     finished_wall_ns = time.time_ns()
     finished_monotonic_ns = time.monotonic_ns()
     path = measurement_bounds_path(environment)
@@ -84,21 +71,61 @@ def record_measurement_stop(environment, **_kwargs) -> None:
         return
     elapsed_seconds = (finished_monotonic_ns - measurement_started_monotonic_ns) / 1_000_000_000
     wall_elapsed_seconds = (finished_wall_ns - measurement_started_wall_ns) / 1_000_000_000
-    path.write_text(
-        json.dumps({
-            "schema_version": 2,
+    path.write_text(json.dumps({
+        "schema_version": 3,
+        "window_start_event": "spawning_complete_after_stats_reset",
+        "window_end_event": "measurement_timer_pending_worker_alignment",
+        "drained_request_rule": "started_before_worker_stop_boundary",
+        "started_epoch": measurement_started_wall_ns / 1_000_000_000,
+        "finished_epoch": finished_wall_ns / 1_000_000_000,
+        "started_monotonic_ns": measurement_started_monotonic_ns,
+        "finished_monotonic_ns": finished_monotonic_ns,
+        "started_at_utc": utc_iso_from_ns(measurement_started_wall_ns),
+        "finished_at_utc": utc_iso_from_ns(finished_wall_ns),
+        "elapsed_seconds": elapsed_seconds,
+        "wall_elapsed_seconds": wall_elapsed_seconds,
+        "clock_drift_seconds": wall_elapsed_seconds - elapsed_seconds,
+        "duration_clock": "time.monotonic_ns",
+        "boundary_clock": "time.time_ns",
+    }, separators=(",", ":")), encoding="utf-8")
+
+
+@events.spawning_complete.add_listener
+def record_measurement_start(user_count, **_kwargs) -> None:
+    global measurement_started_wall_ns, measurement_started_monotonic_ns, measurement_finished
+    environment = active_environment
+    if environment is None:
+        raise RuntimeError("Locust environment was not initialized before spawning completed")
+    if not writes_files(environment):
+        return
+    measurement_finished = False
+    measurement_started_wall_ns = time.time_ns()
+    measurement_started_monotonic_ns = time.monotonic_ns()
+    path = measurement_bounds_path(environment)
+    if path:
+        path.write_text(json.dumps({
+            "schema_version": 3,
+            "window_start_event": "spawning_complete_after_stats_reset",
             "started_epoch": measurement_started_wall_ns / 1_000_000_000,
-            "finished_epoch": finished_wall_ns / 1_000_000_000,
+            "started_monotonic_ns": measurement_started_monotonic_ns,
             "started_at_utc": utc_iso_from_ns(measurement_started_wall_ns),
-            "finished_at_utc": utc_iso_from_ns(finished_wall_ns),
-            "elapsed_seconds": elapsed_seconds,
-            "wall_elapsed_seconds": wall_elapsed_seconds,
-            "clock_drift_seconds": wall_elapsed_seconds - elapsed_seconds,
+            "finished_epoch": None,
+            "elapsed_seconds": None,
             "duration_clock": "time.monotonic_ns",
             "boundary_clock": "time.time_ns",
-        }, separators=(",", ":")),
-        encoding="utf-8",
-    )
+        }, separators=(",", ":")), encoding="utf-8")
+    seconds = float(getattr(environment.parsed_options, "benchmark_measurement_seconds", 0) or 0)
+    if seconds > 0:
+        def finish() -> None:
+            write_measurement_stop(environment)
+            environment.runner.quit()
+
+        gevent.spawn_later(seconds, finish)
+
+
+@events.test_stop.add_listener
+def record_measurement_stop(environment, **_kwargs) -> None:
+    write_measurement_stop(environment)
 
 
 @events.quitting.add_listener
@@ -163,12 +190,17 @@ def configure_payload_streams(environment, **_kwargs) -> None:
 
 @events.init.add_listener
 def validate_process_configuration(environment, **_kwargs) -> None:
+    global active_environment
+    active_environment = environment
     options = environment.parsed_options
     configured = int(getattr(options, "processes", 0) or 1) if options else 1
     if not isinstance(environment.runner, WorkerRunner) and configured != LOCUST_PROCESSES:
         raise RuntimeError(
             f"--processes={configured} differs from LOCUST_PROCESSES={LOCUST_PROCESSES}"
         )
+
+
+audit_client = install(events, LOCUST_PROCESSES)
 
 
 # Com WAIT_SECONDS > 0 o pacing impoe um teto de usuarios/WAIT_SECONDS req/s ao
@@ -183,6 +215,7 @@ class BenchmarkUser(CooperativeStopMixin, HttpUser):
 
     def on_start(self):
         audit_client(self.client)
+        audit_client.wait_until_measurement()
 
     def get_health(self) -> None:
         self.client.get("/health", name="GET /health")

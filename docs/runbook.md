@@ -80,7 +80,7 @@ docker compose down
 Encerre os containers sem remover volumes. O reset oficial atua somente em `benchmark_db`.
 ## Revisao de medicao 8
 
-A configuracao atual usa `METHODOLOGY_VERSION=8`. Depois de atualizar o codigo,
+A configuracao atual usa `METHODOLOGY_VERSION=9`. Depois de atualizar o codigo,
 refaca a verificacao completa e a calibracao do gerador para o commit limpo.
 Nao reutilize a verificacao ou a calibracao da revisao 7. O verificador inclui
 esperas controladas de 12 e 33 segundos por API para conferir o limite SQL;

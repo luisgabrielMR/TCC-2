@@ -19,7 +19,7 @@ audit_directory = root / "load-tests" / "locust"
 if not audit_directory.exists():
     audit_directory = root / "locust"  # Container mount layout.
 sys.path.insert(0, str(audit_directory))
-from measurement_audit import validate_worker_reports
+from measurement_audit import align_bounds_to_worker_stop, validate_worker_reports
 
 
 KINDS = ("stats", "failures", "exceptions")
@@ -96,6 +96,45 @@ def validate_stats(path: Path) -> dict:
             "percentile_method": "Locust rounded response-time histogram"}
 
 
+def restrict_history_to_measurement(prefix: Path) -> dict:
+    history_path = Path(f"{prefix}_stats_history.csv")
+    bounds_path = Path(f"{prefix}_measurement_bounds.json")
+    if not history_path.exists():
+        raise RuntimeError(f"Locust did not produce history CSV: {history_path}")
+    bounds = json.loads(bounds_path.read_text(encoding="utf-8-sig"))
+    started, finished = float(bounds["started_epoch"]), float(bounds["finished_epoch"])
+    original = history_path.read_bytes()
+    raw_history_path = Path(f"{prefix}_full_stats_history.csv")
+    if not raw_history_path.exists():
+        raw_history_path.write_bytes(original)
+    with history_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+    if not fieldnames:
+        raise RuntimeError("Locust history CSV has no header")
+    measured = [
+        row for row in rows
+        if math.ceil(started) <= float(row["Timestamp"]) <= math.floor(finished)
+    ]
+    if not measured:
+        raise RuntimeError("Locust history has no samples inside the measurement window")
+    maximum_users = max(int(row["User Count"]) for row in measured)
+    measured = [row for row in measured if int(row["User Count"]) == maximum_users]
+    with history_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(measured)
+    return {
+        "valid": True,
+        "raw_rows": len(rows),
+        "measurement_rows": len(measured),
+        "user_count": maximum_users,
+        "boundary_rule": "ceil(started_epoch) <= timestamp <= floor(finished_epoch)",
+        "raw_history_file": raw_history_path.name,
+    }
+
+
 def promote(prefix: Path) -> None:
     Path(f"{prefix}_snapshot_validation.json").unlink(missing_ok=True)
     # Validate all files before replacing any previous snapshot.
@@ -103,8 +142,10 @@ def promote(prefix: Path) -> None:
         source = Path(f"{prefix}_final_{kind}.csv")
         if not source.exists():
             raise RuntimeError(f"Locust did not produce final snapshot: {source}")
+    align_bounds_to_worker_stop(prefix)
     report = validate_stats(Path(f"{prefix}_final_stats.csv"))
     report["worker_reconciliation"] = validate_worker_reports(prefix, Path(f"{prefix}_final_stats.csv"))
+    report["history_window"] = restrict_history_to_measurement(prefix)
     report["scope"] = "CSV consistency and independent final reports from every expected worker"
     report["sha256"] = {}
     for kind in KINDS:

@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "8")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "9")
 $calibrationRelative = Get-BenchmarkValue $environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
 $calibrationPath = Join-Path $script:BenchmarkRoot $calibrationRelative
 $service = "$Language-api"
@@ -81,7 +81,8 @@ try {
         $boundsValidationPath = Join-Path $stepDirectory "measurement-bounds-validation.json"
         Invoke-BenchmarkPython @(
             (Join-Path $script:BenchmarkRoot "scripts/validate_measurement_bounds.py"),
-            "--bounds", $boundsPath, "--output", $boundsValidationPath
+            "--bounds", $boundsPath, "--expected-duration-seconds", "60",
+            "--duration-tolerance-seconds", "0.25", "--output", $boundsValidationPath
         )
         $bounds = Get-Content $boundsPath -Raw | ConvertFrom-Json
         $boundsValidation = Get-Content $boundsValidationPath -Raw | ConvertFrom-Json

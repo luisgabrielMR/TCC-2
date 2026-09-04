@@ -123,20 +123,20 @@ function Get-ResultScenarioName([string]$Profile) {
 }
 
 function Get-OfficialCampaignIdentity($Environment) {
-    $methodologyVersion = [int](Get-BenchmarkValue $Environment "METHODOLOGY_VERSION" "8")
-    $commitSha = (& git rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or -not $commitSha) { throw "Nao foi possivel identificar o commit atual." }
-    $calibrationRelative = Get-BenchmarkValue $Environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
-    $calibrationPath = Join-Path $Root $calibrationRelative
-    $calibrationHash = if (Test-Path $calibrationPath) {
-        (Get-FileHash -Algorithm SHA256 $calibrationPath).Hash.ToLowerInvariant()
-    } else { "no_calibration" }
-    $commitToken = $commitSha.Substring(0, [Math]::Min(12, $commitSha.Length))
-    $calibrationToken = $calibrationHash.Substring(0, [Math]::Min(12, $calibrationHash.Length))
+    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_200"
+    $python = Get-BenchmarkPythonCommand
+    $arguments = @($python.Prefix) + @(
+        (Join-Path $Root "scripts/benchmark_protocol.py"),
+        "--load-profile", $profile, "--scenario", "mixed"
+    )
+    $raw = & $python.FilePath @arguments
+    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel construir o protocolo oficial." }
+    $manifest = $raw | ConvertFrom-Json
     return [pscustomobject]@{
-        methodology_version = $methodologyVersion
-        commit_sha = $commitSha
-        fingerprint = "m${methodologyVersion}_${commitToken}_${calibrationToken}"
+        methodology_version = [int]$manifest.protocol.methodology_version
+        commit_sha = $manifest.commit_sha
+        protocol_sha256 = $manifest.protocol_sha256
+        fingerprint = $manifest.campaign_fingerprint
     }
 }
 

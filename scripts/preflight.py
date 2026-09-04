@@ -20,6 +20,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 from load_generator_calibration import validate_calibration
+from benchmark_protocol import CURRENT_METHODOLOGY, build_protocol
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -301,7 +302,7 @@ def compose_command(*arguments: str) -> list[str]:
 def methodology_version(environment: dict[str, str] | None = None) -> int:
     values = environment or load_env()
     try:
-        return int(values.get("METHODOLOGY_VERSION", "8"))
+        return int(values.get("METHODOLOGY_VERSION", str(CURRENT_METHODOLOGY)))
     except ValueError:
         return 0
 
@@ -618,6 +619,15 @@ def verification_matches_current_project(
         and verification.get("database_state_equivalent") is True
         and verification.get("all_executable_tests_passed") is True
         and (expected_methodology < 8 or verification.get("sql_wait_policy_languages") == REQUIRED_CONTRACT_LANGUAGES)
+        and (
+            expected_methodology < 9
+            or (
+                verification.get("measurement_bounds_valid") is True
+                and verification.get("measurement_window_excludes_ramp_up") is True
+                and verification.get("worker_histograms_reconciled") is True
+                and verification.get("worker_percentiles_recalculated") == [50, 95, 99]
+            )
+        )
     )
 
 
@@ -644,7 +654,22 @@ def api_base_violations(bases: dict[str, list[str]]) -> list[str]:
     return violations
 
 
-def build_report(mode: str, api_service: str | None = None, load_profile: str = "environment") -> dict[str, Any]:
+def official_protocol_violations(environment: dict[str, str]) -> list[str]:
+    violations: list[str] = []
+    if environment.get("LOCUST_HOST_OVERRIDE", "").strip():
+        violations.append(
+            "LOCUST_HOST_OVERRIDE is permitted only for non-official network-path pilots"
+        )
+    return violations
+
+
+def build_report(
+    mode: str,
+    api_service: str | None = None,
+    load_profile: str = "environment",
+    scenario: str = "mixed",
+    protocol_manifest_path: Path | None = None,
+) -> dict[str, Any]:
     environment = load_env()
     expected_methodology = methodology_version(environment)
     expected_locust_processes = configured_locust_processes(environment)
@@ -679,9 +704,24 @@ def build_report(mode: str, api_service: str | None = None, load_profile: str = 
     )
     calibration["required"] = calibration_required
     violations: list[str] = []
+    try:
+        protocol_manifest = build_protocol(load_profile, scenario, environment)
+    except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
+        protocol_manifest = {"valid": False, "error": str(exc)}
+        violations.append(f"Canonical benchmark protocol is unavailable: {exc}")
+    if protocol_manifest_path is not None:
+        try:
+            declared_protocol = json.loads(protocol_manifest_path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            violations.append(f"Declared protocol manifest is unreadable: {exc}")
+        else:
+            if declared_protocol != protocol_manifest:
+                violations.append("Declared protocol manifest differs from the current canonical protocol")
     violations.extend(go_parallelism_violations(configured_resources, runtime_resources, api_service))
-    if methodology_version(environment) != 8:
-        violations.append("Current execution requires methodology version 8; historical revisions are read-only")
+    if methodology_version(environment) != CURRENT_METHODOLOGY:
+        violations.append(
+            f"Current execution requires methodology version {CURRENT_METHODOLOGY}; historical revisions are read-only"
+        )
     if not docker.get("available"):
         violations.append("Docker Engine, Compose and allocation information must all be available")
     if expected_locust_processes is None:
@@ -755,6 +795,7 @@ def build_report(mode: str, api_service: str | None = None, load_profile: str = 
                 f"detected {details.get('effective_cpu_quota') or 'unavailable'}"
             )
     if mode == "official":
+        violations.extend(official_protocol_violations(environment))
         if calibration_required and not calibration.get("valid"):
             violations.append(
                 "A current health-only Locust calibration is required: "
@@ -795,6 +836,8 @@ def build_report(mode: str, api_service: str | None = None, load_profile: str = 
             "effective": runtime_resources,
         },
         "load_profile": load_profile,
+        "workload_scenario": scenario,
+        "protocol_manifest": protocol_manifest,
         "load_generator_calibration": calibration,
         "project_verification": verification,
     }
@@ -805,9 +848,13 @@ def main() -> int:
     parser.add_argument("--mode", choices=("pilot", "official"), default="pilot")
     parser.add_argument("--api-service", choices=tuple(EXPECTED_CPU_LIMITS)[2:])
     parser.add_argument("--load-profile", default="environment")
+    parser.add_argument("--scenario", default="mixed")
+    parser.add_argument("--protocol-manifest", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    report = build_report(args.mode, args.api_service, args.load_profile)
+    report = build_report(
+        args.mode, args.api_service, args.load_profile, args.scenario, args.protocol_manifest
+    )
     serialized = json.dumps(report, indent=2, ensure_ascii=True)
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

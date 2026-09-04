@@ -99,11 +99,12 @@ O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark dura
 
 ## Metricas comparaveis
 
-O protocolo de encerramento revisao 2 aguarda a parada dos workers antes de
-fechar a janela. Cada worker envia seus ultimos deltas antes da confirmacao e
+O protocolo de encerramento revisao 3 fecha a janela agregada quando o ultimo
+worker recebe o comando de parada. Cada worker bloqueia imediatamente novas
+requisicoes, envia seus ultimos deltas antes da confirmacao e
 grava um relatorio independente; o CSV final so e aceito se contagens, falhas e
 somas de latencia por endpoint coincidirem. Cancelamentos e pendencias rejeitam
-a execucao. Drenagem de ate 5 s e coordenacao entram na duracao medida; 10 s de
+a execucao. Drenagem de ate 5 s e coordenacao ficam fora da duracao medida; 10 s de
 preparacao do monitoramento ficam fora. cAdvisor usa housekeeping fixo de 1 s,
 verificado no container. Essas alteracoes exigem nova calibracao e campanha.
 
@@ -116,11 +117,11 @@ evidencias e limites: [auditoria de precisao](measurement-precision-audit.md).
 
 Latencia e falhas HTTP sao medidas pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. Os limites UTC usam `time.time_ns`, enquanto a duracao usa `time.monotonic_ns` e passa por validacao de deriva. A vazao canonica e `Request Count / elapsed_seconds`; `Requests/s` do Locust permanece armazenado como valor informado pelo instrumento. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`; disponibilidade, conexoes, transacoes, blocos, cache hit ratio e tamanho do banco sao reduzidos para `postgres_summary.csv` na mesma janela. Pela especificacao do TCC, cAdvisor e a fonte primaria de CPU e memoria da API, PostgreSQL e Locust. `docker stats` e coletado na mesma janela apenas como evidencia complementar ou contingencial.
 
-Para CPU oficial, o exportador consulta o contador bruto `container_cpu_usage_seconds_total` com a margem de um scrape antes e depois. Cada delta e ponderado somente pela parte que intercepta `test_start`/`test_stop`; gauges usam media trapezoidal ponderada pelo tempo. Isso reduz a perda nas bordas sem incorporar aquecimento. Como o cAdvisor pode manter um valor em um scrape e publicar o incremento acumulado no seguinte, o maximo bruto por intervalo e preservado para diagnostico, mas o gate do gerador usa a media ponderada da janela normalizada pela cota. A cobertura e registrada e deve ser de pelo menos 90% para cAdvisor; PostgreSQL exige cobertura integral interpolavel. IDs observados pelo coletor continuo identificam inclusive o container Locust transitorio; labels/nome sao apenas fallback.
+Para CPU oficial, o exportador consulta o contador bruto `container_cpu_usage_seconds_total` com a margem de um scrape antes e depois. Cada delta e ponderado somente pela parte que intercepta `spawning_complete` e o recebimento da parada pelo ultimo worker; gauges usam media trapezoidal ponderada pelo tempo. Isso reduz a perda nas bordas sem incorporar ramp-up, drain ou aquecimento. Como o cAdvisor pode manter um valor em um scrape e publicar o incremento acumulado no seguinte, o maximo bruto por intervalo e preservado para diagnostico, mas o gate do gerador usa a media ponderada da janela normalizada pela cota. A cobertura e registrada e deve ser de pelo menos 90% para cAdvisor; PostgreSQL exige cobertura integral interpolavel. IDs observados pelo coletor continuo identificam inclusive o container Locust transitorio; labels/nome sao apenas fallback.
 
 O `benchmark-results-exporter` e um componente proprio em Python, sem framework web ou dependencias externas. Ele le os CSVs e JSONs ja produzidos por Locust, cAdvisor/Prometheus, postgres-exporter e `docker stats` e os publica em `/metrics` para os dashboards do Grafana. Em resultados oficiais atuais, CPU e memoria sao aceitas somente de `cadvisor_summary.csv`, e recursos so ficam disponiveis quando `postgres_summary.csv` tambem existe; `docker_stats_summary.csv` permanece diagnostico de pilotos e legado. Ele nao instrumenta as APIs, nao substitui os arquivos oficiais e permanece ativo sob a mesma configuracao em todas as linguagens.
 
-`test_phase.elapsed_seconds` e calculado exclusivamente entre `test_start` e `test_stop`. O tempo total do processo Locust e preservado separadamente como `runner_elapsed_seconds`. Build, contrato, warmup, resets, inicializacao do runner e exportacao posterior ficam fora da duracao oficial.
+`test_phase.elapsed_seconds` e calculado entre `spawning_complete`, depois do reset das estatisticas, e o instante monotônico em que o ultimo worker recebe a parada. Os usuarios ficam bloqueados durante o ramp-up e cada worker impede novas chamadas ao receber esse comando. Requisicoes iniciadas antes da fronteira local podem terminar no drain cooperativo, limitado a 5 segundos, mas o drain fica fora da duracao e das metricas. A propagacao master-worker e registrada explicitamente e limitada a 0,25 segundo; a duracao configurada usa a mesma tolerancia. O tempo total do processo Locust permanece em `runner_elapsed_seconds`.
 
 Cada rodada tambem registra `measurement_stability`: RPS da primeira e da ultima janela, mudanca percentual assinada e variacao entre as tres janelas finais. Na medicao principal, tanto a variacao entre janelas finais quanto a variacao absoluta entre a primeira e a ultima janela devem permanecer em ate 10%; ultrapassar qualquer limite torna a rodada `non_official`. No aquecimento, somente as tres janelas finais precisam estabilizar, permitindo que a transicao inicial aconteca antes da medicao. Assim, uma melhoria tardia como a observada anteriormente no Java nao pode ser aceita como estado estacionario.
 
@@ -134,22 +135,27 @@ A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma l
 
 O perfil oficial `fixed_200` executa cinco rodadas completas. A ordem das linguagens e rotacionada entre rodadas para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; na metodologia 7, uma combinacao `fixed_200` com menos de cinco rodadas continua marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, entrega abaixo de 97,5% do alvo, ordem nao rotacionada nas cinco posicoes, variacao de RPS acima de 10%, instabilidade interna ou falta de folga do gerador invalidam a combinacao. Metodologias historicas e a bateria separada de saturacao preservam o criterio de repeticoes configurado para elas.
 
-O `campaign_fingerprint` vincula os agregados ao commit, metodologia e artefato de calibracao. CSVs, exportador Prometheus e dashboards carregam essa dimensao; rodadas de campanhas diferentes permanecem visiveis, mas nunca compoem a mesma mediana ou classificacao de confianca.
+O `campaign_fingerprint` vincula o commit ao `protocol_sha256`. O manifesto canonico inclui carga, pacing, duracao, warmup, processos Locust, pool, cotas, intervalos, perfil, Compose e calibracao. CSVs, exportador Prometheus e dashboards carregam essas dimensoes; rodadas de protocolos diferentes permanecem visiveis, mas nunca compoem a mesma mediana ou classificacao de confianca.
 
 ## Proveniencia e classificacao
 
-A metodologia atual e `8`: alem das mudancas da revisao 7, padroniza o limite SQL e exige estabilidade de latencia por endpoint e integridade dos snapshots. Cada `metadata.json` registra commit completo, arvore suja, hash do diff rastreado, arquivos nao rastreados e seus hashes, imagens e digests, runtimes, bibliotecas, hardware, alocacao Docker, cotas configuradas/efetivas, pool, Locust, cenario, perfil, rodada, ordem e origem de cada metrica. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
+A metodologia atual e `9`: preserva o limite SQL da revisao 8 e acrescenta manifesto canonico, exclusao do ramp-up, validacao da duracao configurada e reconciliacao independente dos histogramas de todos os workers. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 
 - Quando houver rodadas antigas e atuais para o mesmo nivel de carga, os relatorios usam apenas o maior `methodology_version` dentro da mesma familia, linguagem e classificacao. `legacy_capacity` e `saturation` nunca compartilham baseline.
 
 O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
-# Measurement revision 8
+# Measurement revision 9
 
-New runs use methodology 8. Do not combine them with revision 7: SQL deadlines
-and measurement instrumentation changed. Historical results remain untouched.
+New runs use methodology 9. Do not combine them with revision 8: the campaign
+protocol, measurement boundary and percentile evidence changed. Historical results remain untouched.
 Regenerate verification and load-generator calibration for the new clean commit.
+
+The protocol fingerprint also records the network path, the base language order
+and its rotation rule. `LOCUST_HOST_OVERRIDE` changes the fingerprint and is
+rejected for official runs; it remains available only for explicitly non-official
+network-path pilots.
 
 In addition to throughput stability, each worker accumulates per-endpoint
 response-time sums and request counts in completion-second buckets, entirely in
@@ -158,10 +164,11 @@ the last three windows; measurement also compares the first and last steady-user
 windows. Every endpoint needs at least 30 requests per window, and mean-latency
 drift must not exceed the configured stability limit (10% by default).
 This detects latency changes hidden by fixed pacing; it does not prove that tail
-latency is stationary. P50/P95/P99 remain Locust rounded-histogram estimates.
+latency is stationary. P50/P95/P99 remain Locust rounded-histogram estimates,
+but each worker histogram is persisted and independently reconciled before publication.
 
 CSV publication retains original final files, stages a host-owned copy, retries
 transient permission failures at most six times, then fails closed. A final hash
-manifest covers stats, failures and exceptions. Revision-8 summaries and completed
+manifest covers stats, failures and exceptions. Revision-9 summaries and completed
 Grafana results accept only the validated snapshot. Missing worker reports,
 nonfinite timestamps and mismatched weighted aggregate latency are rejected.

@@ -34,7 +34,7 @@ A carga percorre a rede interna do Docker. Pelo caminho anterior, atraves da por
 - tres janelas finais de 45 segundos, deriva maxima de 10%;
 - reset do banco apos aquecimento sem reiniciar a API;
 - medicao principal de 5 minutos;
-- limites UTC obtidos com `time.time_ns` e duracao util obtida com `time.monotonic_ns` entre os eventos Locust `test_start` e `test_stop`, sem aquecimento;
+- limites UTC obtidos com `time.time_ns` e duracao util obtida com `time.monotonic_ns` entre `spawning_complete` (apos reset das estatisticas) e o recebimento da parada pelo ultimo worker, sem ramp-up, drain ou aquecimento;
 - estabilidade obrigatoria na medicao: variacao maxima de 10% entre as tres janelas finais e entre a primeira e a ultima janela de 45 segundos;
 - reset depois da medicao.
 

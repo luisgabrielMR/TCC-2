@@ -315,6 +315,32 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(len(output), 4)
         self.assertEqual({row["campaign_fingerprint"] for row in output}, {"campaign-a", "campaign-b"})
 
+    def test_scalability_never_mixes_protocols_inside_a_campaign(self) -> None:
+        rows = []
+        for protocol, base_rps in (("protocol-a", 100), ("protocol-b", 300)):
+            common = {
+                "campaign_fingerprint": "same-campaign", "protocol_sha256": protocol,
+                "language": "python", "methodology_version": 9,
+                "result_classification": "official", "failures": 0,
+                "requests": 1000, "p95_ms": 20, "p99_ms": 30, "avg_ms": 10,
+                "p50_ms": 8, "locust_cpu_average_percent": 30,
+                "measurement_stability_status": "stable",
+                "measurement_final_windows_stable": True,
+                "measurement_rps_change_percent": 1,
+                "resource_metrics_available": True, "cadvisor_metrics_available": True,
+                "cpu_average_percent": 20, "cpu_max_percent": 40,
+                "memory_average_bytes": 100, "memory_max_bytes": 120,
+                "locust_cpu_quota_average_percent": 20,
+                "postgres_cpu_average_percent": 20, "test_elapsed_seconds": 300,
+            }
+            rows.extend((
+                {**common, "scenario": "mixed_saturation_25", "load_profile": "saturation_25", "users": 25, "throughput_rps": base_rps},
+                {**common, "scenario": "mixed_saturation_50", "load_profile": "saturation_50", "users": 50, "throughput_rps": base_rps * 1.5},
+            ))
+        output = scalability_rows(rows)
+        self.assertEqual(len(output), 4)
+        self.assertEqual({row["protocol_sha256"] for row in output}, {"protocol-a", "protocol-b"})
+
     def test_exact_throughput_uses_request_count_and_monotonic_duration(self) -> None:
         self.assertEqual(measured_throughput(600, 3, 150, True), (200, "request_count / monotonic elapsed_seconds"))
         self.assertEqual(measured_throughput(600, 3, 150, False), (150, "locust_reported_rps"))
@@ -538,7 +564,7 @@ class OfficialVerificationGateTests(unittest.TestCase):
         self.evidence = {
             "available": True,
             "completed": True,
-            "methodology_version": 8,
+            "methodology_version": 9,
             "commit_sha": "abc123",
             "tracked_diff_sha256": "tracked",
             "untracked_files_sha256": "untracked",
@@ -549,6 +575,10 @@ class OfficialVerificationGateTests(unittest.TestCase):
             "openapi_valid": True,
             "database_state_equivalent": True,
             "all_executable_tests_passed": True,
+            "measurement_bounds_valid": True,
+            "measurement_window_excludes_ramp_up": True,
+            "worker_histograms_reconciled": True,
+            "worker_percentiles_recalculated": [50, 95, 99],
         }
 
     def test_accepts_complete_evidence_for_the_same_clean_commit(self) -> None:
@@ -578,6 +608,10 @@ class OfficialVerificationGateTests(unittest.TestCase):
             "openapi_valid": False,
             "database_state_equivalent": False,
             "all_executable_tests_passed": False,
+            "measurement_bounds_valid": False,
+            "measurement_window_excludes_ramp_up": False,
+            "worker_histograms_reconciled": False,
+            "worker_percentiles_recalculated": [],
         }
         for field, value in invalid_values.items():
             with self.subTest(field=field):

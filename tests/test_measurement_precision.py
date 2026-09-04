@@ -13,11 +13,34 @@ from scripts.export_prometheus_data import (
     clean_samples, matching_series, metric_matches, query_range, query_samples,
     sample_quality, write_postgres_summary,
 )
-from scripts.finalize_locust_csv import validate_stats, promote
+from scripts.finalize_locust_csv import validate_stats, promote, restrict_history_to_measurement
 from scripts.validate_measurement_bounds import validate_bounds
 
 
 class MeasurementPrecisionTests(unittest.TestCase):
+    def test_history_publishes_only_full_load_samples_inside_measurement(self):
+        with tempfile.TemporaryDirectory() as temp:
+            prefix = Path(temp) / "locust"
+            Path(f"{prefix}_measurement_bounds.json").write_text(json.dumps({
+                "started_epoch": 100.2, "finished_epoch": 103.8,
+            }))
+            with Path(f"{prefix}_stats_history.csv").open("w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=["Timestamp", "User Count", "Name"])
+                writer.writeheader()
+                writer.writerows([
+                    {"Timestamp": 100, "User Count": 0, "Name": "Aggregated"},
+                    {"Timestamp": 101, "User Count": 10, "Name": "Aggregated"},
+                    {"Timestamp": 102, "User Count": 20, "Name": "Aggregated"},
+                    {"Timestamp": 103, "User Count": 20, "Name": "Aggregated"},
+                    {"Timestamp": 104, "User Count": 20, "Name": "Aggregated"},
+                ])
+            report = restrict_history_to_measurement(prefix)
+            self.assertEqual(report["measurement_rows"], 2)
+            with Path(f"{prefix}_stats_history.csv").open(newline="") as handle:
+                rows = list(csv.DictReader(handle))
+            self.assertEqual([(row["Timestamp"], row["User Count"]) for row in rows], [("102", "20"), ("103", "20")])
+            self.assertTrue(Path(f"{prefix}_full_stats_history.csv").exists())
+
     def test_long_run_does_not_relax_clock_alignment(self):
         report = validate_bounds({
             "started_epoch": 0, "finished_epoch": 300.2,

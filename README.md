@@ -124,14 +124,16 @@ WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
 OFFICIAL_PROFILE=fixed_200
 OFFICIAL_ROUNDS=5
-METHODOLOGY_VERSION=8
+METHODOLOGY_VERSION=9
 ```
 
-`BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. Agregadores e dashboards tambem separam `campaign_fingerprint`, derivado de metodologia, commit e calibracao, para impedir mistura entre campanhas.
+`BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. O `campaign_fingerprint` deriva do commit e do hash de um manifesto canonico que congela carga, warmup, pools, cotas, intervalos e calibracao. Agregadores e dashboards carregam tambem `protocol_sha256`, impedindo que configuracoes diferentes do `.env` entrem na mesma coorte.
 
 O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
-Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. Durante a medicao, o Locust acessa diretamente `http://{api-service}:8000` pela rede interna do Compose. `LOCUST_HOST_OVERRIDE` existe somente para pilotos comparativos pelo proxy do host.
+Na medicao, os usuarios aguardam o fim do ramp-up. No evento `spawning_complete`, o Locust zera as estatisticas, libera os usuarios e abre a janela monotonica. O temporizador inicia a parada depois da duracao configurada; a fronteira agregada fecha quando o ultimo worker recebe esse comando. A partir desse instante cada worker bloqueia novas chamadas, e somente requisicoes ja iniciadas podem terminar no drain limitado a 5 segundos, que fica fora da duracao. Histogramas P50/P95/P99 sao reconstruidos a partir dos relatorios de todos os workers antes de o CSV ser publicado.
+
+Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. Durante a medicao, o Locust acessa diretamente `http://{api-service}:8000` pela rede interna do Compose. `LOCUST_HOST_OVERRIDE` existe somente para pilotos comparativos pelo proxy do host, altera o hash do protocolo e bloqueia o modo oficial.
 
 ## Rodada principal por linguagem
 

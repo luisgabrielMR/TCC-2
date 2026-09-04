@@ -173,7 +173,11 @@ def collect() -> dict:
         bounds_valid = bool(metadata.get("test_phase", {}).get("bounds_validation", {}).get("valid"))
         window_source = metadata.get("metrics", {}).get("window_source")
         exact_window = (
-            methodology_version >= 7 and bounds_valid and window_source == "locust_test_start_stop"
+            methodology_version >= 9 and bounds_valid
+            and window_source == "locust_spawning_complete_to_last_worker_stop"
+            and bool(metadata.get("protocol_sha256"))
+        ) or (
+            7 <= methodology_version < 9 and bounds_valid and window_source == "locust_test_start_stop"
         ) or (
             5 <= methodology_version < 7 and window_source == "locust_test_start_stop"
         )
@@ -204,6 +208,7 @@ def collect() -> dict:
             "resultClassification": classification,
             "commitSha": commit_sha,
             "campaignFingerprint": campaign_fingerprint,
+            "protocolSha256": metadata.get("protocol_sha256", "legacy"),
             "executionOrderPosition": int(number(metadata.get("execution_order", {}).get("position"))),
             "users": number(locust_metadata.get("users")),
             "testElapsedSeconds": elapsed,
@@ -248,6 +253,7 @@ def collect() -> dict:
                 "methodologyVersion": methodology_version,
                 "resultClassification": classification,
                 "campaignFingerprint": campaign_fingerprint,
+                "protocolSha256": metadata.get("protocol_sha256", "legacy"),
                 "users": number(locust_metadata.get("users")),
                 "endpoint": row.get("Name", ""),
                 "method": row.get("Type", ""),

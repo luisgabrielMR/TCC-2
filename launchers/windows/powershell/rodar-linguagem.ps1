@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "8")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "9")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -86,8 +86,21 @@ $runnerElapsedSeconds = 0
 $metricsStartEpoch = 0
 $preflightPath = Join-Path $resultDirectory "preflight.json"
 $monitoringPreflightPath = Join-Path $resultDirectory "monitoring-preflight.json"
+$protocolPath = Join-Path $resultDirectory "protocol-manifest.json"
 
 New-Item -ItemType Directory -Force $resultDirectory | Out-Null
+$protocolScript = Join-Path $script:BenchmarkRoot "scripts/benchmark_protocol.py"
+Invoke-BenchmarkPython @($protocolScript, "--load-profile", $LoadProfile, "--scenario", $Scenario, "--output", $protocolPath)
+$protocolManifest = Get-Content $protocolPath -Raw | ConvertFrom-Json
+$protocolHash = $protocolManifest.protocol_sha256
+$measurementDurationSeconds = [double]$protocolManifest.protocol.load.measurement_duration_seconds
+$durationToleranceSeconds = [double]$protocolManifest.protocol.execution.duration_tolerance_seconds
+if ([int]$protocolManifest.protocol.load.users -ne $users -or
+    [int]$protocolManifest.protocol.load.spawn_rate -ne $spawnRate -or
+    [double]$protocolManifest.protocol.load.wait_seconds -ne [double]$waitSeconds -or
+    [int]$protocolManifest.protocol.load.processes -ne $locustProcesses) {
+    throw "O runner divergiu do manifesto canonico do protocolo."
+}
 $startedAt = (Get-Date).ToString("o")
 $commit = (& git rev-parse --short HEAD 2>$null)
 if (-not $commit) { $commit = "unknown" }
@@ -104,21 +117,17 @@ try {
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
         "--mode", $RunMode, "--api-service", $service,
-        "--load-profile", $LoadProfile, "--output", $preflightPath
+        "--load-profile", $LoadProfile, "--scenario", $Scenario,
+        "--protocol-manifest", $protocolPath, "--output", $preflightPath
     )
     $preflight = Get-Content $preflightPath -Raw | ConvertFrom-Json
     $locustCpuQuota = [double]$preflight.resource_policy.effective.limits.locust.effective_cpu_quota
     if ($locustCpuQuota -le 0) { throw "O preflight nao confirmou a cota efetiva de CPU do Locust." }
-    $campaignFingerprint = $env:BENCHMARK_CAMPAIGN_FINGERPRINT
-    if (-not $campaignFingerprint -or $campaignFingerprint -eq "manual") {
-        $calibrationRelative = Get-BenchmarkValue $environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
-        $calibrationPath = Join-Path $script:BenchmarkRoot $calibrationRelative
-        $calibrationHash = if (Test-Path $calibrationPath) {
-            (Get-FileHash -Algorithm SHA256 $calibrationPath).Hash.ToLowerInvariant()
-        } else { "no_calibration" }
-        $commitToken = $preflight.git.commit_sha.Substring(0, [Math]::Min(12, $preflight.git.commit_sha.Length))
-        $calibrationToken = $calibrationHash.Substring(0, [Math]::Min(12, $calibrationHash.Length))
-        $campaignFingerprint = "m${methodologyVersion}_${commitToken}_${calibrationToken}"
+    $campaignFingerprint = $protocolManifest.campaign_fingerprint
+    if ($env:BENCHMARK_CAMPAIGN_FINGERPRINT -and
+        $env:BENCHMARK_CAMPAIGN_FINGERPRINT -ne "manual" -and
+        $env:BENCHMARK_CAMPAIGN_FINGERPRINT -ne $campaignFingerprint) {
+        throw "A campanha solicitada usa outro protocolo: $($env:BENCHMARK_CAMPAIGN_FINGERPRINT) != $campaignFingerprint"
     }
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/validate_monitoring.py"),
@@ -168,7 +177,10 @@ try {
     $boundsValidationPath = Join-Path $resultDirectory "measurement-bounds-validation.json"
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/validate_measurement_bounds.py"),
-        "--bounds", $boundsPath, "--output", $boundsValidationPath
+        "--bounds", $boundsPath,
+        "--expected-duration-seconds", "$measurementDurationSeconds",
+        "--duration-tolerance-seconds", "$durationToleranceSeconds",
+        "--output", $boundsValidationPath
     )
     $boundsValidation = Get-Content $boundsValidationPath -Raw | ConvertFrom-Json
     $loadBounds = Get-Content $boundsPath -Raw | ConvertFrom-Json
@@ -232,6 +244,10 @@ try {
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
     $mainRunStarted = $false
+    Invoke-BenchmarkPython @(
+        $protocolScript, "--load-profile", $LoadProfile, "--scenario", $Scenario,
+        "--assert-sha256", $protocolHash, "--output", $protocolPath
+    )
 
     $image = (& docker compose images -q $service 2>$null | Select-Object -First 1)
     $runtime = $preflight.runtimes.$Language
@@ -266,6 +282,8 @@ try {
         workload_scenario = $Scenario
         load_profile = $LoadProfile
         methodology_version = $methodologyVersion
+        protocol_sha256 = $protocolHash
+        protocol = $protocolManifest.protocol
         benchmark_kind = $benchmarkKind
         run_number = $RunNumber
         execution_order = [ordered]@{
@@ -361,15 +379,17 @@ try {
         }
         measurement_stability = $measurementValidation
         metrics = [ordered]@{
-            window_source = "locust_test_start_stop"
+            window_source = "locust_spawning_complete_to_last_worker_stop"
             response_time_source = "Locust locust_stats.csv"
-            percentile_source = "Locust rounded response-time histogram in locust_stats.csv"
+            percentile_source = "independently reconciled Locust rounded response-time histograms from every worker"
             snapshot_validation_file = "locust_snapshot_validation.json"
             worker_reports_required = $true
-            measurement_protocol_revision = 2
+            measurement_protocol_revision = 3
             monitoring_priming_seconds_outside_measurement = 10
             stop_timeout_seconds = 5
-            measurement_includes_drain_and_coordination = $true
+            measurement_includes_ramp_up = $false
+            measurement_includes_drain_and_coordination = $false
+            drained_requests_scope = "requests started before the stop boundary and completed during bounded shutdown"
             prometheus_collector_revision = 2
             resource_sample_source = "prometheus_raw_range_vector"
             resource_peaks_are_sampled = $true
@@ -377,7 +397,7 @@ try {
             throughput_source = "Locust request count divided by monotonic measurement duration"
             request_count_source = "Locust locust_stats.csv"
             failure_and_error_rate_source = "Locust locust_stats.csv"
-            total_test_time_source = "Locust test_start/test_stop events measured with time.monotonic_ns"
+            total_test_time_source = "Locust spawning_complete/last-worker-stop boundaries measured with time.monotonic_ns"
             duration_clock = "time.monotonic_ns"
             boundary_clock = "time.time_ns"
             prometheus_boundary_method = "two-scrape padding; raw timestamps; boundary interpolation"

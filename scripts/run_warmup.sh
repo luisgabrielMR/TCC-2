@@ -34,7 +34,8 @@ run_attempt() {
     --processes "$LOCUST_PROCESSES" \
     -u "$USERS" \
     -r "$SPAWN_RATE" \
-    -t "${duration_seconds}s" \
+    -t "$($PYTHON_BIN -c 'import math,sys; print(f"{math.ceil(float(sys.argv[1])+float(sys.argv[2])/float(sys.argv[3])+30)}s")' "$duration_seconds" "$USERS" "$SPAWN_RATE")" \
+    --benchmark-measurement-seconds "$duration_seconds" \
     --host "$BASE_URL" \
     --csv "/mnt/$host_prefix" \
     --only-summary || return 2

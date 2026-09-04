@@ -19,7 +19,7 @@ LANGUAGE_ORDER = {name: index for index, name in enumerate(("python", "node", "j
 
 ENDPOINT_FIELDS = [
     "language", "scenario", "load_profile", "methodology_version", "result_classification",
-    "commit_sha", "campaign_fingerprint", "run", "users", "benchmark_kind", "execution_order_position", "method", "endpoint",
+    "commit_sha", "campaign_fingerprint", "protocol_sha256", "run", "users", "benchmark_kind", "execution_order_position", "method", "endpoint",
     "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms", "p99_ms",
     "throughput_rps", "locust_reported_rps", "throughput_source", "test_elapsed_seconds",
     "exact_measurement_window",
@@ -31,7 +31,7 @@ ENDPOINT_FIELDS = [
 
 LANGUAGE_FIELDS = [
     "language", "scenario", "run", "load_profile", "methodology_version", "result_classification",
-    "commit_sha", "campaign_fingerprint", "benchmark_kind", "users", "spawn_rate", "configured_duration", "wait_seconds",
+    "commit_sha", "campaign_fingerprint", "protocol_sha256", "benchmark_kind", "users", "spawn_rate", "configured_duration", "wait_seconds",
     "test_elapsed_seconds", "duration_source", "exact_measurement_window",
     "resource_metrics_available", "cadvisor_metrics_available", "postgres_metrics_available",
     "resource_metric_source", "execution_order_position", "requests", "failures", "error_rate",
@@ -51,7 +51,7 @@ LANGUAGE_FIELDS = [
 
 SCALABILITY_FIELDS = [
     "language", "workload_family", "scenario", "load_profile", "methodology_version", "result_classification",
-    "campaign_fingerprint", "baseline_users", "users", "runs", "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms",
+    "campaign_fingerprint", "protocol_sha256", "baseline_users", "users", "runs", "requests", "failures", "error_rate", "avg_ms", "p50_ms", "p95_ms",
     "p99_ms", "throughput_rps", "throughput_min_rps", "throughput_max_rps",
     "throughput_relative_range_percent", "test_elapsed_seconds", "resource_metrics_available",
     "cadvisor_metrics_available", "resource_metric_source", "api_cpu_average_percent",
@@ -249,7 +249,12 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
         campaign_fingerprint = declared_campaign if declared_campaign not in (None, "", "manual") else commit_sha
         bounds_valid = bool(metadata.get("test_phase", {}).get("bounds_validation", {}).get("valid"))
         exact_window = (
-            methodology_version >= 7
+            methodology_version >= 9
+            and metadata.get("metrics", {}).get("window_source") == "locust_spawning_complete_to_last_worker_stop"
+            and bounds_valid
+            and bool(metadata.get("protocol_sha256"))
+        ) or (
+            7 <= methodology_version < 9
             and metadata.get("metrics", {}).get("window_source") == "locust_test_start_stop"
             and bounds_valid
         ) or (
@@ -275,6 +280,7 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
             "result_classification": classification,
             "commit_sha": commit_sha,
             "campaign_fingerprint": campaign_fingerprint,
+            "protocol_sha256": metadata.get("protocol_sha256", "legacy"),
             "execution_order_position": int(number(metadata.get("execution_order", {}).get("position"))),
             "benchmark_kind": metadata.get("benchmark_kind", "controlled_load"),
             "users": int(number(locust_meta.get("users"))),
@@ -361,6 +367,7 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
                 "result_classification": classification,
                 "commit_sha": commit_sha,
                 "campaign_fingerprint": campaign_fingerprint,
+                "protocol_sha256": run["protocol_sha256"],
                 "users": run["users"],
                 "benchmark_kind": run["benchmark_kind"],
                 "execution_order_position": run["execution_order_position"],
@@ -400,44 +407,44 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
     mixed = [{**row, "workload_family": scalability_family(row)} for row in runs]
     mixed = [row for row in mixed if row["workload_family"] is not None]
     current_cohorts = {
-        (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy"))
+        (row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row.get("result_classification", "legacy"))
         for row in mixed if row.get("load_profile", "legacy") != "legacy"
     }
     candidates = [
         row for row in mixed
         if row.get("load_profile", "legacy") != "legacy"
-        or (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) not in current_cohorts
+        or (row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row.get("result_classification", "legacy")) not in current_cohorts
     ]
     latest_versions = {
         cohort: max(
             int(number(row.get("methodology_version"), 1))
             for row in candidates
-            if (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) == cohort
+            if (row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row.get("result_classification", "legacy")) == cohort
         )
         for cohort in {
-            (row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy")) for row in candidates
+            (row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row.get("result_classification", "legacy")) for row in candidates
         }
     }
     mixed = [
         row for row in candidates
         if int(number(row.get("methodology_version"), 1))
-        == latest_versions[(row["workload_family"], campaign_key(row), row["language"], row.get("result_classification", "legacy"))]
+        == latest_versions[(row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row.get("result_classification", "legacy"))]
     ]
-    groups: dict[tuple[str, str, str, str, str, int, str, int], list[dict]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str, str, str, int, str, int], list[dict]] = defaultdict(list)
     for row in mixed:
         if row["users"] > 0:
             groups[(
-                row["workload_family"], campaign_key(row), row["language"], row["scenario"], row.get("load_profile", "legacy"),
+                row["workload_family"], campaign_key(row), row.get("protocol_sha256", "legacy"), row["language"], row["scenario"], row.get("load_profile", "legacy"),
                 int(number(row.get("methodology_version"), 1)),
                 row.get("result_classification", "legacy"), int(row["users"]),
             )].append(row)
 
     output: list[dict] = []
-    cohorts: dict[tuple[str, str, str, int, str], list[tuple[int, list[dict]]]] = defaultdict(list)
-    for (family, campaign, language, _scenario, _profile, methodology, classification, users), group in groups.items():
-        cohorts[(family, campaign, language, methodology, classification)].append((users, group))
+    cohorts: dict[tuple[str, str, str, str, int, str], list[tuple[int, list[dict]]]] = defaultdict(list)
+    for (family, campaign, protocol, language, _scenario, _profile, methodology, classification, users), group in groups.items():
+        cohorts[(family, campaign, protocol, language, methodology, classification)].append((users, group))
 
-    for (family, campaign, language, methodology, classification), levels in cohorts.items():
+    for (family, campaign, protocol, language, methodology, classification), levels in cohorts.items():
         levels.sort(key=lambda item: item[0])
         baseline_group = levels[0][1]
         baseline_users = int(baseline_group[0]["users"])
@@ -496,6 +503,7 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
                 "methodology_version": methodology,
                 "result_classification": classification,
                 "campaign_fingerprint": campaign,
+                "protocol_sha256": protocol,
                 "baseline_users": baseline_users,
                 "users": users,
                 "runs": len(group),
