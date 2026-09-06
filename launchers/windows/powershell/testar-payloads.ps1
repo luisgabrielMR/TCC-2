@@ -10,6 +10,10 @@ function First-Line([string]$Path) {
     return (Get-Content $Path -TotalCount 1).Trim()
 }
 
+function New-BenchmarkTemporaryFile {
+    return Get-Item -LiteralPath ([System.IO.Path]::GetTempFileName())
+}
+
 function Invoke-ApiRequest {
     param(
         [string]$Name,
@@ -19,7 +23,7 @@ function Invoke-ApiRequest {
         [string]$BodyPath = ""
     )
 
-    $temp = New-TemporaryFile
+    $temp = New-BenchmarkTemporaryFile
     $args = @("-sS", "-o", $temp.FullName, "-w", "%{http_code}", "-X", $Method, $Url)
     if ($BodyPath) {
         $args += @("-H", "Content-Type: application/json", "--data", "@$BodyPath")
@@ -39,9 +43,9 @@ $customerId = First-Line "common/payloads/ids_customers.jsonl"
 $categoryId = First-Line "common/payloads/ids_categories.jsonl"
 $orderId = First-Line "common/payloads/ids_orders.jsonl"
 
-$customerCreate = New-TemporaryFile
-$customerUpdate = New-TemporaryFile
-$orderCreate = New-TemporaryFile
+$customerCreate = New-BenchmarkTemporaryFile
+$customerUpdate = New-BenchmarkTemporaryFile
+$orderCreate = New-BenchmarkTemporaryFile
 Get-Content "common/payloads/customers_create.jsonl" -TotalCount 1 | Set-Content $customerCreate.FullName
 Get-Content "common/payloads/customers_update.jsonl" -TotalCount 1 | Set-Content $customerUpdate.FullName
 Get-Content "common/payloads/orders_create.jsonl" -TotalCount 1 | Set-Content $orderCreate.FullName

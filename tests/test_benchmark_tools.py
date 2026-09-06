@@ -740,6 +740,13 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
         ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("results/calibration/**", ignore.splitlines())
 
+    def test_windows_payload_validator_uses_a_powershell_compatible_temp_file_api(self) -> None:
+        script = (
+            ROOT / "launchers" / "windows" / "powershell" / "testar-payloads.ps1"
+        ).read_text(encoding="utf-8")
+        self.assertIn("[System.IO.Path]::GetTempFileName()", script)
+        self.assertNotIn("New-TemporaryFile", script)
+
     def test_calibrators_start_every_required_monitoring_target(self) -> None:
         scripts = [
             ROOT / "scripts" / "calibrate_load_generator.sh",
