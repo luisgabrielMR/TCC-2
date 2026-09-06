@@ -12,15 +12,18 @@ ROOT = Path(__file__).resolve().parents[2]
 PAYLOAD_DIR = ROOT / "common" / "payloads"
 SEED = 20260607
 
-BASE_CUSTOMERS = 200
+BASE_CUSTOMERS = 200_000
 BASE_CATEGORIES = 5
 BASE_PRODUCTS = 100
-BASE_ORDERS = 300
+BASE_ORDERS = 200_000
 # At 5,000 total req/s for five minutes, the mixed scenario expects 150,000
 # customer creates. Keep one third of deterministic headroom for task variance.
 CREATE_CUSTOMERS = 200_000
 UPDATE_CUSTOMERS = 200
-CREATE_ORDERS = 250
+# One deterministic order payload per baseline customer distributes inserts
+# across the enlarged initial population instead of concentrating them in its
+# first records. PayloadCycle can still reuse the sequence after one pass.
+CREATE_ORDERS = BASE_ORDERS
 
 
 def write_jsonl(path: Path, rows) -> None:

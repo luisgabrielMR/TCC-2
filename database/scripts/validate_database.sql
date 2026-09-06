@@ -15,14 +15,14 @@ BEGIN
         RAISE EXCEPTION 'Missing database objects: %', array_to_string(missing_objects, ', ');
     END IF;
 
-    IF (SELECT count(*) FROM customers) < 200 THEN RAISE EXCEPTION 'customers seed count is below 200'; END IF;
-    IF (SELECT count(*) FROM addresses) < 200 THEN RAISE EXCEPTION 'addresses seed count is below 200'; END IF;
-    IF (SELECT count(*) FROM categories) < 5 THEN RAISE EXCEPTION 'categories seed count is below 5'; END IF;
-    IF (SELECT count(*) FROM products) < 100 THEN RAISE EXCEPTION 'products seed count is below 100'; END IF;
-    IF (SELECT count(*) FROM orders) < 300 THEN RAISE EXCEPTION 'orders seed count is below 300'; END IF;
-    IF (SELECT count(*) FROM order_items) < 600 THEN RAISE EXCEPTION 'order_items seed count is below 600'; END IF;
-    IF (SELECT count(*) FROM payments) < 300 THEN RAISE EXCEPTION 'payments seed count is below 300'; END IF;
-    IF (SELECT count(*) FROM audit_logs) < 500 THEN RAISE EXCEPTION 'audit_logs seed count is below 500'; END IF;
+    IF (SELECT count(*) FROM customers) <> 200000 THEN RAISE EXCEPTION 'customers seed count must equal 200000'; END IF;
+    IF (SELECT count(*) FROM addresses) <> 200000 THEN RAISE EXCEPTION 'addresses seed count must equal 200000'; END IF;
+    IF (SELECT count(*) FROM categories) <> 5 THEN RAISE EXCEPTION 'categories seed count must equal 5'; END IF;
+    IF (SELECT count(*) FROM products) <> 100 THEN RAISE EXCEPTION 'products seed count must equal 100'; END IF;
+    IF (SELECT count(*) FROM orders) <> 200000 THEN RAISE EXCEPTION 'orders seed count must equal 200000'; END IF;
+    IF (SELECT count(*) FROM order_items) <> 400000 THEN RAISE EXCEPTION 'order_items seed count must equal 400000'; END IF;
+    IF (SELECT count(*) FROM payments) <> 200000 THEN RAISE EXCEPTION 'payments seed count must equal 200000'; END IF;
+    IF (SELECT count(*) FROM audit_logs) <> 400000 THEN RAISE EXCEPTION 'audit_logs seed count must equal 400000'; END IF;
 
     IF to_regclass('public.idx_customers_created_id') IS NULL THEN RAISE EXCEPTION 'idx_customers_created_id is missing'; END IF;
     IF to_regclass('public.idx_addresses_customer_default') IS NULL THEN RAISE EXCEPTION 'idx_addresses_customer_default is missing'; END IF;

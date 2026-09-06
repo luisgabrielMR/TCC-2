@@ -45,6 +45,10 @@ Esse script executa:
 - `database/init/002_seed_base_data.sql`
 - `database/init/003_indexes.sql`
 
+O seed determinístico contém 200.000 clientes, endereços e pedidos, com 400.000
+itens e registros de auditoria. Esse volume limita a mudança esperada do warmup
+`fixed_200` a 4,5% da escala das tabelas que recebem inserções.
+
 No Windows, abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Preparar banco`.
 
 ## Gerar payloads prontos
@@ -71,7 +75,7 @@ No Windows, abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Gerar paylo
 ./scripts/validate_database.sh
 ```
 
-O script confere tabelas, indices e contagens minimas. No Windows, use a opcao `Validar banco` do menu avancado.
+O script confere tabelas, indices e contagens exatas do seed. No Windows, use a opcao `Validar banco` do menu avancado.
 
 ## Resetar banco entre rodadas
 

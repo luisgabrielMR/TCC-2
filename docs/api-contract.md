@@ -74,7 +74,7 @@ frameworks nunca sao expostos.
   "district": "Bairro 1",
   "city": "Sao Paulo",
   "state": "SP",
-  "postalCode": "01000001",
+  "postalCode": "010000001",
   "isDefault": true
 }
 ```
@@ -84,8 +84,8 @@ frameworks nunca sao expostos.
 ```json
 {
   "id": 1,
-  "fullName": "Cliente Base 0001",
-  "email": "cliente.base.0001@example.com",
+  "fullName": "Cliente Base 000001",
+  "email": "cliente.base.000001@example.com",
   "documentNumber": "10000000001",
   "phone": null,
   "status": "active",
@@ -121,15 +121,15 @@ completa de `Address`.
   "totalAmount": "78.12",
   "customer": {
     "id": 1,
-    "fullName": "Cliente Base 0001",
-    "email": "cliente.base.0001@example.com",
+    "fullName": "Cliente Base 000001",
+    "email": "cliente.base.000001@example.com",
     "documentNumber": "10000000001",
     "phone": null,
     "status": "active",
     "address": {
       "id": 1, "label": "main", "street": "Rua Experimental 1",
       "number": "101", "complement": null, "district": "Bairro 1",
-      "city": "Sao Paulo", "state": "SP", "postalCode": "01000001",
+      "city": "Sao Paulo", "state": "SP", "postalCode": "010000001",
       "isDefault": true
     },
     "createdAt": "2026-01-01T08:01:00Z",
@@ -138,7 +138,7 @@ completa de `Address`.
   "address": {
     "id": 1, "label": "main", "street": "Rua Experimental 1",
     "number": "101", "complement": null, "district": "Bairro 1",
-    "city": "Sao Paulo", "state": "SP", "postalCode": "01000001",
+    "city": "Sao Paulo", "state": "SP", "postalCode": "010000001",
     "isDefault": true
   },
   "items": [

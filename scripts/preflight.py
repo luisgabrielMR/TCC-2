@@ -46,6 +46,9 @@ COMPOSE_PROFILES = ("python", "node", "java", "go", "dotnet", "load", "monitorin
 VERIFICATION_EVIDENCE = ROOT / "results" / "summaries" / "project-verification.json"
 REQUIRED_CONTRACT_LANGUAGES = ["python", "node", "java", "go", "dotnet"]
 EXPECTED_CUSTOMER_CREATE_PAYLOADS = 200_000
+EXPECTED_ORDER_CREATE_PAYLOADS = 200_000
+EXPECTED_BASE_CUSTOMERS = 200_000
+EXPECTED_BASE_ORDERS = 200_000
 EXPECTED_LOCUST_PROCESSES = 4
 EXPECTED_DOCKER_LOGICAL_PROCESSORS = 8
 EXPECTED_CPU_LIMITS = {
@@ -565,28 +568,47 @@ def configured_pool(environment: dict[str, str]) -> dict[str, Any]:
 
 
 def payload_inventory() -> dict[str, Any]:
-    path = ROOT / "common" / "payloads" / "customers_create.jsonl"
     try:
-        count = 0
-        last_byte = b""
-        with path.open("rb") as handle:
-            while chunk := handle.read(1024 * 1024):
-                count += chunk.count(b"\n")
-                last_byte = chunk[-1:]
-        if last_byte and last_byte != b"\n":
-            count += 1
+        def line_count(path: Path) -> int:
+            count = 0
+            last_byte = b""
+            with path.open("rb") as handle:
+                while chunk := handle.read(1024 * 1024):
+                    count += chunk.count(b"\n")
+                    last_byte = chunk[-1:]
+            return count + int(bool(last_byte and last_byte != b"\n"))
+
+        payload_root = ROOT / "common" / "payloads"
+        customers_create = payload_root / "customers_create.jsonl"
+        orders_create = payload_root / "orders_create.jsonl"
+        customer_ids = payload_root / "ids_customers.jsonl"
+        order_ids = payload_root / "ids_orders.jsonl"
         return {
             "available": True,
-            "customers_create": count,
+            "customers_create": line_count(customers_create),
             "minimum_customers_create": EXPECTED_CUSTOMER_CREATE_PAYLOADS,
-            "path": str(path),
+            "orders_create": line_count(orders_create),
+            "minimum_orders_create": EXPECTED_ORDER_CREATE_PAYLOADS,
+            "customer_ids": line_count(customer_ids),
+            "expected_customer_ids": EXPECTED_BASE_CUSTOMERS,
+            "order_ids": line_count(order_ids),
+            "expected_order_ids": EXPECTED_BASE_ORDERS,
+            "path": str(customers_create),
+            "payload_directory": str(payload_root),
         }
     except OSError as exc:
         return {
             "available": False,
             "customers_create": 0,
             "minimum_customers_create": EXPECTED_CUSTOMER_CREATE_PAYLOADS,
-            "path": str(path),
+            "orders_create": 0,
+            "minimum_orders_create": EXPECTED_ORDER_CREATE_PAYLOADS,
+            "customer_ids": 0,
+            "expected_customer_ids": EXPECTED_BASE_CUSTOMERS,
+            "order_ids": 0,
+            "expected_order_ids": EXPECTED_BASE_ORDERS,
+            "path": str(ROOT / "common" / "payloads" / "customers_create.jsonl"),
+            "payload_directory": str(ROOT / "common" / "payloads"),
             "error": str(exc),
         }
 
@@ -769,6 +791,14 @@ def build_report(
         violations.append(
             f"customers_create.jsonl must contain at least {EXPECTED_CUSTOMER_CREATE_PAYLOADS} unique payloads"
         )
+    if not payloads.get("available") or payloads.get("orders_create", 0) < EXPECTED_ORDER_CREATE_PAYLOADS:
+        violations.append(
+            f"orders_create.jsonl must contain at least {EXPECTED_ORDER_CREATE_PAYLOADS} deterministic payloads"
+        )
+    if payloads.get("customer_ids") != EXPECTED_BASE_CUSTOMERS:
+        violations.append(f"ids_customers.jsonl must contain exactly {EXPECTED_BASE_CUSTOMERS} baseline identifiers")
+    if payloads.get("order_ids") != EXPECTED_BASE_ORDERS:
+        violations.append(f"ids_orders.jsonl must contain exactly {EXPECTED_BASE_ORDERS} baseline identifiers")
     allocation = docker.get("allocation", {})
     if not allocation.get("logical_processors") or not allocation.get("memory_bytes"):
         violations.append("Effective Docker CPU or memory allocation is unavailable")

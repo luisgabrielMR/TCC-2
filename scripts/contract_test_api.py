@@ -13,6 +13,8 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+BASE_CUSTOMERS = 200_000
+
 from compare_json import first_difference
 
 
@@ -271,7 +273,7 @@ def run_contract(label: str, base_url: str) -> dict[str, Any]:
 
     update = base_update()
     expect(label, base_url, "GET", "/customers?page=2147483647&pageSize=100", 200,
-           {"page": 2147483647, "pageSize": 100, "total": 200, "items": []})
+           {"page": 2147483647, "pageSize": 100, "total": BASE_CUSTOMERS, "items": []})
     expect(label, base_url, "PUT", "/customers/1", 400, validation_error(detail("status", "Must be active or inactive")), payload={**update, "status": "blocked"})
     expect(label, base_url, "PUT", "/customers/1", 400, validation_error(detail("phone", "Must be a string or null")), payload={**update, "phone": True})
 
@@ -328,7 +330,7 @@ def run_contract(label: str, base_url: str) -> dict[str, Any]:
     expect(label, base_url, "POST", "/orders", 404, error("NOT_FOUND", "Address not found"), payload={**order, "addressId": MAX_INT})
     expect(label, base_url, "POST", "/orders", 404, error("NOT_FOUND", "Product not found"), payload={**order, "items": [{"productId": MAX_INT, "quantity": 1}]})
 
-    duplicate_email = {**customer, "email": "cliente.base.0001@example.com", "documentNumber": "unique-contract-document"}
+    duplicate_email = {**customer, "email": "cliente.base.000001@example.com", "documentNumber": "unique-contract-document"}
     duplicate_document = {**customer, "email": "unique-contract@example.com", "documentNumber": "10000000001"}
     conflict = error("CONFLICT", "Customer email or document already exists")
     expect(label, base_url, "POST", "/customers", 409, conflict, payload=duplicate_email)

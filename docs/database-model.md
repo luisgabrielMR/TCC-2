@@ -94,12 +94,18 @@ O seed determinístico cria:
 
 - 5 categorias
 - 100 produtos
-- 200 clientes
-- 200 endereços
-- 300 pedidos
-- 600 itens de pedido
-- 300 pagamentos
-- 500 registros de auditoria
+- 200.000 clientes
+- 200.000 endereços
+- 200.000 pedidos
+- 400.000 itens de pedido
+- 200.000 pagamentos
+- 400.000 registros de auditoria
+
+O perfil `fixed_200` limita o warmup a 200 requisições por segundo durante 300
+segundos. Com os pesos de 10% para `POST /customers` e 15% para `POST /orders`,
+isso corresponde, no máximo esperado, a 6.000 clientes e 9.000 pedidos novos.
+Assim, a maior mudança de escala após o warmup é de 4,5%; o reset subsequente
+recompõe exatamente esta linha de base antes da coleta principal.
 
 ## Seed
 
@@ -115,4 +121,4 @@ O reset fica em `database/reset/reset_database.sql`. Ele executa `TRUNCATE ... R
 
 ## Validação
 
-O arquivo `database/scripts/validate_database.sql` confere se tabelas, índices e contagens mínimas existem. Ele deve ser executado depois do preparo inicial e depois de resets quando houver dúvida sobre o estado do banco.
+O arquivo `database/scripts/validate_database.sql` confere se tabelas, índices e contagens exatas do seed existem. Ele deve ser executado depois do preparo inicial e depois de cada reset.

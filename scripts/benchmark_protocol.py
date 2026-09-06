@@ -145,6 +145,7 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "idle_timeout_seconds": _number(environment, "DB_POOL_IDLE_TIMEOUT_SECONDS", "60", int),
             "max_lifetime_seconds": _number(environment, "DB_POOL_MAX_LIFETIME_SECONDS", "1800", int),
         },
+        "database_seed_sha256": _sha256(ROOT / "database" / "init" / "002_seed_base_data.sql"),
         "resource_cpu_quotas": CPU_QUOTAS,
         "metrics": {
             "collector_interval_seconds": _number(environment, "METRICS_SAMPLE_INTERVAL_SECONDS", "2"),

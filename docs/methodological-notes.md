@@ -93,6 +93,13 @@ Se o aquecimento estiver instavel ou alguma rota esperada nao for chamada, a med
 
 Os arquivos JSONL em `common/payloads/` sao gerados antes da coleta e lidos sequencialmente, sem gerar, copiar ou alterar JSON durante o teste. `customers_create.jsonl` contem 200.000 clientes unicos e deterministas. Em cinco minutos a 5.000 requisicoes totais por segundo, o peso de 10% do cenario misto produz 150.000 criacoes em expectativa; a massa mantem 50.000 registros adicionais, ou 33,3% de margem, para a variacao da selecao ponderada. Os registros unicos sao repartidos entre os workers do Locust; fluxos ciclicos recebem deslocamentos diferentes para evitar que todos comecem no mesmo registro. A rodada falha de forma explicita se consumir todo o arquivo.
 
+O seed inicial tambem contem 200.000 clientes, enderecos e pedidos. No warmup
+do perfil `fixed_200`, o teto de 200 requisicoes por segundo por 300 segundos,
+com pesos de 10% para criacao de cliente e 15% para criacao de pedido, produz
+no maximo esperado 6.000 e 9.000 insercoes. Portanto, o maior aumento relativo
+das tabelas que crescem durante o warmup e de 4,5%; os payloads de identificador
+e de criacao de pedido percorrem toda a populacao inicial de forma deterministica.
+
 O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir. Assim, esgotamento de produto nao favorece APIs mais lentas nem penaliza APIs mais rapidas.
 
 O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark durante a carga. Cada reset usa `TRUNCATE`, repoe o seed, executa `VACUUM (ANALYZE)` e `CHECKPOINT` e zera as estatisticas cumulativas do banco. Isso evita que manutencao em segundo plano, a escrita inicial do seed ou contadores herdados ocorram em instantes diferentes para cada linguagem.

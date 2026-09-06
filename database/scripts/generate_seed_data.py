@@ -6,8 +6,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SEED_SQL = ROOT / "database" / "init" / "002_seed_base_data.sql"
+BASE_CUSTOMERS = 200_000
+BASE_ORDERS = 200_000
 
-SEED_TEMPLATE = """BEGIN;
+SEED_TEMPLATE = f"""BEGIN;
+
+-- The fixed_200 warmup is limited to 200 req/s for 300 seconds. In the
+-- mixed scenario, 10% of requests create customers and 15% create orders:
+-- 6,000 and 9,000 records respectively. This 200,000-record baseline keeps
+-- the largest expected warmup scale change at or below 4.5%.
 
 INSERT INTO categories (id, name)
 VALUES
@@ -21,14 +28,14 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO customers (id, full_name, email, document_number, phone, status, created_at, updated_at)
 SELECT
     gs,
-    'Cliente Base ' || lpad(gs::text, 4, '0'),
-    'cliente.base.' || lpad(gs::text, 4, '0') || '@example.com',
+    'Cliente Base ' || lpad(gs::text, 6, '0'),
+    'cliente.base.' || lpad(gs::text, 6, '0') || '@example.com',
     '100' || lpad(gs::text, 8, '0'),
     '+55 11 9' || lpad(gs::text, 8, '0'),
     'active',
     timestamp '2026-01-01 08:00:00+00' + (gs || ' minutes')::interval,
     timestamp '2026-01-01 08:00:00+00' + (gs || ' minutes')::interval
-FROM generate_series(1, 200) AS gs
+FROM generate_series(1, {BASE_CUSTOMERS}) AS gs
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO addresses (
@@ -55,10 +62,10 @@ SELECT
     'Bairro ' || ((gs - 1) % 20 + 1),
     'Sao Paulo',
     'SP',
-    '010' || lpad(gs::text, 5, '0'),
+    '010' || lpad(gs::text, 6, '0'),
     true,
     timestamp '2026-01-01 08:00:00+00' + (gs || ' minutes')::interval
-FROM generate_series(1, 200) AS gs
+FROM generate_series(1, {BASE_CUSTOMERS}) AS gs
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO products (id, category_id, sku, name, unit_price, stock_quantity, active, created_at)
@@ -77,13 +84,13 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO orders (id, customer_id, address_id, status, total_amount, created_at, updated_at)
 SELECT
     gs,
-    ((gs - 1) % 200) + 1,
-    ((gs - 1) % 200) + 1,
+    ((gs - 1) % {BASE_CUSTOMERS}) + 1,
+    ((gs - 1) % {BASE_CUSTOMERS}) + 1,
     'paid',
     0,
     timestamp '2026-01-02 10:00:00+00' + (gs || ' minutes')::interval,
     timestamp '2026-01-02 10:00:00+00' + (gs || ' minutes')::interval
-FROM generate_series(1, 300) AS gs
+FROM generate_series(1, {BASE_ORDERS}) AS gs
 ON CONFLICT (id) DO NOTHING;
 
 WITH item_source AS (
@@ -94,7 +101,7 @@ WITH item_source AS (
         1 + ((o.id + line_no) % 3) AS quantity
     FROM orders o
     CROSS JOIN generate_series(1, 2) AS line_no
-    WHERE o.id BETWEEN 1 AND 300
+    WHERE o.id BETWEEN 1 AND {BASE_ORDERS}
 )
 INSERT INTO order_items (id, order_id, product_id, quantity, unit_price)
 SELECT
@@ -130,7 +137,7 @@ SELECT
     o.total_amount,
     o.created_at + interval '3 minutes'
 FROM orders o
-WHERE o.id BETWEEN 1 AND 300
+WHERE o.id BETWEEN 1 AND {BASE_ORDERS}
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO audit_logs (id, entity_type, entity_id, action, payload, created_at)
@@ -141,18 +148,18 @@ SELECT
     'seed_customer',
     jsonb_build_object('source', 'deterministic_seed'),
     timestamp '2026-01-01 08:00:00+00' + (gs || ' minutes')::interval
-FROM generate_series(1, 200) AS gs
+FROM generate_series(1, {BASE_CUSTOMERS}) AS gs
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO audit_logs (id, entity_type, entity_id, action, payload, created_at)
 SELECT
-    200 + gs,
+    {BASE_CUSTOMERS} + gs,
     'order',
     gs,
     'seed_order',
     jsonb_build_object('source', 'deterministic_seed'),
     timestamp '2026-01-02 10:00:00+00' + (gs || ' minutes')::interval
-FROM generate_series(1, 300) AS gs
+FROM generate_series(1, {BASE_ORDERS}) AS gs
 ON CONFLICT (id) DO NOTHING;
 
 SELECT setval(pg_get_serial_sequence('categories', 'id'), (SELECT max(id) FROM categories));

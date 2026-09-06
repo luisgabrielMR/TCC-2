@@ -14,7 +14,7 @@ SELECT jsonb_build_object(
             'id', id, 'fullName', full_name, 'email', email,
             'documentNumber', document_number, 'phone', phone, 'status', status
         ) ORDER BY id)
-        FROM customers WHERE id = 1 OR id > 200
+        FROM customers WHERE id = 1 OR id > 200000
     ), '[]'::jsonb),
     'addresses', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
@@ -23,14 +23,14 @@ SELECT jsonb_build_object(
             'city', city, 'state', state, 'postalCode', postal_code,
             'isDefault', is_default
         ) ORDER BY id)
-        FROM addresses WHERE id = 1 OR id > 200
+        FROM addresses WHERE id = 1 OR id > 200000
     ), '[]'::jsonb),
     'orders', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
             'id', id, 'customerId', customer_id, 'addressId', address_id,
             'status', status, 'totalAmount', total_amount::text
         ) ORDER BY id)
-        FROM orders WHERE id > 300
+        FROM orders WHERE id > 200000
     ), '[]'::jsonb),
     'orderItems', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
@@ -38,14 +38,14 @@ SELECT jsonb_build_object(
             'quantity', quantity, 'unitPrice', unit_price::text,
             'totalPrice', total_price::text
         ) ORDER BY id)
-        FROM order_items WHERE id > 600
+        FROM order_items WHERE id > 400000
     ), '[]'::jsonb),
     'payments', COALESCE((
         SELECT jsonb_agg(jsonb_build_object(
             'id', id, 'orderId', order_id, 'method', method,
             'status', status, 'amount', amount::text
         ) ORDER BY id)
-        FROM payments WHERE id > 300
+        FROM payments WHERE id > 200000
     ), '[]'::jsonb),
     'products', (
         SELECT jsonb_agg(jsonb_build_object(
@@ -58,7 +58,7 @@ SELECT jsonb_build_object(
             'id', id, 'entityType', entity_type, 'entityId', entity_id,
             'action', action, 'payload', payload
         ) ORDER BY id)
-        FROM audit_logs WHERE id > 500
+        FROM audit_logs WHERE id > 400000
     ), '[]'::jsonb),
     'sequences', (
         SELECT jsonb_object_agg(sequencename, last_value ORDER BY sequencename)
