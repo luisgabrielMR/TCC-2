@@ -50,6 +50,8 @@ results/archive/**
 !results/raw/.gitkeep
 !results/processed/.gitkeep
 !results/summaries/.gitkeep
+!results/archive/methodologies_6_7_legacy_20260906/
+!results/archive/methodologies_6_7_legacy_20260906/**
 
 # Large exports
 *.har

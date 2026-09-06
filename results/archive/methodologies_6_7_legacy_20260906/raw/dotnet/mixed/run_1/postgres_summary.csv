@@ -1,0 +1,2 @@
+samples,connections_average,connections_max,commits_total,rollbacks_total,commits_per_second,rollbacks_per_second,blocks_read_total,blocks_hit_total,cache_hit_ratio,database_size_average_bytes,database_size_max_bytes,metric_source
+60,21.883333,22.000000,293499.000000,59.000000,981.896369,0.197384,0.000000,12054519.000000,1.000000000,27470446.733,45225651.000,postgres_exporter_via_prometheus

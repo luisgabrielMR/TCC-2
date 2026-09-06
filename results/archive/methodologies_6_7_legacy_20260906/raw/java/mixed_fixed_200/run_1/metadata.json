@@ -1,0 +1,935 @@
+﻿{
+    "result_classification":  "official",
+    "requested_run_mode":  "official",
+    "official_run":  true,
+    "language":  "java",
+    "scenario":  "mixed_fixed_200",
+    "workload_scenario":  "mixed",
+    "load_profile":  "fixed_200",
+    "methodology_version":  7,
+    "benchmark_kind":  "fixed_rate",
+    "run_number":  1,
+    "execution_order":  {
+                            "sequence_id":  "fixed_200_m7_9bf804f51983_54d7d8fefd79_official_round_1_of_5",
+                            "campaign_fingerprint":  "m7_9bf804f51983_54d7d8fefd79",
+                            "position":  3
+                        },
+    "started_at":  "2026-09-02T20:39:03.1676222-03:00",
+    "finished_at":  "2026-09-02T20:51:19.4639506-03:00",
+    "git_commit":  "9bf804f519837b555d04b3e6ff4b9462cdc331e3",
+    "commit_sha":  "9bf804f519837b555d04b3e6ff4b9462cdc331e3",
+    "git_dirty":  false,
+    "tracked_diff_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "untracked_files":  [
+
+                        ],
+    "untracked_files_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "docker_image":  "04e6261112ec291c036dc0d3019ab8d15edda402ed9620ca6f1ec61de2997fd3",
+    "language_version":  "openjdk version \"21.0.11\" 2026-04-21 LTS",
+    "postgres_driver_version":  "PostgreSQL JDBC 42.7.4",
+    "http_library_or_framework":  "JDK HttpServer + Jackson 2.17.2",
+    "environment":  {
+                        "schema_version":  1,
+                        "collected_at":  "2026-09-02T23:40:15.422289Z",
+                        "requested_mode":  "official",
+                        "classification":  "official_candidate",
+                        "environment_eligible_for_official_run":  true,
+                        "official_blockers":  [
+
+                                              ],
+                        "expected":  {
+                                         "docker_engine":  "29.5.2",
+                                         "docker_compose":  "5.1.4",
+                                         "methodology_version":  7,
+                                         "locust_processes":  4,
+                                         "images":  {
+                                                        "postgres":  "postgres:17",
+                                                        "locust":  "locustio/locust:2.32.6",
+                                                        "prometheus":  "prom/prometheus:v2.55.1",
+                                                        "grafana":  "grafana/grafana:11.3.0",
+                                                        "postgres_exporter":  "prometheuscommunity/postgres-exporter:v0.15.0",
+                                                        "cadvisor":  "gcr.io/cadvisor/cadvisor:v0.49.1",
+                                                        "results_exporter":  "python:3.12-slim"
+                                                    },
+                                         "cpu_limits":  {
+                                                            "postgres":  1.0,
+                                                            "locust":  4.0,
+                                                            "python-api":  2.0,
+                                                            "node-api":  2.0,
+                                                            "java-api":  2.0,
+                                                            "go-api":  2.0,
+                                                            "dotnet-api":  2.0
+                                                        },
+                                         "docker_logical_processors":  8
+                                     },
+                        "git":  {
+                                    "available":  true,
+                                    "commit_sha":  "9bf804f519837b555d04b3e6ff4b9462cdc331e3",
+                                    "branch":  "main",
+                                    "git_dirty":  false,
+                                    "status_porcelain":  [
+
+                                                         ],
+                                    "tracked_diff_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                    "tracked_diff_size_bytes":  0,
+                                    "untracked_files":  [
+
+                                                        ],
+                                    "untracked_files_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                },
+                        "host":  {
+                                     "operating_system":  {
+                                                              "system":  "Windows",
+                                                              "release":  "11",
+                                                              "version":  "10.0.26200",
+                                                              "platform":  "Windows-11-10.0.26200-SP0"
+                                                          },
+                                     "cpu":  {
+                                                 "architecture":  "AMD64",
+                                                 "logical_processors":  12,
+                                                 "model":  "AMD Ryzen 5 3600 6-Core Processor",
+                                                 "processors":  [
+                                                                    {
+                                                                        "Name":  "AMD Ryzen 5 3600 6-Core Processor              ",
+                                                                        "NumberOfCores":  6,
+                                                                        "NumberOfLogicalProcessors":  12
+                                                                    }
+                                                                ],
+                                                 "physical_cores":  6
+                                             },
+                                     "physical_memory_bytes":  34287665152,
+                                     "storage":  {
+                                                     "path":  "C:\\",
+                                                     "total_bytes":  1999159422976,
+                                                     "free_bytes":  1122771210240,
+                                                     "device_models":  [
+                                                                           {
+                                                                               "Model":  "KINGSTON SNV3S2000G",
+                                                                               "Size":  2000396321280,
+                                                                               "MediaType":  "Fixed hard disk media"
+                                                                           },
+                                                                           {
+                                                                               "Model":  "ST3500413AS",
+                                                                               "Size":  500105249280,
+                                                                               "MediaType":  "Fixed hard disk media"
+                                                                           }
+                                                                       ]
+                                                 }
+                                 },
+                        "docker":  {
+                                       "available":  true,
+                                       "engine_server_version":  "29.5.2",
+                                       "engine_client_version":  "29.5.2",
+                                       "compose_version":  "v5.1.4",
+                                       "allocation":  {
+                                                          "logical_processors":  8,
+                                                          "memory_bytes":  8327401472,
+                                                          "operating_system":  "Docker Desktop",
+                                                          "kernel_version":  "6.18.33.1-microsoft-standard-WSL2",
+                                                          "architecture":  "x86_64",
+                                                          "docker_root_dir":  "/var/lib/docker",
+                                                          "storage_driver":  "overlayfs"
+                                                      },
+                                       "errors":  [
+
+                                                  ]
+                                   },
+                        "configured_images":  {
+                                                  "config_ok":  true,
+                                                  "config_error":  null,
+                                                  "images":  [
+                                                                 {
+                                                                     "configured_reference":  "gcr.io/cadvisor/cadvisor:v0.49.1@sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388",
+                                                                     "repo_digests":  [
+                                                                                          "gcr.io/cadvisor/cadvisor@sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388"
+                                                                                      ],
+                                                                     "created":  "2024-03-02T20:59:01.440808486Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "grafana/grafana:11.3.0@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3",
+                                                                     "repo_digests":  [
+                                                                                          "grafana/grafana@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3"
+                                                                                      ],
+                                                                     "created":  "2024-10-22T16:50:35.448895301Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+                                                                     "repo_digests":  [
+                                                                                          "locustio/locust@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3"
+                                                                                      ],
+                                                                     "created":  "2025-01-13T15:10:49.451629976Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3",
+                                                                     "repo_digests":  [
+                                                                                          "postgres@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3"
+                                                                                      ],
+                                                                     "created":  "2026-05-19T23:16:24.525464631Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "prom/prometheus:v2.55.1@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3",
+                                                                     "repo_digests":  [
+                                                                                          "prom/prometheus@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3"
+                                                                                      ],
+                                                                     "created":  "2024-11-06T10:35:27.058590597Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "prometheuscommunity/postgres-exporter:v0.15.0@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6",
+                                                                     "repo_digests":  [
+                                                                                          "prometheuscommunity/postgres-exporter@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6"
+                                                                                      ],
+                                                                     "created":  "2023-10-27T14:42:03.171390518Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65",
+                                                                     "repo_digests":  [
+                                                                                          "python@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65"
+                                                                                      ],
+                                                                     "created":  "2026-08-13T19:43:37.557180073Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "tcc-postgresql-backend-benchmark-dotnet-api",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:d08809b42540e3801af5179e3f5b6bc60479bac7af2ec7c938712f9f812da76f",
+                                                                     "repo_digests":  [
+                                                                                          "tcc-postgresql-backend-benchmark-dotnet-api@sha256:d08809b42540e3801af5179e3f5b6bc60479bac7af2ec7c938712f9f812da76f"
+                                                                                      ],
+                                                                     "created":  "2026-08-23T14:35:04.469309298Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "tcc-postgresql-backend-benchmark-go-api",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:80af8fd191512013ebe0e584165fde3aa2f14b1377619d2f095475f9f8cc19c7",
+                                                                     "repo_digests":  [
+                                                                                          "tcc-postgresql-backend-benchmark-go-api@sha256:80af8fd191512013ebe0e584165fde3aa2f14b1377619d2f095475f9f8cc19c7"
+                                                                                      ],
+                                                                     "created":  "2026-08-23T20:59:45.962579892Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "tcc-postgresql-backend-benchmark-java-api",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:04e6261112ec291c036dc0d3019ab8d15edda402ed9620ca6f1ec61de2997fd3",
+                                                                     "repo_digests":  [
+                                                                                          "tcc-postgresql-backend-benchmark-java-api@sha256:04e6261112ec291c036dc0d3019ab8d15edda402ed9620ca6f1ec61de2997fd3"
+                                                                                      ],
+                                                                     "created":  "2026-08-23T14:25:00.980907315Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "tcc-postgresql-backend-benchmark-node-api",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:19689b118a0a701823b7ff5a42e024486b4358ef2758bab33ca582f7b1c8d4cc",
+                                                                     "repo_digests":  [
+                                                                                          "tcc-postgresql-backend-benchmark-node-api@sha256:19689b118a0a701823b7ff5a42e024486b4358ef2758bab33ca582f7b1c8d4cc"
+                                                                                      ],
+                                                                     "created":  "2026-08-23T14:29:19.698871933Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 },
+                                                                 {
+                                                                     "configured_reference":  "tcc-postgresql-backend-benchmark-python-api",
+                                                                     "available_locally":  true,
+                                                                     "image_id":  "sha256:f050c11a84c49757b7062b6b50827a6b3a6dc0c0a863a4279e9b16aa962eb26c",
+                                                                     "repo_digests":  [
+                                                                                          "tcc-postgresql-backend-benchmark-python-api@sha256:f050c11a84c49757b7062b6b50827a6b3a6dc0c0a863a4279e9b16aa962eb26c"
+                                                                                      ],
+                                                                     "created":  "2026-08-30T21:28:45.245161991Z",
+                                                                     "os":  "linux",
+                                                                     "architecture":  "amd64"
+                                                                 }
+                                                             ]
+                                              },
+                        "api_dockerfile_bases":  {
+                                                     "python-api":  [
+                                                                        "python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65"
+                                                                    ],
+                                                     "node-api":  [
+                                                                      "node:22-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436"
+                                                                  ],
+                                                     "java-api":  [
+                                                                      "maven:3.9-eclipse-temurin-21@sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502",
+                                                                      "eclipse-temurin:21-jre@sha256:371da296b8cb74c7e53fbe7083d5374befc0011b493231d97d45fa789915e434"
+                                                                  ],
+                                                     "go-api":  [
+                                                                    "golang:1.23-bookworm@sha256:167053a2bb901972bf2c1611f8f52c44d5fe7e762e5cab213708d82c421614db",
+                                                                    "debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241"
+                                                                ],
+                                                     "dotnet-api":  [
+                                                                        "mcr.microsoft.com/dotnet/sdk:8.0@sha256:306301580fcaa5b445180e759db59309979002d1000669cb4cf58a567d0014bc",
+                                                                        "mcr.microsoft.com/dotnet/aspnet:8.0@sha256:b0beb9cc1dee1c1b0749796110d4734292071b814207ad0d4f40611f7db04f7b"
+                                                                    ]
+                                                 },
+                        "postgresql":  {
+                                           "available":  true,
+                                           "version_output":  "PostgreSQL 17.10 (Debian 17.10-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+                                           "error":  null
+                                       },
+                        "runtimes":  {
+                                         "python":  {
+                                                        "available":  true,
+                                                        "version_output":  "Python 3.12.14",
+                                                        "image_id":  "sha256:f050c11a84c49757b7062b6b50827a6b3a6dc0c0a863a4279e9b16aa962eb26c",
+                                                        "image_reference":  "tcc-postgresql-backend-benchmark-python-api",
+                                                        "error":  null
+                                                    },
+                                         "node":  {
+                                                      "available":  true,
+                                                      "version_output":  "v22.23.2",
+                                                      "image_id":  "sha256:19689b118a0a701823b7ff5a42e024486b4358ef2758bab33ca582f7b1c8d4cc",
+                                                      "image_reference":  "tcc-postgresql-backend-benchmark-node-api",
+                                                      "error":  null
+                                                  },
+                                         "java":  {
+                                                      "available":  true,
+                                                      "version_output":  "openjdk version \"21.0.11\" 2026-04-21 LTS",
+                                                      "image_id":  "sha256:04e6261112ec291c036dc0d3019ab8d15edda402ed9620ca6f1ec61de2997fd3",
+                                                      "image_reference":  "tcc-postgresql-backend-benchmark-java-api",
+                                                      "error":  null
+                                                  },
+                                         "dotnet":  {
+                                                        "available":  true,
+                                                        "version_output":  "Microsoft.AspNetCore.App 8.0.30 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+                                                        "image_id":  "sha256:d08809b42540e3801af5179e3f5b6bc60479bac7af2ec7c938712f9f812da76f",
+                                                        "image_reference":  "tcc-postgresql-backend-benchmark-dotnet-api",
+                                                        "error":  null
+                                                    },
+                                         "go":  {
+                                                    "available":  true,
+                                                    "version_output":  "go1.23.12",
+                                                    "image_id":  "sha256:80af8fd191512013ebe0e584165fde3aa2f14b1377619d2f095475f9f8cc19c7",
+                                                    "image_reference":  "tcc-postgresql-backend-benchmark-go-api",
+                                                    "error":  null
+                                                },
+                                         "locust":  {
+                                                        "available":  true,
+                                                        "version_output":  "locust 2.32.6 from /opt/venv/lib/python3.12/site-packages/locust (Python 3.12.8)",
+                                                        "image_id":  "sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+                                                        "image_reference":  "locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+                                                        "error":  null
+                                                    }
+                                     },
+                        "libraries":  {
+                                          "python":  {
+                                                         "source":  "requirements.lock",
+                                                         "libraries":  {
+                                                                           "annotated-types":  "0.8.0",
+                                                                           "anyio":  "4.14.2",
+                                                                           "click":  "8.4.2",
+                                                                           "fastapi":  "0.115.6",
+                                                                           "h11":  "0.16.0",
+                                                                           "httptools":  "0.8.0",
+                                                                           "idna":  "3.18",
+                                                                           "psycopg":  "3.2.3",
+                                                                           "psycopg-binary":  "3.2.3",
+                                                                           "psycopg-pool":  "3.2.4",
+                                                                           "pydantic":  "2.13.4",
+                                                                           "pydantic_core":  "2.46.4",
+                                                                           "python-dotenv":  "1.2.2",
+                                                                           "pyyaml":  "6.0.3",
+                                                                           "starlette":  "0.41.3",
+                                                                           "typing-inspection":  "0.4.4",
+                                                                           "typing_extensions":  "4.16.0",
+                                                                           "uvicorn":  "0.34.0",
+                                                                           "uvloop":  "0.22.1",
+                                                                           "watchfiles":  "1.2.0",
+                                                                           "websockets":  "17.0.1"
+                                                                       }
+                                                     },
+                                          "node":  {
+                                                       "source":  "package-lock.json",
+                                                       "libraries":  {
+                                                                         "express":  "4.22.2",
+                                                                         "pg":  "8.13.1"
+                                                                     }
+                                                   },
+                                          "java":  {
+                                                       "source":  "pom.xml",
+                                                       "libraries":  {
+                                                                         "HikariCP":  "5.1.0",
+                                                                         "postgresql":  "42.7.4",
+                                                                         "jackson-databind":  "2.17.2",
+                                                                         "slf4j-simple":  "2.0.16"
+                                                                     }
+                                                   },
+                                          "go":  {
+                                                     "source":  "go.mod",
+                                                     "libraries":  {
+                                                                       "github.com/lib/pq":  "v1.10.9"
+                                                                   }
+                                                 },
+                                          "dotnet":  {
+                                                         "source":  "packages.lock.json",
+                                                         "libraries":  {
+                                                                           "Npgsql":  "8.0.5",
+                                                                           "Microsoft.Extensions.DependencyInjection.Abstractions":  "8.0.0",
+                                                                           "Microsoft.Extensions.Logging.Abstractions":  "8.0.0"
+                                                                       }
+                                                     }
+                                      },
+                        "database_pool":  {
+                                              "db_pool_min":  "1",
+                                              "db_pool_max":  "20",
+                                              "db_pool_acquire_timeout_seconds":  "10",
+                                              "db_pool_idle_timeout_seconds":  "60",
+                                              "db_pool_max_lifetime_seconds":  "1800"
+                                          },
+                        "payload_inventory":  {
+                                                  "available":  true,
+                                                  "customers_create":  200000,
+                                                  "minimum_customers_create":  200000,
+                                                  "path":  "C:\\Users\\User\\Documents\\TCC 2\\tcc-postgresql-backend-benchmark\\common\\payloads\\customers_create.jsonl"
+                                              },
+                        "resource_policy":  {
+                                                "semantics":  "CPU quotas are maximum shares, not exclusive reservations",
+                                                "configured":  {
+                                                                   "available":  true,
+                                                                   "compose_config_sha256":  "f47eed10c6c6018f5616e73b66a4e39668d36e7b93a2b2ff4353caae029d98f9",
+                                                                   "limits":  {
+                                                                                  "postgres":  {
+                                                                                                   "configured_cpus":  1.0,
+                                                                                                   "expected_cpus":  1.0,
+                                                                                                   "matches_expected":  true
+                                                                                               },
+                                                                                  "locust":  {
+                                                                                                 "configured_cpus":  4.0,
+                                                                                                 "expected_cpus":  4.0,
+                                                                                                 "matches_expected":  true
+                                                                                             },
+                                                                                  "java-api":  {
+                                                                                                   "configured_cpus":  2.0,
+                                                                                                   "expected_cpus":  2.0,
+                                                                                                   "matches_expected":  true
+                                                                                               }
+                                                                              }
+                                                               },
+                                                "effective":  {
+                                                                  "limits":  {
+                                                                                 "postgres":  {
+                                                                                                  "available":  true,
+                                                                                                  "container_id":  "6fca1c71c7f6c0c235ca2b946bd6237e63b5ffa5518252b0882539a2813401fb",
+                                                                                                  "nano_cpus":  1000000000,
+                                                                                                  "effective_cpu_quota":  1.0,
+                                                                                                  "expected_cpus":  1.0,
+                                                                                                  "matches_expected":  true,
+                                                                                                  "error":  null
+                                                                                              },
+                                                                                 "locust":  {
+                                                                                                "available":  true,
+                                                                                                "container_id":  "e5bb780d9f8af89b457f66d4fab61d176b26f4efc90f7be24d3eadda1a92ba5d",
+                                                                                                "nano_cpus":  4000000000,
+                                                                                                "effective_cpu_quota":  4.0,
+                                                                                                "expected_cpus":  4.0,
+                                                                                                "matches_expected":  true,
+                                                                                                "error":  null
+                                                                                            },
+                                                                                 "java-api":  {
+                                                                                                  "available":  true,
+                                                                                                  "container_id":  "8c65008d0c14e3a833d55d3e5d3b8d81f137e587c9f0cb4a34565740fcf5ca9e",
+                                                                                                  "nano_cpus":  2000000000,
+                                                                                                  "effective_cpu_quota":  2.0,
+                                                                                                  "expected_cpus":  2.0,
+                                                                                                  "matches_expected":  true,
+                                                                                                  "error":  null
+                                                                                              }
+                                                                             },
+                                                                  "available":  true,
+                                                                  "required":  true
+                                                              }
+                                            },
+                        "load_profile":  "fixed_200",
+                        "load_generator_calibration":  {
+                                                           "available":  true,
+                                                           "valid":  true,
+                                                           "path":  "C:\\Users\\User\\Documents\\TCC 2\\tcc-postgresql-backend-benchmark\\results\\summaries\\load-generator-calibration.json",
+                                                           "reasons":  [
+
+                                                                       ],
+                                                           "validated_capacity_rps":  4940.939537946,
+                                                           "safe_operating_rps":  3952.7516303568004,
+                                                           "minimum_peak_rps":  250.0,
+                                                           "saturation_cpu_quota_percent":  90.0,
+                                                           "safe_operating_factor":  0.8,
+                                                           "minimum_cadvisor_coverage_percent":  80.0,
+                                                           "artifact":  {
+                                                                            "schema_version":  3,
+                                                                            "classification":  "non_official_calibration",
+                                                                            "generated_at":  "2026-09-02T23:12:24.0657073Z",
+                                                                            "methodology_version":  7,
+                                                                            "scenario":  "health_only",
+                                                                            "wait_seconds":  0,
+                                                                            "step_duration_seconds":  60,
+                                                                            "processes":  4,
+                                                                            "api_service":  "go-api",
+                                                                            "git":  {
+                                                                                        "commit_sha":  "9bf804f519837b555d04b3e6ff4b9462cdc331e3",
+                                                                                        "git_dirty":  false,
+                                                                                        "tracked_diff_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                                                                        "untracked_files_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                                                                                    },
+                                                                            "environment":  {
+                                                                                                "docker_engine":  "29.5.2",
+                                                                                                "docker_compose":  "v5.1.4",
+                                                                                                "docker_logical_processors":  8,
+                                                                                                "docker_memory_bytes":  8327401472,
+                                                                                                "locust_image":  "locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+                                                                                                "locust_processes":  4,
+                                                                                                "locust_cpu_quota":  4.0
+                                                                                            },
+                                                                            "samples":  [
+                                                                                            {
+                                                                                                "users":  25,
+                                                                                                "spawn_rate":  25,
+                                                                                                "elapsed_seconds":  59.999722264,
+                                                                                                "requests":  296455,
+                                                                                                "failures":  0,
+                                                                                                "throughput_rps_exact":  4940.939537946,
+                                                                                                "locust_reported_rps":  4934.067056922359,
+                                                                                                "locust_cpu_raw_average_percent":  196.268905,
+                                                                                                "locust_cpu_raw_max_percent":  513.35932,
+                                                                                                "locust_cpu_quota_average_percent":  49.067226,
+                                                                                                "locust_cpu_quota_max_percent":  128.33983,
+                                                                                                "cadvisor_coverage_percent":  100.0,
+                                                                                                "cpu_metric_source":  "cadvisor_via_prometheus",
+                                                                                                "bounds_valid":  true,
+                                                                                                "result_directory":  "results/calibration/20260902T230501761Z/users_25"
+                                                                                            },
+                                                                                            {
+                                                                                                "users":  50,
+                                                                                                "spawn_rate":  50,
+                                                                                                "elapsed_seconds":  60.000227304,
+                                                                                                "requests":  286653,
+                                                                                                "failures":  0,
+                                                                                                "throughput_rps_exact":  4777.531900798,
+                                                                                                "locust_reported_rps":  4771.94848666747,
+                                                                                                "locust_cpu_raw_average_percent":  186.149307,
+                                                                                                "locust_cpu_raw_max_percent":  473.41174,
+                                                                                                "locust_cpu_quota_average_percent":  46.537327,
+                                                                                                "locust_cpu_quota_max_percent":  118.352935,
+                                                                                                "cadvisor_coverage_percent":  100.0,
+                                                                                                "cpu_metric_source":  "cadvisor_via_prometheus",
+                                                                                                "bounds_valid":  true,
+                                                                                                "result_directory":  "results/calibration/20260902T230501761Z/users_50"
+                                                                                            },
+                                                                                            {
+                                                                                                "users":  100,
+                                                                                                "spawn_rate":  100,
+                                                                                                "elapsed_seconds":  59.999934518,
+                                                                                                "requests":  285789,
+                                                                                                "failures":  0,
+                                                                                                "throughput_rps_exact":  4763.155198349,
+                                                                                                "locust_reported_rps":  4756.005528648473,
+                                                                                                "locust_cpu_raw_average_percent":  193.421382,
+                                                                                                "locust_cpu_raw_max_percent":  480.54374,
+                                                                                                "locust_cpu_quota_average_percent":  48.355346,
+                                                                                                "locust_cpu_quota_max_percent":  120.135935,
+                                                                                                "cadvisor_coverage_percent":  100.0,
+                                                                                                "cpu_metric_source":  "cadvisor_via_prometheus",
+                                                                                                "bounds_valid":  true,
+                                                                                                "result_directory":  "results/calibration/20260902T230501761Z/users_100"
+                                                                                            },
+                                                                                            {
+                                                                                                "users":  200,
+                                                                                                "spawn_rate":  200,
+                                                                                                "elapsed_seconds":  60.000348792,
+                                                                                                "requests":  271000,
+                                                                                                "failures":  0,
+                                                                                                "throughput_rps_exact":  4516.640410533,
+                                                                                                "locust_reported_rps":  4508.228896390694,
+                                                                                                "locust_cpu_raw_average_percent":  181.546208,
+                                                                                                "locust_cpu_raw_max_percent":  824.65764,
+                                                                                                "locust_cpu_quota_average_percent":  45.386552,
+                                                                                                "locust_cpu_quota_max_percent":  206.16441,
+                                                                                                "cadvisor_coverage_percent":  100.0,
+                                                                                                "cpu_metric_source":  "cadvisor_via_prometheus",
+                                                                                                "bounds_valid":  true,
+                                                                                                "result_directory":  "results/calibration/20260902T230501761Z/users_200"
+                                                                                            },
+                                                                                            {
+                                                                                                "users":  400,
+                                                                                                "spawn_rate":  400,
+                                                                                                "elapsed_seconds":  59.999798123,
+                                                                                                "requests":  266515,
+                                                                                                "failures":  0,
+                                                                                                "throughput_rps_exact":  4441.931612064,
+                                                                                                "locust_reported_rps":  4424.096728349703,
+                                                                                                "locust_cpu_raw_average_percent":  367.288514,
+                                                                                                "locust_cpu_raw_max_percent":  723.63414,
+                                                                                                "locust_cpu_quota_average_percent":  91.822128,
+                                                                                                "locust_cpu_quota_max_percent":  180.908535,
+                                                                                                "cadvisor_coverage_percent":  100.0,
+                                                                                                "cpu_metric_source":  "cadvisor_via_prometheus",
+                                                                                                "bounds_valid":  true,
+                                                                                                "result_directory":  "results/calibration/20260902T230501761Z/users_400"
+                                                                                            }
+                                                                                        ],
+                                                                            "validated_capacity_rps":  4940.939537946
+                                                                        },
+                                                           "required":  true
+                                                       },
+                        "project_verification":  {
+                                                     "available":  true,
+                                                     "completed":  true,
+                                                     "checked_at":  "2026-09-02T23:04:36.8823872Z",
+                                                     "methodology_version":  7,
+                                                     "commit_sha":  "9bf804f519837b555d04b3e6ff4b9462cdc331e3",
+                                                     "git_dirty":  false,
+                                                     "tracked_diff_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                                     "untracked_files_sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                                     "monitoring_official_eligible":  true,
+                                                     "contract_languages":  [
+                                                                                "python",
+                                                                                "node",
+                                                                                "java",
+                                                                                "go",
+                                                                                "dotnet"
+                                                                            ],
+                                                     "openapi_valid":  true,
+                                                     "database_state_equivalent":  true,
+                                                     "all_executable_tests_passed":  true,
+                                                     "artifact_directory":  "results/raw/verification/20260902T225611225Z"
+                                                 }
+                    },
+    "monitoring_preflight":  {
+                                 "schema_version":  1,
+                                 "checked_at":  "2026-09-02T23:40:16.620909Z",
+                                 "requested_mode":  "official",
+                                 "classification":  "official_compatible",
+                                 "operational_eligible":  true,
+                                 "operational_blockers":  [
+
+                                                          ],
+                                 "official_eligible":  true,
+                                 "official_blockers":  [
+
+                                                       ],
+                                 "prometheus_url":  "http://127.0.0.1:9090",
+                                 "grafana_url":  "http://127.0.0.1:3000",
+                                 "grafana_health":  {
+                                                        "database":  "ok",
+                                                        "version":  "11.3.0",
+                                                        "commit":  "d9455ff7db73b694db7d412e49a68bec767f2b5a"
+                                                    },
+                                 "grafana_dashboards":  [
+                                                            "TCC Benchmark - Monitoramento e Diagnostico",
+                                                            "TCC Benchmark - Resultados Oficiais"
+                                                        ],
+                                 "prometheus_targets":  {
+                                                            "benchmark-results":  "up",
+                                                            "cadvisor":  "up",
+                                                            "postgres":  "up",
+                                                            "prometheus":  "up"
+                                                        },
+                                 "cadvisor_target_up":  true,
+                                 "cadvisor_components":  {
+                                                             "api":  {
+                                                                         "compose_service":  "java-api",
+                                                                         "container_name":  "tcc_benchmark_java_api",
+                                                                         "container_id":  "8c65008d0c14e3a833d55d3e5d3b8d81f137e587c9f0cb4a34565740fcf5ca9e",
+                                                                         "cpu_series":  1,
+                                                                         "memory_series":  1,
+                                                                         "available":  true
+                                                                     },
+                                                             "postgresql":  {
+                                                                                "compose_service":  "postgres",
+                                                                                "container_name":  "tcc_benchmark_postgres",
+                                                                                "container_id":  "6fca1c71c7f6c0c235ca2b946bd6237e63b5ffa5518252b0882539a2813401fb",
+                                                                                "cpu_series":  1,
+                                                                                "memory_series":  1,
+                                                                                "available":  true
+                                                                            },
+                                                             "locust":  {
+                                                                            "compose_service":  "locust",
+                                                                            "container_name":  "tcc_benchmark_locust",
+                                                                            "container_id":  "e5bb780d9f8af89b457f66d4fab61d176b26f4efc90f7be24d3eadda1a92ba5d",
+                                                                            "cpu_series":  1,
+                                                                            "memory_series":  1,
+                                                                            "available":  true
+                                                                        }
+                                                         },
+                                 "postgres_exporter_series":  1,
+                                 "results_exporter_series":  1,
+                                 "results_exporter_healthy":  true,
+                                 "metric_sources":  {
+                                                        "container_cpu":  "cAdvisor",
+                                                        "container_memory":  "cAdvisor",
+                                                        "postgresql":  "postgres-exporter via Prometheus"
+                                                    }
+                             },
+    "framework_justification":  "Somente HTTP, JSON, SQL explicito e pool de conexoes; nenhum ORM e utilizado.",
+    "database_initial_state":  "Seed deterministico carregado por database/reset/reset_database.sql.",
+    "warmup":  {
+                   "enabled":  true,
+                   "scenario":  "mixed",
+                   "users":  50,
+                   "spawn_rate":  10,
+                   "processes":  4,
+                   "requested_duration_seconds":  300,
+                   "retry_duration_seconds":  0,
+                   "total_duration_seconds":  300,
+                   "included_in_results":  false,
+                   "stability_window_seconds":  45,
+                   "max_rps_drift_percent":  10,
+                   "stable":  true,
+                   "attempts":  [
+                                    {
+                                        "attempt":  1,
+                                        "duration_seconds":  300,
+                                        "validation":  {
+                                                           "stable":  true,
+                                                           "scenario":  "mixed",
+                                                           "expected_users":  50,
+                                                           "observed_peak_users":  50,
+                                                           "window_seconds":  45,
+                                                           "max_rps_drift_percent":  10.0,
+                                                           "first_last_stability_required":  false,
+                                                           "earliest_stability_window_rps":  204.952,
+                                                           "previous_window_rps":  199.889,
+                                                           "recent_window_rps":  199.696,
+                                                           "rps_drift_percent":  2.471,
+                                                           "first_window_rps":  204.411,
+                                                           "last_window_rps":  199.696,
+                                                           "first_last_rps_drift_percent":  2.307,
+                                                           "first_last_rps_change_percent":  -2.307,
+                                                           "http_failures":  0,
+                                                           "task_exceptions":  0,
+                                                           "endpoint_requests":  {
+                                                                                     "GET /customers":  8920,
+                                                                                     "GET /customers/{id}":  9013,
+                                                                                     "GET /health":  2993,
+                                                                                     "GET /orders/{id}":  8958,
+                                                                                     "GET /products":  8877,
+                                                                                     "POST /customers":  6038,
+                                                                                     "POST /orders":  8836,
+                                                                                     "PUT /customers/{id}":  5912
+                                                                                 },
+                                                           "missing_endpoints":  [
+
+                                                                                 ],
+                                                           "reasons":  [
+
+                                                                       ]
+                                                       }
+                                    }
+                                ]
+               },
+    "database_pool":  {
+                          "min":  1,
+                          "max":  20,
+                          "acquire_timeout_seconds":  10,
+                          "idle_timeout_seconds":  60,
+                          "max_lifetime_seconds":  1800,
+                          "driver_specific_notes":  "HikariCP 5.1.0"
+                      },
+    "framework_policy":  {
+                             "minimum_framework_usage":  true,
+                             "http_library_or_framework":  "JDK HttpServer + Jackson 2.17.2",
+                             "justification":  "Estrutura minima para expor o contrato HTTP comum mantendo SQL explicito.",
+                             "orm_used":  false
+                         },
+    "resource_policy":  {
+                            "api_containers":  1,
+                            "application_processes":  1,
+                            "replicas":  1,
+                            "quota_semantics":  "maximum CPU quota, not an exclusive reservation",
+                            "configured_and_effective_limits":  {
+                                                                    "semantics":  "CPU quotas are maximum shares, not exclusive reservations",
+                                                                    "configured":  {
+                                                                                       "available":  true,
+                                                                                       "compose_config_sha256":  "f47eed10c6c6018f5616e73b66a4e39668d36e7b93a2b2ff4353caae029d98f9",
+                                                                                       "limits":  {
+                                                                                                      "postgres":  {
+                                                                                                                       "configured_cpus":  1.0,
+                                                                                                                       "expected_cpus":  1.0,
+                                                                                                                       "matches_expected":  true
+                                                                                                                   },
+                                                                                                      "locust":  {
+                                                                                                                     "configured_cpus":  4.0,
+                                                                                                                     "expected_cpus":  4.0,
+                                                                                                                     "matches_expected":  true
+                                                                                                                 },
+                                                                                                      "java-api":  {
+                                                                                                                       "configured_cpus":  2.0,
+                                                                                                                       "expected_cpus":  2.0,
+                                                                                                                       "matches_expected":  true
+                                                                                                                   }
+                                                                                                  }
+                                                                                   },
+                                                                    "effective":  {
+                                                                                      "limits":  {
+                                                                                                     "postgres":  {
+                                                                                                                      "available":  true,
+                                                                                                                      "container_id":  "6fca1c71c7f6c0c235ca2b946bd6237e63b5ffa5518252b0882539a2813401fb",
+                                                                                                                      "nano_cpus":  1000000000,
+                                                                                                                      "effective_cpu_quota":  1.0,
+                                                                                                                      "expected_cpus":  1.0,
+                                                                                                                      "matches_expected":  true,
+                                                                                                                      "error":  null
+                                                                                                                  },
+                                                                                                     "locust":  {
+                                                                                                                    "available":  true,
+                                                                                                                    "container_id":  "e5bb780d9f8af89b457f66d4fab61d176b26f4efc90f7be24d3eadda1a92ba5d",
+                                                                                                                    "nano_cpus":  4000000000,
+                                                                                                                    "effective_cpu_quota":  4.0,
+                                                                                                                    "expected_cpus":  4.0,
+                                                                                                                    "matches_expected":  true,
+                                                                                                                    "error":  null
+                                                                                                                },
+                                                                                                     "java-api":  {
+                                                                                                                      "available":  true,
+                                                                                                                      "container_id":  "8c65008d0c14e3a833d55d3e5d3b8d81f137e587c9f0cb4a34565740fcf5ca9e",
+                                                                                                                      "nano_cpus":  2000000000,
+                                                                                                                      "effective_cpu_quota":  2.0,
+                                                                                                                      "expected_cpus":  2.0,
+                                                                                                                      "matches_expected":  true,
+                                                                                                                      "error":  null
+                                                                                                                  }
+                                                                                                 },
+                                                                                      "available":  true,
+                                                                                      "required":  true
+                                                                                  }
+                                                                },
+                            "interpretation":  "single application instance under recorded quotas; not an intrinsic language ranking"
+                        },
+    "easy_execution":  {
+                           "launcher_used":  "launchers/windows/powershell/rodar-linguagem.ps1",
+                           "manual_command_available":  true
+                       },
+    "locust":  {
+                   "users":  50,
+                   "spawn_rate":  10,
+                   "processes":  4,
+                   "duration":  "5m",
+                   "wait_seconds":  0.25,
+                   "theoretical_rps_ceiling":  200,
+                   "target_rps":  200,
+                   "achieved_rps":  198.436775253,
+                   "reported_rps":  198.410733541742,
+                   "throughput_source":  "request_count / monotonic elapsed_seconds",
+                   "rate_target_met":  true,
+                   "locust_cpu_average_percent":  26.533908,
+                   "locust_cpu_max_percent":  58.08274,
+                   "locust_cpu_raw_max_percent":  58.08274,
+                   "locust_cpu_quota":  4,
+                   "locust_cpu_quota_average_percent":  6.633477,
+                   "locust_cpu_quota_max_percent":  14.520685,
+                   "generator_headroom_cpu_metric":  "window_average_normalized_by_cpu_quota",
+                   "generator_headroom_met":  true,
+                   "calibrated_capacity_rps":  4940.939537946,
+                   "calibration_headroom_factor_required":  1.25,
+                   "host":  "http://java-api:8000"
+               },
+    "test_phase":  {
+                       "started_at":  "2026-09-02T23:46:03.0735250+00:00",
+                       "finished_at":  "2026-09-02T23:51:03.0593780+00:00",
+                       "elapsed_seconds":  299.999835838,
+                       "runner_elapsed_seconds":  312.98,
+                       "bounds_validation":  {
+                                                 "schema_version":  1,
+                                                 "valid":  true,
+                                                 "reasons":  [
+
+                                                             ],
+                                                 "elapsed_seconds":  299.999835838,
+                                                 "wall_elapsed_seconds":  299.985852682,
+                                                 "clock_drift_seconds":  -0.013983156000051622,
+                                                 "clock_drift_tolerance_seconds":  1.4999991791900003,
+                                                 "duration_source":  "time.monotonic_ns",
+                                                 "prometheus_boundary_source":  "time.time_ns"
+                                             },
+                       "excludes_warmup":  true
+                   },
+    "measurement_stability":  {
+                                  "stable":  true,
+                                  "scenario":  "mixed",
+                                  "expected_users":  50,
+                                  "observed_peak_users":  50,
+                                  "window_seconds":  45,
+                                  "max_rps_drift_percent":  10.0,
+                                  "first_last_stability_required":  true,
+                                  "earliest_stability_window_rps":  205.13,
+                                  "previous_window_rps":  199.483,
+                                  "recent_window_rps":  199.625,
+                                  "rps_drift_percent":  2.753,
+                                  "first_window_rps":  203.121,
+                                  "last_window_rps":  199.625,
+                                  "first_last_rps_drift_percent":  1.721,
+                                  "first_last_rps_change_percent":  -1.721,
+                                  "http_failures":  0,
+                                  "task_exceptions":  0,
+                                  "endpoint_requests":  {
+                                                            "GET /customers":  8990,
+                                                            "GET /customers/{id}":  8933,
+                                                            "GET /health":  3009,
+                                                            "GET /orders/{id}":  8800,
+                                                            "GET /products":  8806,
+                                                            "POST /customers":  6010,
+                                                            "POST /orders":  9054,
+                                                            "PUT /customers/{id}":  5929
+                                                        },
+                                  "missing_endpoints":  [
+
+                                                        ],
+                                  "reasons":  [
+
+                                              ]
+                              },
+    "metrics":  {
+                    "window_source":  "locust_test_start_stop",
+                    "response_time_source":  "Locust locust_stats.csv",
+                    "percentile_source":  "Locust locust_stats.csv",
+                    "throughput_source":  "Locust request count divided by monotonic measurement duration",
+                    "request_count_source":  "Locust locust_stats.csv",
+                    "failure_and_error_rate_source":  "Locust locust_stats.csv",
+                    "total_test_time_source":  "Locust test_start/test_stop events measured with time.monotonic_ns",
+                    "duration_clock":  "time.monotonic_ns",
+                    "boundary_clock":  "time.time_ns",
+                    "prometheus_boundary_method":  "one-scrape padding with overlap clipping",
+                    "minimum_cadvisor_coverage_percent":  90,
+                    "sample_interval_seconds":  2,
+                    "container_primary_source":  "cAdvisor via Prometheus",
+                    "container_cpu_source":  "cAdvisor via Prometheus",
+                    "container_memory_source":  "cAdvisor via Prometheus",
+                    "cadvisor_summary_file":  "cadvisor_summary.csv",
+                    "docker_stats_source":  "continuous docker stats (complementary or contingency)",
+                    "docker_stats_summary_file":  "docker_stats_summary.csv",
+                    "postgresql_metrics_source":  "postgres-exporter via Prometheus query_range",
+                    "postgresql_summary_file":  "postgres_summary.csv",
+                    "prometheus_series_file":  "prometheus_series.json",
+                    "started_epoch":  1788392763.0735254,
+                    "finished_epoch":  1788393063.0593779
+                },
+    "notes":  "Taxa-alvo maxima de 200 req/s para todas as linguagens; exige entrega minima de 97,5% e compara latencia e recursos."
+}

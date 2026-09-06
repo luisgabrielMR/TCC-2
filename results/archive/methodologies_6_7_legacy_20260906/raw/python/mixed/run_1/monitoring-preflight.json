@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-08-25T00:01:42.823189Z",
+  "requested_mode": "pilot",
+  "classification": "non_official",
+  "operational_eligible": true,
+  "operational_blockers": [],
+  "official_eligible": true,
+  "official_blockers": [],
+  "prometheus_url": "http://127.0.0.1:9090",
+  "grafana_url": "http://127.0.0.1:3000",
+  "grafana_health": {
+    "database": "ok",
+    "version": "11.3.0",
+    "commit": "d9455ff7db73b694db7d412e49a68bec767f2b5a"
+  },
+  "grafana_dashboards": [
+    "TCC Benchmark - Monitoramento e Diagnostico",
+    "TCC Benchmark - Resultados Oficiais"
+  ],
+  "prometheus_targets": {
+    "benchmark-results": "up",
+    "cadvisor": "up",
+    "postgres": "up",
+    "prometheus": "up"
+  },
+  "cadvisor_target_up": true,
+  "cadvisor_components": {
+    "api": {
+      "compose_service": "python-api",
+      "container_name": "tcc_benchmark_python_api",
+      "container_id": "62855c8fed6fe264586f81c5353c2de8bab07e7dd299475f55022ada27b56ebe",
+      "cpu_series": 1,
+      "memory_series": 1,
+      "available": true
+    },
+    "postgresql": {
+      "compose_service": "postgres",
+      "container_name": "tcc_benchmark_postgres",
+      "container_id": "1f2ff9d557e1da76b6da1b68b4fd4a656e2493453e2b0b6c37ea76f395676d22",
+      "cpu_series": 1,
+      "memory_series": 1,
+      "available": true
+    },
+    "locust": {
+      "compose_service": "locust",
+      "container_name": "tcc_benchmark_locust",
+      "container_id": "7dc741e46d0b7350ed920f1a3d4ef53b9e902a95bb19f96059e0a32987fb4bec",
+      "cpu_series": 1,
+      "memory_series": 1,
+      "available": true
+    }
+  },
+  "postgres_exporter_series": 1,
+  "results_exporter_series": 1,
+  "results_exporter_healthy": true,
+  "metric_sources": {
+    "container_cpu": "cAdvisor",
+    "container_memory": "cAdvisor",
+    "postgresql": "postgres-exporter via Prometheus"
+  }
+}

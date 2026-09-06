@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "valid": true,
+  "reasons": [],
+  "elapsed_seconds": 299.999558976,
+  "wall_elapsed_seconds": 299.986194097,
+  "clock_drift_seconds": -0.013364878999993834,
+  "clock_drift_tolerance_seconds": 1.49999779488,
+  "duration_source": "time.monotonic_ns",
+  "prometheus_boundary_source": "time.time_ns"
+}

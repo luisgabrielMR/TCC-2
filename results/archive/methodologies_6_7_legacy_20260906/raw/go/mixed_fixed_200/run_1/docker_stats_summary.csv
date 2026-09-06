@@ -1,0 +1,9 @@
+container_name,samples,cpu_average_percent,cpu_max_percent,memory_average_bytes,memory_max_bytes,network_rx_delta_bytes,network_tx_delta_bytes,block_read_delta_bytes,block_write_delta_bytes
+tcc-postgresql-backend-benchmark-locust-run-fae16ea6314e,72,24.559861,46.690000,505147119,523658854,266169000,27403100,0,0
+tcc_benchmark_cadvisor,72,1.130139,3.840000,40662175,44333793,41000,1100000,0,0
+tcc_benchmark_go_api,72,26.588472,31.350000,10599472,11219763,288000000,366000000,0,0
+tcc_benchmark_grafana,72,0.153333,0.850000,67168429,68000154,0,0,0,0
+tcc_benchmark_postgres,72,31.685833,43.200000,114584599,115343360,100000000,260000000,0,15000000
+tcc_benchmark_postgres_exporter,72,0.277778,2.600000,11756328,13547602,2800000,1200000,0,0
+tcc_benchmark_prometheus,72,0.434861,2.760000,86226298,88541757,26000000,160000,0,1800000
+tcc_benchmark_results_exporter,72,3.661944,21.330000,18089975,19220398,81000,24000000,0,0

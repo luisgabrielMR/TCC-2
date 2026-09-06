@@ -1,0 +1,30 @@
+{
+  "stable": true,
+  "scenario": "mixed",
+  "expected_users": 50,
+  "observed_peak_users": 50,
+  "window_seconds": 45,
+  "max_rps_drift_percent": 10.0,
+  "earliest_stability_window_rps": 463.533,
+  "previous_window_rps": 458.356,
+  "recent_window_rps": 462.222,
+  "rps_drift_percent": 1.117,
+  "first_window_rps": 466.933,
+  "last_window_rps": 462.222,
+  "first_last_rps_drift_percent": 1.009,
+  "first_last_rps_change_percent": -1.009,
+  "http_failures": 0,
+  "task_exceptions": 0,
+  "endpoint_requests": {
+    "GET /customers": 20503,
+    "GET /customers/{id}": 20614,
+    "GET /health": 6870,
+    "GET /orders/{id}": 20606,
+    "GET /products": 20634,
+    "POST /customers": 13759,
+    "POST /orders": 20634,
+    "PUT /customers/{id}": 13673
+  },
+  "missing_endpoints": [],
+  "reasons": []
+}

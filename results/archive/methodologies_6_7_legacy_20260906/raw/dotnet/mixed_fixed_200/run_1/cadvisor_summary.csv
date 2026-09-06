@@ -1,0 +1,4 @@
+component,container_name,samples,observed_seconds,coverage_percent,cpu_average_percent,cpu_max_percent,memory_average_bytes,memory_max_bytes,boundary_method,metric_source
+api,tcc_benchmark_dotnet_api,61,299.986023,100.000000,33.076450,48.635720,90289691,108175360,scrape-padded overlap clipping; time-weighted samples,cadvisor_via_prometheus
+postgresql,tcc_benchmark_postgres,61,299.986023,100.000000,29.517501,39.357480,114026692,120127488,scrape-padded overlap clipping; time-weighted samples,cadvisor_via_prometheus
+locust,tcc_benchmark_locust,60,299.985961,99.999979,27.747923,47.282500,503422115,522549939,scrape-padded overlap clipping; time-weighted samples,cadvisor_via_prometheus

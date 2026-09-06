@@ -1,0 +1,4 @@
+component,container_name,samples,cpu_average_percent,cpu_max_percent,memory_average_bytes,memory_max_bytes,metric_source
+api,tcc_benchmark_python_api,59,103.985887,234.869840,53131742,53604352,cadvisor_via_prometheus
+postgresql,tcc_benchmark_postgres,59,60.258571,190.494400,164573935,166866944,cadvisor_via_prometheus
+locust,tcc_benchmark_locust,59,37.530653,77.786220,188194543,188997632,cadvisor_via_prometheus

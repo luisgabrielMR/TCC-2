@@ -1,0 +1,375 @@
+{
+  "schema_version": 1,
+  "collected_at": "2026-08-25T00:37:33.102145Z",
+  "requested_mode": "pilot",
+  "classification": "non_official",
+  "environment_eligible_for_official_run": true,
+  "official_blockers": [],
+  "expected": {
+    "docker_engine": "29.7.2",
+    "docker_compose": "5.3.1",
+    "images": {
+      "postgres": "postgres:17",
+      "locust": "locustio/locust:2.32.6",
+      "prometheus": "prom/prometheus:v2.55.1",
+      "grafana": "grafana/grafana:11.3.0",
+      "postgres_exporter": "prometheuscommunity/postgres-exporter:v0.15.0",
+      "cadvisor": "gcr.io/cadvisor/cadvisor:v0.49.1",
+      "results_exporter": "python:3.12-slim"
+    }
+  },
+  "git": {
+    "available": true,
+    "commit_sha": "8900a4055d95e787fbad8e02678c13112a36a133",
+    "branch": "main",
+    "git_dirty": false,
+    "status_porcelain": [],
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tracked_diff_size_bytes": 0,
+    "untracked_files": [],
+    "untracked_files_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "host": {
+    "operating_system": {
+      "system": "Windows",
+      "release": "11",
+      "version": "10.0.26200",
+      "platform": "Windows-11-10.0.26200-SP0"
+    },
+    "cpu": {
+      "architecture": "AMD64",
+      "logical_processors": 12,
+      "model": "AMD Ryzen 5 3600 6-Core Processor",
+      "processors": [
+        {
+          "Name": "AMD Ryzen 5 3600 6-Core Processor              ",
+          "NumberOfCores": 6,
+          "NumberOfLogicalProcessors": 12
+        }
+      ],
+      "physical_cores": 6
+    },
+    "physical_memory_bytes": 34287665152,
+    "storage": {
+      "path": "C:\\",
+      "total_bytes": 1999159422976,
+      "free_bytes": 1132402634752,
+      "device_models": [
+        {
+          "Model": "KINGSTON SNV3S2000G",
+          "Size": 2000396321280,
+          "MediaType": "Fixed hard disk media"
+        },
+        {
+          "Model": "ST3500413AS",
+          "Size": 500105249280,
+          "MediaType": "Fixed hard disk media"
+        }
+      ]
+    }
+  },
+  "docker": {
+    "available": true,
+    "engine_server_version": "29.7.2",
+    "engine_client_version": "29.7.2",
+    "compose_version": "v5.3.1",
+    "allocation": {
+      "logical_processors": 4,
+      "memory_bytes": 8328429568,
+      "operating_system": "Docker Desktop",
+      "kernel_version": "6.18.33.1-microsoft-standard-WSL2",
+      "architecture": "x86_64",
+      "docker_root_dir": "/var/lib/docker",
+      "storage_driver": "overlayfs"
+    },
+    "errors": []
+  },
+  "configured_images": {
+    "config_ok": true,
+    "config_error": null,
+    "images": [
+      {
+        "configured_reference": "gcr.io/cadvisor/cadvisor:v0.49.1@sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388",
+        "available_locally": true,
+        "image_id": "sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388",
+        "repo_digests": [
+          "gcr.io/cadvisor/cadvisor@sha256:3cde6faf0791ebf7b41d6f8ae7145466fed712ea6f252c935294d2608b1af388"
+        ],
+        "created": "2024-03-02T20:59:01.440808486Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "grafana/grafana:11.3.0@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3",
+        "available_locally": true,
+        "image_id": "sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3",
+        "repo_digests": [
+          "grafana/grafana@sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3"
+        ],
+        "created": "2024-10-22T16:50:35.448895301Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "locustio/locust:2.32.6@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+        "available_locally": true,
+        "image_id": "sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+        "repo_digests": [
+          "locustio/locust@sha256:99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3"
+        ],
+        "created": "2025-01-13T15:10:49.451629976Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3",
+        "available_locally": true,
+        "image_id": "sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3",
+        "repo_digests": [
+          "postgres@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3"
+        ],
+        "created": "2026-05-19T23:16:24.525464631Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "prom/prometheus:v2.55.1@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3",
+        "available_locally": true,
+        "image_id": "sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3",
+        "repo_digests": [
+          "prom/prometheus@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3"
+        ],
+        "created": "2024-11-06T10:35:27.058590597Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "prometheuscommunity/postgres-exporter:v0.15.0@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6",
+        "available_locally": true,
+        "image_id": "sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6",
+        "repo_digests": [
+          "prometheuscommunity/postgres-exporter@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6"
+        ],
+        "created": "2023-10-27T14:42:03.171390518Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65",
+        "available_locally": true,
+        "image_id": "sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65",
+        "repo_digests": [
+          "python@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65"
+        ],
+        "created": "2026-08-13T19:43:37.557180073Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "tcc-postgresql-backend-benchmark-dotnet-api",
+        "available_locally": true,
+        "image_id": "sha256:3cee7c50b5b9b1c2ab91f58bba8467015bae5342d34933fb5bd54d788798909d",
+        "repo_digests": [
+          "tcc-postgresql-backend-benchmark-dotnet-api@sha256:3cee7c50b5b9b1c2ab91f58bba8467015bae5342d34933fb5bd54d788798909d"
+        ],
+        "created": "2026-08-23T14:35:04.469309298Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "tcc-postgresql-backend-benchmark-go-api",
+        "available_locally": true,
+        "image_id": "sha256:8deeebb6a303468fae17b40811d634ab3949a1cbafc78d78884309dad2227165",
+        "repo_digests": [
+          "tcc-postgresql-backend-benchmark-go-api@sha256:8deeebb6a303468fae17b40811d634ab3949a1cbafc78d78884309dad2227165"
+        ],
+        "created": "2026-08-23T20:59:45.962579892Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "tcc-postgresql-backend-benchmark-java-api",
+        "available_locally": true,
+        "image_id": "sha256:9352864b1e1b8796d94f81e70ddac138feee410509ca250f024fa18fa13f0fcf",
+        "repo_digests": [
+          "tcc-postgresql-backend-benchmark-java-api@sha256:9352864b1e1b8796d94f81e70ddac138feee410509ca250f024fa18fa13f0fcf"
+        ],
+        "created": "2026-08-23T14:25:00.980907315Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "tcc-postgresql-backend-benchmark-node-api",
+        "available_locally": true,
+        "image_id": "sha256:2d788efc13debbf9d2845041e372e8b042a4d40f895d198aae2e6f09f9824261",
+        "repo_digests": [
+          "tcc-postgresql-backend-benchmark-node-api@sha256:2d788efc13debbf9d2845041e372e8b042a4d40f895d198aae2e6f09f9824261"
+        ],
+        "created": "2026-08-23T14:29:19.698871933Z",
+        "os": "linux",
+        "architecture": "amd64"
+      },
+      {
+        "configured_reference": "tcc-postgresql-backend-benchmark-python-api",
+        "available_locally": true,
+        "image_id": "sha256:39f010e12b1507f358e51786cdfe0546e9eea5f5f0cfe8d3aa9bcc835dec990e",
+        "repo_digests": [
+          "tcc-postgresql-backend-benchmark-python-api@sha256:39f010e12b1507f358e51786cdfe0546e9eea5f5f0cfe8d3aa9bcc835dec990e"
+        ],
+        "created": "2026-08-23T20:59:00.120859185Z",
+        "os": "linux",
+        "architecture": "amd64"
+      }
+    ]
+  },
+  "api_dockerfile_bases": {
+    "python-api": [
+      "python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65"
+    ],
+    "node-api": [
+      "node:22-slim@sha256:d649c27dae7ba0137b3cef5dd75baa422c08dc3d9e3fc0c23dfb172dc3cc6436"
+    ],
+    "java-api": [
+      "maven:3.9-eclipse-temurin-21@sha256:c07f7ccfb8ca6c9fa29ee523f00afa7d2ca6132c92f8652c4aebb5ee3491f502",
+      "eclipse-temurin:21-jre@sha256:371da296b8cb74c7e53fbe7083d5374befc0011b493231d97d45fa789915e434"
+    ],
+    "go-api": [
+      "golang:1.23-bookworm@sha256:167053a2bb901972bf2c1611f8f52c44d5fe7e762e5cab213708d82c421614db",
+      "debian:bookworm-slim@sha256:abd67ffcfa541b485a3dff59865ab629aa048a6c613e639d36e7456b0b229241"
+    ],
+    "dotnet-api": [
+      "mcr.microsoft.com/dotnet/sdk:8.0@sha256:306301580fcaa5b445180e759db59309979002d1000669cb4cf58a567d0014bc",
+      "mcr.microsoft.com/dotnet/aspnet:8.0@sha256:b0beb9cc1dee1c1b0749796110d4734292071b814207ad0d4f40611f7db04f7b"
+    ]
+  },
+  "postgresql": {
+    "available": true,
+    "version_output": "PostgreSQL 17.10 (Debian 17.10-1.pgdg13+1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "error": null
+  },
+  "runtimes": {
+    "python": {
+      "available": true,
+      "version_output": "Python 3.12.14",
+      "image_id": "39f010e12b1507f358e51786cdfe0546e9eea5f5f0cfe8d3aa9bcc835dec990e",
+      "error": null
+    },
+    "node": {
+      "available": true,
+      "version_output": "v22.23.2",
+      "image_id": "2d788efc13debbf9d2845041e372e8b042a4d40f895d198aae2e6f09f9824261",
+      "error": null
+    },
+    "java": {
+      "available": true,
+      "version_output": "openjdk version \"21.0.11\" 2026-04-21 LTS",
+      "image_id": "9352864b1e1b8796d94f81e70ddac138feee410509ca250f024fa18fa13f0fcf",
+      "error": null
+    },
+    "dotnet": {
+      "available": true,
+      "version_output": "Microsoft.AspNetCore.App 8.0.30 [/usr/share/dotnet/shared/Microsoft.AspNetCore.App]",
+      "image_id": "3cee7c50b5b9b1c2ab91f58bba8467015bae5342d34933fb5bd54d788798909d",
+      "error": null
+    },
+    "go": {
+      "available": true,
+      "version_output": "go1.23.12",
+      "image_id": "8deeebb6a303468fae17b40811d634ab3949a1cbafc78d78884309dad2227165",
+      "error": null
+    },
+    "locust": {
+      "available": true,
+      "version_output": "locust 2.32.6 from /opt/venv/lib/python3.12/site-packages/locust (Python 3.12.8)",
+      "image_id": "99278f4b23e2353e7a93b84f9c270700c8193b90c1611f5c2a1817a111c22ee3",
+      "error": null
+    }
+  },
+  "libraries": {
+    "python": {
+      "source": "requirements.lock",
+      "libraries": {
+        "annotated-types": "0.8.0",
+        "anyio": "4.14.2",
+        "click": "8.4.2",
+        "fastapi": "0.115.6",
+        "h11": "0.16.0",
+        "httptools": "0.8.0",
+        "idna": "3.18",
+        "psycopg": "3.2.3",
+        "psycopg-binary": "3.2.3",
+        "psycopg-pool": "3.2.4",
+        "pydantic": "2.13.4",
+        "pydantic_core": "2.46.4",
+        "python-dotenv": "1.2.2",
+        "pyyaml": "6.0.3",
+        "starlette": "0.41.3",
+        "typing-inspection": "0.4.4",
+        "typing_extensions": "4.16.0",
+        "uvicorn": "0.34.0",
+        "uvloop": "0.22.1",
+        "watchfiles": "1.2.0",
+        "websockets": "17.0.1"
+      }
+    },
+    "node": {
+      "source": "package-lock.json",
+      "libraries": {
+        "express": "4.22.2",
+        "pg": "8.13.1"
+      }
+    },
+    "java": {
+      "source": "pom.xml",
+      "libraries": {
+        "HikariCP": "5.1.0",
+        "postgresql": "42.7.4",
+        "jackson-databind": "2.17.2",
+        "slf4j-simple": "2.0.16"
+      }
+    },
+    "go": {
+      "source": "go.mod",
+      "libraries": {
+        "github.com/lib/pq": "v1.10.9"
+      }
+    },
+    "dotnet": {
+      "source": "packages.lock.json",
+      "libraries": {
+        "Npgsql": "8.0.5",
+        "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.0",
+        "Microsoft.Extensions.Logging.Abstractions": "8.0.0"
+      }
+    }
+  },
+  "database_pool": {
+    "db_pool_min": "1",
+    "db_pool_max": "20",
+    "db_pool_acquire_timeout_seconds": "10",
+    "db_pool_idle_timeout_seconds": "60",
+    "db_pool_max_lifetime_seconds": "1800"
+  },
+  "project_verification": {
+    "available": true,
+    "completed": true,
+    "checked_at": "2026-08-23T21:06:17.4951194Z",
+    "methodology_version": 6,
+    "commit_sha": "8900a4055d95e787fbad8e02678c13112a36a133",
+    "git_dirty": false,
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "untracked_files_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "monitoring_official_eligible": true,
+    "contract_languages": [
+      "python",
+      "node",
+      "java",
+      "go",
+      "dotnet"
+    ],
+    "openapi_valid": true,
+    "database_state_equivalent": true,
+    "all_executable_tests_passed": true,
+    "artifact_directory": "results/raw/verification/20260823T205830160Z"
+  }
+}
