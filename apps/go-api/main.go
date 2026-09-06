@@ -23,7 +23,6 @@ import (
 type settings struct {
 	databaseURL    string
 	port           string
-	poolMin        int
 	poolMax        int
 	acquireTimeout int
 	idleTimeout    int
@@ -159,15 +158,18 @@ func main() {
 		log.Fatal(err)
 	}
 	db.SetMaxOpenConns(cfg.poolMax)
-	// Keep burst connections reusable. Mapping poolMin to MaxIdleConns caused
-	// thousands of reconnects because database/sql has no minimum-idle setting.
+	// database/sql exposes idle capacity, not a minimum-idle setting. Keep burst
+	// connections reusable without changing the 20-connection open limit.
 	db.SetMaxIdleConns(cfg.poolMax)
 	db.SetConnMaxIdleTime(time.Duration(cfg.idleTimeout) * time.Second)
 	db.SetConnMaxLifetime(time.Duration(cfg.maxLifetime) * time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.acquireTimeout)*time.Second)
 	defer cancel()
-	if err := warmPool(ctx, db, cfg.poolMin); err != nil {
+	// database/sql has no minimum-pool-size setting. Ping verifies connectivity
+	// at startup without trying to emulate a persistent minimum with pre-opened
+	// connections.
+	if err := db.PingContext(ctx); err != nil {
 		log.Fatal(err)
 	}
 
@@ -208,26 +210,6 @@ func recoverInternalErrors(next http.Handler) http.Handler {
 	})
 }
 
-func warmPool(ctx context.Context, db *sql.DB, minimum int) error {
-	connections := make([]*sql.Conn, 0, minimum)
-	for i := 0; i < minimum; i++ {
-		conn, err := db.Conn(ctx)
-		if err != nil {
-			for _, opened := range connections {
-				opened.Close()
-			}
-			return err
-		}
-		connections = append(connections, conn)
-	}
-	for _, conn := range connections {
-		if err := conn.Close(); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (a *app) acquire(ctx context.Context) (*sql.Conn, error) {
 	acquireContext, cancel := context.WithTimeout(ctx, time.Duration(a.settings.acquireTimeout)*time.Second)
 	defer cancel()
@@ -245,7 +227,6 @@ func loadSettings() settings {
 	return settings{
 		databaseURL:    databaseURL,
 		port:           env("PORT", "8000"),
-		poolMin:        intEnv("DB_POOL_MIN", 1),
 		poolMax:        intEnv("DB_POOL_MAX", 20),
 		acquireTimeout: intEnv("DB_POOL_ACQUIRE_TIMEOUT_SECONDS", 10),
 		idleTimeout:    intEnv("DB_POOL_IDLE_TIMEOUT_SECONDS", 60),

@@ -37,8 +37,8 @@ Mapeamento:
 
 - `DB_POOL_MAX` -> `SetMaxOpenConns`
 - `DB_POOL_MAX` -> `SetMaxIdleConns`
-- `DB_POOL_MIN` -> numero de conexoes preabertas na inicializacao
+- `DB_POOL_ACQUIRE_TIMEOUT_SECONDS` -> contexto de `db.Conn`
 - `DB_POOL_IDLE_TIMEOUT_SECONDS` -> `SetConnMaxIdleTime`
 - `DB_POOL_MAX_LIFETIME_SECONDS` -> `SetConnMaxLifetime`
 
-`database/sql` não possui timeout global de aquisição igual aos demais drivers. Cada operacao de banco recebe um contexto de 10 segundos, mantendo o limite tambem durante espera por conexao. O limite ocioso usa o maximo do pool para evitar descarte e recriacao de conexoes sob concorrencia.
+`database/sql` não possui configuração de mínimo de conexões persistente. Por isso, `DB_POOL_MIN` não é aplicado pela implementação Go; a inicialização apenas executa `PingContext` para verificar a conectividade. Também não há timeout global de aquisição: cada chamada a `db.Conn` recebe um contexto de 10 segundos, que limita a espera por uma conexão. O limite de conexões ociosas é configurado como 20 para manter reutilizáveis as conexões que já foram abertas, sem elevar o máximo de conexões abertas.

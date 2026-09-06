@@ -8,6 +8,23 @@ import (
 	"testing"
 )
 
+func TestLoadSettingsUsesStandardSupportedPoolDefaults(t *testing.T) {
+	for _, name := range []string{
+		"DB_POOL_MAX",
+		"DB_POOL_ACQUIRE_TIMEOUT_SECONDS",
+		"DB_POOL_IDLE_TIMEOUT_SECONDS",
+		"DB_POOL_MAX_LIFETIME_SECONDS",
+	} {
+		t.Setenv(name, "")
+	}
+
+	settings := loadSettings()
+	if settings.poolMax != 20 || settings.acquireTimeout != 10 ||
+		settings.idleTimeout != 60 || settings.maxLifetime != 1800 {
+		t.Fatalf("unexpected pool defaults: %#v", settings)
+	}
+}
+
 func decodedObject(t *testing.T, value string) map[string]any {
 	t.Helper()
 	decoder := json.NewDecoder(strings.NewReader(value))
