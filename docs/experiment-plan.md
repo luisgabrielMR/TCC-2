@@ -19,7 +19,7 @@ Os cenarios `smoke`, `read_heavy`, `write_heavy` e `mixed` usam os mesmos pesos 
 
 Os perfis de carga respondem a duas perguntas distintas, e por isso sao dois conjuntos separados. Um perfil unico com pacing nao responde nenhuma das duas: o pacing impoe um teto de `usuarios / wait_seconds` requisicoes por segundo, e uma implementacao mais rapida que esse teto apenas espera.
 
-- `fixed_200`: 50 usuarios, spawn rate 10 e pacing de 0,25 s, com alvo maximo de 200 req/s. A taxa so chega ao alvo quando as respostas cabem no periodo; por isso a entrega minima e 97,5%. A comparacao principal e de latencia e recursos sob taxa equivalente, nao de capacidade maxima.
+- `fixed_200`: 150 usuarios, spawn rate 30 e pacing de 0,75 s, com teto de 200 req/s. A concorrencia adicional absorve a cauda sub-segundo observada no workload misto; ainda assim, por ser pacing em malha fechada, a rodada exige entrega minima de 97,5% e rejeita qualquer taxa inferior. A comparacao principal e de latencia e recursos sob taxa equivalente, nao de capacidade maxima.
 - `saturation_25`, `saturation_50`, `saturation_100`, `saturation_200` e `saturation_400`: sem pacing, em malha fechada. Cada usuario dispara a proxima requisicao assim que a anterior responde, entao o teto passa a ser da propria API. A vazao volta a ser variavel de resposta. O ponto de saturacao e o degrau em que o ganho de RPS ao dobrar a concorrencia cai abaixo de 5%, ou em que a taxa de erro passa de 1%, ou em que a deriva de RPS passa de 10%.
 
 Os perfis `controlled_50`, `capacity_100` e `capacity_200` continuam definidos apenas para releitura do historico.

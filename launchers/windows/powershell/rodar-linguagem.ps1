@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "11")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "12")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -32,8 +32,9 @@ $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTE
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
 switch ($LoadProfile) {
-    # 50 usuarios com pacing de 0,25 s tem alvo maximo de 200 req/s.
-    "fixed_200" { $users = 50; $spawnRate = 10; $waitSeconds = "0.25"; $loadTargetRps = 200 }
+    # 150 usuarios com pacing de 0,75 s mantem teto de 200 req/s e absorve
+    # respostas do workload misto que excedem o periodo de um perfil de 0,25 s.
+    "fixed_200" { $users = 150; $spawnRate = 30; $waitSeconds = "0.75"; $loadTargetRps = 200 }
     # Malha fechada: sem pacing o teto passa a ser da propria API.
     "saturation_25" { $users = 25; $spawnRate = 25; $waitSeconds = "0" }
     "saturation_50" { $users = 50; $spawnRate = 25; $waitSeconds = "0" }

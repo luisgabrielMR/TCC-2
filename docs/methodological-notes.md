@@ -183,10 +183,11 @@ A metodologia atual e `11`: preserva os controles da revisao 10 e passa a regist
 - Quando houver rodadas antigas e atuais para o mesmo nivel de carga, os relatorios usam apenas o maior `methodology_version` dentro da mesma familia, linguagem e classificacao. `legacy_capacity` e `saturation` nunca compartilham baseline.
 
 O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
-# Measurement revision 11
+# Measurement revision 12
 
-New runs use methodology 11. Do not combine them with revision 10: the campaign
-protocol, measurement boundary and percentile evidence changed. Historical results remain untouched.
+New runs use methodology 12. Do not combine them with revision 11: the `fixed_200`
+concurrency and pacing changed to keep the required 200 req/s rate achievable for
+the mixed workload. Historical results remain untouched.
 Regenerate verification and load-generator calibration for the new clean commit.
 
 The protocol fingerprint also records the network path, the base language order

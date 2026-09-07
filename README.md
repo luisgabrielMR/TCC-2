@@ -128,7 +128,7 @@ WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
 OFFICIAL_PROFILE=fixed_200
 OFFICIAL_ROUNDS=5
-METHODOLOGY_VERSION=11
+METHODOLOGY_VERSION=12
 ```
 
 `BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. O `campaign_fingerprint` deriva do commit e do hash de um manifesto canonico que congela carga, warmup, pools, cotas, intervalos e calibracao. Agregadores e dashboards carregam tambem `protocol_sha256`, impedindo que configuracoes diferentes do `.env` entrem na mesma coorte.

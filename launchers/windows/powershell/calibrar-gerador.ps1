@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "11")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "12")
 $calibrationRelative = Get-BenchmarkValue $environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
 $calibrationPath = Join-Path $script:BenchmarkRoot $calibrationRelative
 $service = "$Language-api"

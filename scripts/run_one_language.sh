@@ -21,9 +21,9 @@ fi
 LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
-  # Taxa fixa: 50 usuarios com pacing de 0,25 s tem alvo maximo de 200 req/s.
-  # Respostas que ultrapassam o periodo reduzem a taxa efetivamente entregue.
-  fixed_200) LOCUST_USERS=50; LOCUST_SPAWN_RATE=10; LOCUST_WAIT_SECONDS=0.25; LOAD_TARGET_RPS=200 ;;
+  # 150 usuarios com pacing de 0,75 s preservam o teto de 200 req/s e absorvem
+  # a cauda sub-segundo do workload misto sem reduzir artificialmente a taxa.
+  fixed_200) LOCUST_USERS=150; LOCUST_SPAWN_RATE=30; LOCUST_WAIT_SECONDS=0.75; LOAD_TARGET_RPS=200 ;;
   # Malha fechada: sem pacing, cada usuario dispara a proxima requisicao assim
   # que a anterior responde. A vazao volta a ser variavel de resposta.
   saturation_25) LOCUST_USERS=25; LOCUST_SPAWN_RATE=25; LOCUST_WAIT_SECONDS=0 ;;
