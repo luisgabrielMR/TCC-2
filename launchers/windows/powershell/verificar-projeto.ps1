@@ -29,7 +29,9 @@ try {
     New-Item -ItemType Directory -Force $verificationDirectory | Out-Null
 
     Write-Host "[1/8] Validando Docker Compose..."
-    Stop-BenchmarkServices -Services $services
+    # A verificacao reseta o banco varias vezes; nenhum gerador de carga pode
+    # permanecer ativo e disputar locks com TRUNCATE/seed.
+    Stop-BenchmarkServices -Services ($services + "locust")
     Invoke-BenchmarkCompose -Arguments @("config", "--quiet")
 
     Write-Host "[2/8] Construindo as cinco APIs..."
