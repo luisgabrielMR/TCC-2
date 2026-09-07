@@ -128,12 +128,12 @@ WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
 OFFICIAL_PROFILE=fixed_200
 OFFICIAL_ROUNDS=5
-METHODOLOGY_VERSION=9
+METHODOLOGY_VERSION=11
 ```
 
 `BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. O `campaign_fingerprint` deriva do commit e do hash de um manifesto canonico que congela carga, warmup, pools, cotas, intervalos e calibracao. Agregadores e dashboards carregam tambem `protocol_sha256`, impedindo que configuracoes diferentes do `.env` entrem na mesma coorte.
 
-O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
+O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. A variacao da latencia media por endpoint e preservada como diagnostico, mas nao bloqueia sozinha o aquecimento: ela e sensivel a variacao normal da carga e nao substitui as metricas de latencia da medicao. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
 Na medicao, os usuarios aguardam o fim do ramp-up. No evento `spawning_complete`, o Locust zera as estatisticas, libera os usuarios e abre a janela monotonica. O temporizador inicia a parada depois da duracao configurada; a fronteira agregada fecha quando o ultimo worker recebe esse comando. A partir desse instante cada worker bloqueia novas chamadas, e somente requisicoes ja iniciadas podem terminar no drain limitado a 5 segundos, que fica fora da duracao. Histogramas P50/P95/P99 sao reconstruidos a partir dos relatorios de todos os workers antes de o CSV ser publicado.
 

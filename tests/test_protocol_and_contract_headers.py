@@ -55,6 +55,10 @@ class ProtocolTests(unittest.TestCase):
             "docker_internal_compose_service",
         )
         self.assertEqual(proxied["protocol"]["load"]["target"]["network_mode"], "host_override")
+        self.assertEqual(
+            first["protocol"]["warmup"]["latency_drift_mode"],
+            "diagnostic_per_endpoint_mean",
+        )
 
     def test_official_bounds_require_post_spawn_event_and_configured_duration(self):
         bounds = {

@@ -211,6 +211,31 @@ class WarmupValidationTests(unittest.TestCase):
         self.assertEqual(result["observed_peak_users"], 50)
         self.assertIn("peak user count 50 does not match expected 100", result["reasons"])
 
+    def test_latency_drift_is_recorded_without_rejecting_warmup(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            stats, history = self.write_fixture(Path(temp))
+            diagnostics = {"reasons": ["Latency drift GET /health: 20.00% exceeds 10.00%"]}
+            with patch("scripts.validate_warmup_stability.latency_windows", return_value=diagnostics):
+                result = validate(
+                    stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
+                    diagnose_latency_stability=True,
+                )
+        self.assertTrue(result["stable"])
+        self.assertEqual(result["latency_stability_mode"], "diagnostic")
+        self.assertEqual(result["latency_stability"]["reasons"], diagnostics["reasons"])
+
+    def test_required_latency_drift_still_rejects_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            stats, history = self.write_fixture(Path(temp))
+            diagnostics = {"reasons": ["Latency drift GET /health: 20.00% exceeds 10.00%"]}
+            with patch("scripts.validate_warmup_stability.latency_windows", return_value=diagnostics):
+                result = validate(
+                    stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
+                    require_latency_stability=True,
+                )
+        self.assertFalse(result["stable"])
+        self.assertEqual(result["latency_stability_mode"], "required")
+
 
 class SummaryTests(unittest.TestCase):
     def test_duration_prefers_exact_test_phase(self) -> None:

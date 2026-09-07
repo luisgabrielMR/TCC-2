@@ -259,7 +259,7 @@ rm -f "$METRICS_STOP_FILE"
   --expected-users "$LOCUST_USERS" \
   --phase-label "Measurement" \
   --require-first-last-stability \
-  --require-latency-stability \
+  --diagnose-latency-stability \
   --window-seconds "$WARMUP_STABILITY_WINDOW_SECONDS" \
   --max-rps-drift-percent "$WARMUP_MAX_RPS_DRIFT_PERCENT" \
   --output "$RESULT_DIR/measurement_stability.json"

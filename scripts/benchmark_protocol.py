@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_METHODOLOGY = 10
+CURRENT_METHODOLOGY = 11
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -137,6 +137,7 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "spawn_rate": spawn_rate,
             "stability_window_seconds": _number(environment, "WARMUP_STABILITY_WINDOW_SECONDS", "45", int),
             "max_rps_drift_percent": _number(environment, "WARMUP_MAX_RPS_DRIFT_PERCENT", "10"),
+            "latency_drift_mode": "diagnostic_per_endpoint_mean",
         },
         "database_pool": {
             "min": _number(environment, "DB_POOL_MIN", "1", int),

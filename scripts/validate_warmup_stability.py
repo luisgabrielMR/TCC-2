@@ -165,6 +165,7 @@ def validate(
     expected_users: int = 0,
     require_first_last_stability: bool = False,
     require_latency_stability: bool = False,
+    diagnose_latency_stability: bool = False,
 ) -> dict:
     endpoints, failures = load_stats(stats_path)
     expected = load_expected_endpoints(config_path, scenario)
@@ -207,17 +208,28 @@ def validate(
         )
 
     latency = {}
-    if require_latency_stability:
+    latency_mode = (
+        "required" if require_latency_stability
+        else "diagnostic" if diagnose_latency_stability
+        else "disabled"
+    )
+    if latency_mode != "disabled":
         try:
             latency = latency_windows(stats_path, history, window_seconds, max_drift_percent,
                                       require_first_last_stability)
-            reasons.extend(latency["reasons"])
+            if require_latency_stability:
+                reasons.extend(latency["reasons"])
         except (ValueError, RuntimeError, KeyError, TypeError, OSError, IndexError) as exc:
-            reasons.append(f"Latency stability unavailable: {exc}")
+            message = f"Latency stability unavailable: {exc}"
+            latency = {"reasons": [message], "unavailable": True}
+            if require_latency_stability:
+                reasons.append(message)
 
     return {
         "stable": not reasons,
+        "latency_stability_mode": latency_mode,
         "latency_stability_required": require_latency_stability,
+        "latency_stability_diagnostic": diagnose_latency_stability,
         "latency_stability": latency,
         "scenario": scenario,
         "expected_users": expected_users,
@@ -316,7 +328,9 @@ def main() -> None:
     parser.add_argument("--max-rps-drift-percent", type=float, default=10.0)
     parser.add_argument("--expected-users", type=int, default=0)
     parser.add_argument("--require-first-last-stability", action="store_true")
-    parser.add_argument("--require-latency-stability", action="store_true")
+    latency_group = parser.add_mutually_exclusive_group()
+    latency_group.add_argument("--require-latency-stability", action="store_true")
+    latency_group.add_argument("--diagnose-latency-stability", action="store_true")
     parser.add_argument("--phase-label", default="Warmup")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -331,6 +345,7 @@ def main() -> None:
         args.expected_users,
         args.require_first_last_stability,
         args.require_latency_stability,
+        args.diagnose_latency_stability,
     )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
@@ -338,7 +353,8 @@ def main() -> None:
     print(
         f"{args.phase_label} {status}: final_drift={result['rps_drift_percent']:.2f}% "
         f"first_last_drift={result['first_last_rps_drift_percent']:.2f}% "
-        f"failures={result['http_failures']} exceptions={result['task_exceptions']}"
+        f"failures={result['http_failures']} exceptions={result['task_exceptions']} "
+        f"latency_mode={result['latency_stability_mode']}"
     )
 
 

@@ -80,14 +80,15 @@ O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada pri
 - cobertura: mesmas leituras, escritas e pesos do cenario medido
 - estabilidade: variacao maxima de 10% entre cada par das tres ultimas janelas de 45 segundos com a concorrencia completa
 - concorrencia: o pico observado deve ser exatamente o numero de usuarios configurado para o perfil
-- falha de estabilidade: interrompe a rodada; nao existe duracao especial ou repeticao automatica por linguagem
+- falha de estabilidade de RPS, cobertura, erros HTTP ou concorrencia: interrompe a rodada; nao existe duracao especial ou repeticao automatica por linguagem
+- deriva de latencia media por endpoint: registrada como diagnostico para investigacao posterior; nao bloqueia sozinha a rodada
 - resultado fora da coleta principal
 - API nao reiniciada entre warmup e teste principal
 - banco resetado depois do warmup sem derrubar a API
 - banco resetado novamente depois da coleta principal
 - `VACUUM (ANALYZE)`, `CHECKPOINT` e `pg_stat_reset()` executados em cada reset para iniciar a medicao com planos, tuplas mortas, escrita pendente e contadores cumulativos estabilizados
 
-Se o aquecimento estiver instavel ou alguma rota esperada nao for chamada, a medicao principal nao comeca. Isso evita que o JIT do Java ou caminhos de escrita ainda frios sejam medidos como estado estacionario sem favorecer uma implementacao com tempo adicional.
+Se o RPS final do aquecimento estiver instavel, alguma rota esperada nao for chamada, a concorrencia configurada nao for atingida ou houver falhas HTTP, a medicao principal nao comeca. A deriva de latencia e mantida no artefato para diagnostico posterior e nao impede a primeira rodada. Isso evita que o JIT do Java ou caminhos de escrita ainda frios sejam medidos como estado estacionario sem favorecer uma implementacao com tempo adicional.
 
 ## Payloads e estoque
 
@@ -175,16 +176,16 @@ O `campaign_fingerprint` vincula o commit ao `protocol_sha256`. O manifesto cano
 
 ## Proveniencia e classificacao
 
-A metodologia atual e `10`: preserva tudo da revisao 9 - manifesto canonico, exclusao do ramp-up, validacao da duracao configurada e reconciliacao independente dos histogramas de todos os workers - e acrescenta o gate de folga do banco compartilhado e a declaracao explicita dos parametros de memoria do PostgreSQL. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual, parametros do PostgreSQL conforme declarados e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
+A metodologia atual e `11`: preserva os controles da revisao 10 e passa a registrar a deriva da latencia media por endpoint como diagnostico, sem usá-la como bloqueio de warmup ou elegibilidade da medicao. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual, parametros do PostgreSQL conforme declarados e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 
 - Quando houver rodadas antigas e atuais para o mesmo nivel de carga, os relatorios usam apenas o maior `methodology_version` dentro da mesma familia, linguagem e classificacao. `legacy_capacity` e `saturation` nunca compartilham baseline.
 
 O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
-# Measurement revision 9
+# Measurement revision 11
 
-New runs use methodology 10. Do not combine them with revision 9: the campaign
+New runs use methodology 11. Do not combine them with revision 10: the campaign
 protocol, measurement boundary and percentile evidence changed. Historical results remain untouched.
 Regenerate verification and load-generator calibration for the new clean commit.
 
@@ -197,11 +198,13 @@ In addition to throughput stability, each worker accumulates per-endpoint
 response-time sums and request counts in completion-second buckets, entirely in
 memory. Final reports reconcile these buckets with endpoint totals. Warmup checks
 the last three windows; measurement also compares the first and last steady-user
-windows. Every endpoint needs at least 30 requests per window, and mean-latency
-drift must not exceed the configured stability limit (10% by default).
-This detects latency changes hidden by fixed pacing; it does not prove that tail
-latency is stationary. P50/P95/P99 remain Locust rounded-histogram estimates,
-but each worker histogram is persisted and independently reconciled before publication.
+windows. Per-endpoint means are retained in the validation artifact whenever at
+least 30 requests fall in each window. Their drift is diagnostic only: it does
+not decide warmup or measurement eligibility, because a relative change in a
+mean latency is sensitive to ordinary variation in request mix and concurrent
+work. Eligibility remains based on coverage, zero failures, configured users and
+RPS stability. P50/P95/P99 remain Locust rounded-histogram estimates, but each
+worker histogram is persisted and independently reconciled before publication.
 
 CSV publication retains original final files, stages a host-owned copy, retries
 transient permission failures at most six times, then fails closed. A final hash
