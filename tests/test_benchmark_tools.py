@@ -582,7 +582,7 @@ class OfficialVerificationGateTests(unittest.TestCase):
         }
 
     def test_accepts_complete_evidence_for_the_same_clean_commit(self) -> None:
-        self.assertTrue(verification_matches_current_project(self.evidence, self.git))
+        self.assertTrue(verification_matches_current_project(self.evidence, self.git, expected_methodology=9))
 
     def test_versions_match_the_latest_tcc(self) -> None:
         self.assertEqual(EXPECTED_DOCKER, "29.5.2")
