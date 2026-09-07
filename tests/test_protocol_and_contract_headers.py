@@ -42,9 +42,9 @@ class ProtocolTests(unittest.TestCase):
         completed = subprocess.CompletedProcess([], 0, stdout="a" * 40 + "\n", stderr="")
         with patch("scripts.benchmark_protocol._compose_digest", return_value="compose"), \
              patch("scripts.benchmark_protocol.subprocess.run", return_value=completed):
-            first = build_protocol("fixed_200", "mixed", base)
-            second = build_protocol("fixed_200", "mixed", {**base, "LOCUST_DURATION": "6m"})
-            proxied = build_protocol("fixed_200", "mixed", {
+            first = build_protocol("fixed_125", "mixed", base)
+            second = build_protocol("fixed_125", "mixed", {**base, "LOCUST_DURATION": "6m"})
+            proxied = build_protocol("fixed_125", "mixed", {
                 **base, "LOCUST_HOST_OVERRIDE": "http://host.docker.internal:8000",
             })
         self.assertNotEqual(first["protocol_sha256"], second["protocol_sha256"])

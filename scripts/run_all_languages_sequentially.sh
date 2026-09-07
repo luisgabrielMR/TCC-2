@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCENARIO_NAME="${1:-mixed}"
 RUN_NUMBER="${2:-0}"
-LOAD_PROFILE="${3:-fixed_200}"
+LOAD_PROFILE="${3:-fixed_125}"
 ORDER_OFFSET="${4:-0}"
 SEQUENCE_ID="${5:-manual}"
 RUN_MODE="${6:-pilot}"

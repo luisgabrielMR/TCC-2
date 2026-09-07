@@ -5,7 +5,7 @@ param(
     [ValidateSet("smoke", "warmup", "read_heavy", "write_heavy", "mixed")]
     [string]$Scenario = "mixed",
     [int]$RunNumber = 0,
-    [ValidateSet("environment", "fixed_200", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
+    [ValidateSet("environment", "fixed_125", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
     [string]$LoadProfile = "environment",
     [ValidateSet("pilot", "official")]
     [string]$RunMode = "pilot"
@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "12")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "13")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -32,9 +32,9 @@ $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTE
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
 switch ($LoadProfile) {
-    # 150 usuarios com pacing de 0,75 s mantem teto de 200 req/s e absorve
-    # respostas do workload misto que excedem o periodo de um perfil de 0,25 s.
-    "fixed_200" { $users = 150; $spawnRate = 30; $waitSeconds = "0.75"; $loadTargetRps = 200 }
+    # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
+    # capacidade sustentavel medida para o workload misto neste ambiente.
+    "fixed_125" { $users = 100; $spawnRate = 20; $waitSeconds = "0.8"; $loadTargetRps = 125 }
     # Malha fechada: sem pacing o teto passa a ser da propria API.
     "saturation_25" { $users = 25; $spawnRate = 25; $waitSeconds = "0" }
     "saturation_50" { $users = 50; $spawnRate = 25; $waitSeconds = "0" }

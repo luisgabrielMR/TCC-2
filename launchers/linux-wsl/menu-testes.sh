@@ -35,11 +35,11 @@ MENU
     4) ./launchers/linux-wsl/validar-banco.sh ;;
     5) ./launchers/linux-wsl/testar-payloads-api-ativa.sh ;;
     6) ./scripts/run_warmup.sh ;;
-    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 fixed_200 ;;
-    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 0 fixed_200 ;;
-    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 0 fixed_200 ;;
-    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 0 fixed_200 ;;
-    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 0 fixed_200 ;;
+    7) ./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 fixed_125 ;;
+    8) ./launchers/linux-wsl/rodar-linguagem.sh node mixed 0 fixed_125 ;;
+    9) ./launchers/linux-wsl/rodar-linguagem.sh java mixed 0 fixed_125 ;;
+    10) ./launchers/linux-wsl/rodar-linguagem.sh go mixed 0 fixed_125 ;;
+    11) ./launchers/linux-wsl/rodar-linguagem.sh dotnet mixed 0 fixed_125 ;;
     12) ./launchers/linux-wsl/testar-todas-sequencialmente.sh ;;
     13)
       if command -v python3 >/dev/null 2>&1; then

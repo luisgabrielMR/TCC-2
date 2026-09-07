@@ -21,9 +21,9 @@ fi
 LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
-  # 150 usuarios com pacing de 0,75 s preservam o teto de 200 req/s e absorvem
-  # a cauda sub-segundo do workload misto sem reduzir artificialmente a taxa.
-  fixed_200) LOCUST_USERS=150; LOCUST_SPAWN_RATE=30; LOCUST_WAIT_SECONDS=0.75; LOAD_TARGET_RPS=200 ;;
+  # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
+  # capacidade sustentavel medida para o workload misto neste ambiente.
+  fixed_125) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20; LOCUST_WAIT_SECONDS=0.8; LOAD_TARGET_RPS=125 ;;
   # Malha fechada: sem pacing, cada usuario dispara a proxima requisicao assim
   # que a anterior responde. A vazao volta a ser variavel de resposta.
   saturation_25) LOCUST_USERS=25; LOCUST_SPAWN_RATE=25; LOCUST_WAIT_SECONDS=0 ;;

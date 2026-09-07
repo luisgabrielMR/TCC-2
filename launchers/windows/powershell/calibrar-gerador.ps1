@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "12")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "13")
 $calibrationRelative = Get-BenchmarkValue $environment "LOAD_GENERATOR_CALIBRATION_FILE" "results/summaries/load-generator-calibration.json"
 $calibrationPath = Join-Path $script:BenchmarkRoot $calibrationRelative
 $service = "$Language-api"
@@ -159,7 +159,7 @@ try {
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
         "--mode", "pilot", "--api-service", $service,
-        "--load-profile", "fixed_200", "--output", $validationPath
+        "--load-profile", "fixed_125", "--output", $validationPath
     )
     $calibrationValidation = (Get-Content $validationPath -Raw | ConvertFrom-Json).load_generator_calibration
     if (-not $calibrationValidation.valid) {

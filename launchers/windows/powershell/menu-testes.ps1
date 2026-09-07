@@ -110,7 +110,7 @@ function Invoke-RunAllProfile(
 }
 
 function Invoke-RunAll {
-    Invoke-RunAllProfile "fixed_200"
+    Invoke-RunAllProfile "fixed_125"
 }
 
 function Get-ResultScenarioName([string]$Profile) {
@@ -123,7 +123,7 @@ function Get-ResultScenarioName([string]$Profile) {
 }
 
 function Get-OfficialCampaignIdentity($Environment) {
-    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_200"
+    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_125"
     $python = Get-BenchmarkPythonCommand
     $arguments = @($python.Prefix) + @(
         (Join-Path $Root "scripts/benchmark_protocol.py"),
@@ -175,7 +175,7 @@ function Get-OfficialLanguagesForSequence(
 
 function Get-NextOfficialRoundPlan {
     $environment = Get-BenchmarkEnvironment
-    $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_200"
+    $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_125"
     $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_ROUNDS" "5")
     if ($totalRounds -lt 1) { throw "OFFICIAL_ROUNDS deve ser maior que zero." }
     $campaign = Get-OfficialCampaignIdentity $environment
@@ -311,11 +311,11 @@ function Invoke-Action([string]$SelectedAction) {
         "validate-db" { Invoke-ValidateDatabase }
         "test-payloads" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/testar-payloads.ps1" -BaseUrl "http://127.0.0.1:8000" }
         "warmup" { Invoke-Warmup }
-        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
-        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
-        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
-        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
-        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile fixed_200 -RunMode pilot }
+        "python" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language python -Scenario mixed -RunNumber 0 -LoadProfile fixed_125 -RunMode pilot }
+        "node" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language node -Scenario mixed -RunNumber 0 -LoadProfile fixed_125 -RunMode pilot }
+        "java" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language java -Scenario mixed -RunNumber 0 -LoadProfile fixed_125 -RunMode pilot }
+        "go" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language go -Scenario mixed -RunNumber 0 -LoadProfile fixed_125 -RunMode pilot }
+        "dotnet" { & powershell -NoProfile -ExecutionPolicy Bypass -File "launchers/windows/powershell/rodar-linguagem.ps1" -Language dotnet -Scenario mixed -RunNumber 0 -LoadProfile fixed_125 -RunMode pilot }
         "all" { Invoke-RunAll }
         "capacity-100" { Invoke-RunAllProfile "capacity_100" }
         "capacity-200" { Invoke-RunAllProfile "capacity_200" }

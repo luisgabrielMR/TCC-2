@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_METHODOLOGY = 12
+CURRENT_METHODOLOGY = 13
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -26,10 +26,9 @@ CPU_QUOTAS = {
     "dotnet-api": 2.0,
 }
 PROFILE_OVERRIDES = {
-    # Closed-loop pacing cannot make up requests delayed beyond one period.
-    # 150 users x 0.75 s retains a 200 req/s ceiling while providing enough
-    # concurrency for the mixed workload's sub-second tail latency.
-    "fixed_200": (150, 30, 0.75, 200),
+    # 200 req/s exceeded the sustainable mixed-workload capacity on this host.
+    # 100 users x 0.8 s provides a controlled 125 req/s ceiling.
+    "fixed_125": (100, 20, 0.8, 125),
     "saturation_25": (25, 25, 0.0, None),
     "saturation_50": (50, 25, 0.0, None),
     "saturation_100": (100, 25, 0.0, None),
