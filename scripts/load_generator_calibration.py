@@ -13,6 +13,10 @@ MINIMUM_PEAK_RPS = 250.0
 LOCUST_SATURATION_CPU_QUOTA_PERCENT = 90.0
 SAFE_OPERATING_FACTOR = 0.8
 MINIMUM_CADVISOR_COVERAGE_PERCENT = 80.0
+# Docker Desktop/WSL can report MemTotal one memory page apart between reads even
+# when its configured allocation has not changed. Keep the environment check
+# strict while accepting that reporting jitter.
+DOCKER_MEMORY_ALLOCATION_TOLERANCE_BYTES = 4 * 1024
 
 
 def quota_normalized_cpu_percent(raw_cpu_percent: float, cpu_quota: float) -> float:
@@ -29,6 +33,16 @@ def _locust_image_reference(configured_images: dict[str, Any]) -> str | None:
         if reference.startswith("locustio/locust:2.32.6@sha256:"):
             return reference
     return None
+
+
+def docker_memory_allocation_matches(recorded: Any, current: Any) -> bool:
+    """Return whether Docker's effective memory allocation is materially unchanged."""
+    try:
+        recorded_bytes = int(recorded)
+        current_bytes = int(current)
+    except (TypeError, ValueError):
+        return False
+    return abs(recorded_bytes - current_bytes) <= DOCKER_MEMORY_ALLOCATION_TOLERANCE_BYTES
 
 
 def validate_calibration(
@@ -77,7 +91,9 @@ def validate_calibration(
     allocation = docker.get("allocation", {})
     if environment.get("docker_logical_processors") != allocation.get("logical_processors"):
         reasons.append("calibration Docker CPU allocation differs from the current environment")
-    if environment.get("docker_memory_bytes") != allocation.get("memory_bytes"):
+    if not docker_memory_allocation_matches(
+        environment.get("docker_memory_bytes"), allocation.get("memory_bytes")
+    ):
         reasons.append("calibration Docker memory allocation differs from the current environment")
     if environment.get("locust_image") != _locust_image_reference(configured_images):
         reasons.append("calibration Locust image differs from the configured image")

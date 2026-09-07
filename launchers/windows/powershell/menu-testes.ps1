@@ -240,6 +240,14 @@ function Invoke-NextOfficialRound {
         throw "Docker Desktop nao esta ativo. Abra-o manualmente e aguarde Docker Engine running."
     }
 
+    # O preflight oficial consulta diretamente o PostgreSQL para registrar versao
+    # e parametros efetivos. A rodada inicia os demais servicos depois da
+    # confirmacao, mas o banco precisa estar acessivel antes desta validacao.
+    $environment = Get-BenchmarkEnvironment
+    Write-Host "Iniciando PostgreSQL para o preflight oficial..."
+    Invoke-BenchmarkCompose @("up", "-d", "postgres")
+    Wait-BenchmarkPostgres $environment
+
     $preflightPath = Join-Path $Root "results/summaries/preflight-official-next.json"
     Invoke-BenchmarkPython @(
         (Join-Path $Root "scripts/preflight.py"),

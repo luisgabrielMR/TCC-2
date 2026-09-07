@@ -24,7 +24,12 @@ from scripts.export_prometheus_data import (
     series_cpu_rates,
     write_postgres_summary,
 )
-from scripts.load_generator_calibration import quota_normalized_cpu_percent, validate_calibration
+from scripts.load_generator_calibration import (
+    DOCKER_MEMORY_ALLOCATION_TOLERANCE_BYTES,
+    docker_memory_allocation_matches,
+    quota_normalized_cpu_percent,
+    validate_calibration,
+)
 from payload_sequences import PayloadCycle, PayloadSequence
 from scripts.validate_measurement_bounds import validate_bounds
 import scripts.generate_results_dashboard as dashboard
@@ -747,6 +752,16 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
         self.assertIn("[System.IO.Path]::GetTempFileName()", script)
         self.assertNotIn("New-TemporaryFile", script)
 
+    def test_windows_official_launcher_starts_postgres_before_preflight(self) -> None:
+        script = (
+            ROOT / "launchers" / "windows" / "powershell" / "menu-testes.ps1"
+        ).read_text(encoding="utf-8")
+        start = script.index('Invoke-BenchmarkCompose @("up", "-d", "postgres")')
+        wait = script.index("Wait-BenchmarkPostgres $environment")
+        preflight = script.index("scripts/preflight.py")
+        self.assertLess(start, wait)
+        self.assertLess(wait, preflight)
+
     def test_calibrators_start_every_required_monitoring_target(self) -> None:
         scripts = [
             ROOT / "scripts" / "calibrate_load_generator.sh",
@@ -846,6 +861,21 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             report = validate_calibration(path, 7, git, docker, images, 4, 4)
             self.assertFalse(report["valid"])
             self.assertTrue(any("generator ceiling" in reason for reason in report["reasons"]))
+
+    def test_calibration_accepts_only_one_page_of_docker_memory_reporting_jitter(self) -> None:
+        recorded = 8_327_397_376
+        self.assertTrue(docker_memory_allocation_matches(recorded, recorded))
+        self.assertTrue(
+            docker_memory_allocation_matches(
+                recorded, recorded - DOCKER_MEMORY_ALLOCATION_TOLERANCE_BYTES
+            )
+        )
+        self.assertFalse(
+            docker_memory_allocation_matches(
+                recorded, recorded - DOCKER_MEMORY_ALLOCATION_TOLERANCE_BYTES - 1
+            )
+        )
+        self.assertFalse(docker_memory_allocation_matches(recorded, None))
 
     def test_locust_cpu_is_normalized_by_its_cpu_quota(self) -> None:
         self.assertEqual(quota_normalized_cpu_percent(340, 4), 85)
