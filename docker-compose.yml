@@ -1,6 +1,22 @@
 services:
   postgres:
-    command: ["postgres", "-c", "statement_timeout=30000"]
+    # Parametros de memoria e conexoes declarados nos valores padrao do PostgreSQL 17.
+    # O comportamento nao muda; o que muda e que o tamanho do cache deixa de ser um
+    # default implicito da imagem e passa a integrar o ambiente registrado. Com o seed
+    # de 200.000 registros o conjunto de trabalho excede shared_buffers, entao esse
+    # valor determina quanto do banco fica residente e precisa ser reproduzivel.
+    command:
+      - "postgres"
+      - "-c"
+      - "statement_timeout=30000"
+      - "-c"
+      - "shared_buffers=128MB"
+      - "-c"
+      - "effective_cache_size=4GB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "max_connections=100"
     image: ${POSTGRES_IMAGE:-postgres:17@sha256:0027bef26712baaee437a4ea48fdf3d2d2e2bc5f0d81615374408ca320f3c7e3}
     container_name: tcc_benchmark_postgres
     # Cota maxima, nao reserva exclusiva: o valor efetivo e validado pelo preflight.

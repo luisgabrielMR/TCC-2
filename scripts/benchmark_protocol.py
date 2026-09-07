@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_METHODOLOGY = 9
+CURRENT_METHODOLOGY = 10
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,

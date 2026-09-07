@@ -51,6 +51,16 @@ EXPECTED_BASE_CUSTOMERS = 200_000
 EXPECTED_BASE_ORDERS = 200_000
 EXPECTED_LOCUST_PROCESSES = 4
 EXPECTED_DOCKER_LOGICAL_PROCESSORS = 8
+# Valores padrao do PostgreSQL 17, declarados no Compose. Sao registrados e conferidos
+# porque o seed de 200.000 registros excede shared_buffers: quanto do banco fica
+# residente deixa de ser detalhe de implementacao e passa a ser parametro do ambiente.
+EXPECTED_POSTGRES_SETTINGS = {
+    "shared_buffers": "128MB",
+    "effective_cache_size": "4GB",
+    "work_mem": "4MB",
+    "max_connections": "100",
+}
+
 EXPECTED_CPU_LIMITS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -544,15 +554,57 @@ def runtime_versions() -> dict[str, Any]:
     return result
 
 
+def normalized_postgres_setting(name: str, raw: str | None) -> str | None:
+    """pg_settings devolve valor e unidade interna separados; o Compose declara MB/GB."""
+    if raw is None:
+        return None
+    value, _, unit = raw.strip().partition("|")
+    value = value.strip()
+    unit = unit.strip()
+    if not unit:
+        return value
+    blocks = {"B": 1, "kB": 1024, "8kB": 8 * 1024, "MB": 1024 ** 2, "GB": 1024 ** 3}
+    if unit not in blocks or not value.lstrip("-").isdigit():
+        return raw.strip()
+    total = int(value) * blocks[unit]
+    for label, size in (("GB", 1024 ** 3), ("MB", 1024 ** 2), ("kB", 1024)):
+        if total >= size and total % size == 0:
+            return f"{total // size}{label}"
+    return f"{total}B"
+
+
 def postgres_version() -> dict[str, Any]:
     environment = load_env()
+    # A unidade vem separada por '|' porque pg_settings guarda shared_buffers em blocos
+    # de 8 kB e work_mem em kB; sem ela a comparacao com o Compose seria falsa.
+    names = ",".join(f"'{name}'" for name in EXPECTED_POSTGRES_SETTINGS)
+    query = (
+        "SELECT version(); "
+        "SELECT setting FROM pg_settings WHERE name='statement_timeout'; "
+        f"SELECT name || '=' || setting || '|' || coalesce(unit, '') FROM pg_settings "
+        f"WHERE name IN ({names}) ORDER BY name;"
+    )
     code, output, error = run(
-        ["docker", "compose", "exec", "-T", "postgres", "psql", "-Atq", "-U", environment.get("POSTGRES_USER", "benchmark_user"), "-d", environment.get("POSTGRES_DB", "benchmark_db"), "-c", "SELECT version(); SELECT setting FROM pg_settings WHERE name='statement_timeout';"],
+        ["docker", "compose", "exec", "-T", "postgres", "psql", "-Atq", "-U", environment.get("POSTGRES_USER", "benchmark_user"), "-d", environment.get("POSTGRES_DB", "benchmark_db"), "-c", query],
         timeout=30,
     )
     lines = output.splitlines() if output else []
+    effective: dict[str, str] = {}
+    for line in lines[2:]:
+        name, _, value = line.partition("=")
+        if name in EXPECTED_POSTGRES_SETTINGS:
+            effective[name] = value
     return {"available": code == 0, "version_output": lines[0] if lines else None,
-            "statement_timeout_ms": int(lines[1]) if len(lines) == 2 and lines[1].isdigit() else None,
+            "statement_timeout_ms": int(lines[1]) if len(lines) > 1 and lines[1].isdigit() else None,
+            "settings": {
+                "expected": dict(EXPECTED_POSTGRES_SETTINGS),
+                "effective": effective,
+                "matches_expected": {
+                    name: normalized_postgres_setting(name, effective.get(name)) == expected
+                    for name, expected in EXPECTED_POSTGRES_SETTINGS.items()
+                },
+                "source": "pg_settings",
+            },
             "error": error if code != 0 else None}
 
 
@@ -809,6 +861,16 @@ def build_report(
             f"the API (2), PostgreSQL (1), Locust (4) and monitoring services; detected "
             f"{allocation['logical_processors']}"
         )
+    postgres_settings = postgres.get("settings", {})
+    if not postgres.get("available"):
+        violations.append("PostgreSQL must be reachable so its declared settings can be verified")
+    else:
+        for name, expected in EXPECTED_POSTGRES_SETTINGS.items():
+            if not postgres_settings.get("matches_expected", {}).get(name):
+                detected = postgres_settings.get("effective", {}).get(name) or "unavailable"
+                violations.append(
+                    f"PostgreSQL {name} must be {expected}; detected {detected}"
+                )
     if not configured_resources.get("available"):
         violations.append("Configured per-container CPU quotas could not be read from Docker Compose")
     else:
@@ -848,6 +910,7 @@ def build_report(
             "locust_processes": EXPECTED_LOCUST_PROCESSES,
             "images": EXPECTED_IMAGES,
             "cpu_limits": EXPECTED_CPU_LIMITS,
+            "postgres_settings": EXPECTED_POSTGRES_SETTINGS,
             "docker_logical_processors": EXPECTED_DOCKER_LOGICAL_PROCESSORS,
         },
         "git": git,

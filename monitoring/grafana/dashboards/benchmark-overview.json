@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Indicadores consolidados e comparaveis usados diretamente na analise do TCC.",
+  "description": "Comparacao das cinco implementacoes operacao por operacao. A matriz compara linguagens dentro de cada uma das oito operacoes do contrato; o detalhe agregado, os recursos e o PostgreSQL ficam em secoes recolhidas.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -31,9 +31,9 @@
         "x": 0,
         "y": 0
       },
-      "id": 20,
+      "id": 100,
       "panels": [],
-      "title": "Resultados oficiais consolidados",
+      "title": "Comparacao por operacao - menor e mais rapido",
       "type": "row"
     },
     {
@@ -41,590 +41,90 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "reqps",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 1
-      },
-      "id": 21,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_throughput_rps{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Throughput mediano por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "ms",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 1
-      },
-      "id": 22,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P95 por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "s",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 0,
-        "y": 9
-      },
-      "id": 23,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_duration_seconds{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Tempo medido sem warmup",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "percent",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 8,
-        "y": 9
-      },
-      "id": 24,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_rps_variability_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Variacao entre rodadas",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
+      "description": "Menor e mais rapido. A barra na celula e o canal principal: barra maior e cor mais quente significam mais lento. A escala e por coluna, ou seja por operacao - a cor diz quem e melhor NAQUELA operacao, nao entre operacoes diferentes. A rampa azul-vermelho tem luminancia crescente, entao continua legivel impressa e sob daltonismo vermelho-verde. Use a variavel Latencia para alternar entre media, P50, P95 e P99; percentis do Locust sao arredondados em 1 ms abaixo de 100 ms e 10 ms entre 100 ms e 1 s.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
+          "custom": {
+            "align": "right",
+            "cellOptions": {
+              "mode": "gradient",
+              "type": "gauge",
+              "valueDisplayMode": "text"
+            },
+            "inspect": false,
+            "minWidth": 104
+          },
+          "decimals": 2,
+          "unit": "ms",
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
               {
-                "color": "green",
+                "color": "#182e4e",
                 "value": null
               },
               {
-                "color": "red",
-                "value": 1
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
               }
             ]
-          },
-          "min": 0
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 9
-      },
-      "id": 25,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_failures{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Falhas HTTP",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "align": "auto",
-            "cellOptions": {
-              "type": "auto"
-            },
-            "inspect": false
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 108
+              },
+              {
+                "id": "unit",
+                "value": "none"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 7,
+        "h": 9,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 1
       },
-      "id": 26,
+      "id": 101,
       "options": {
-        "cellHeight": "sm",
+        "cellHeight": "md",
         "footer": {
           "countRows": false,
-          "enablePagination": false,
           "fields": "",
           "reducer": [
             "sum"
@@ -636,15 +136,133 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_confidence{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /health\"}",
           "format": "table",
           "instant": true,
           "legendFormat": "__auto",
           "range": false,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers/{id}\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /products\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /orders/{id}\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "E"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /customers\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "F"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"PUT /customers/{id}\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "G"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /orders\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "H"
         }
       ],
-      "title": "Confianca metodologica por resultado",
+      "title": "Latencia por operacao e linguagem - $quantile (menor = mais rapido)",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "GET /health",
+              "Value A": "GET /health",
+              "Value #B": "GET /customers/{id}",
+              "Value B": "GET /customers/{id}",
+              "Value #C": "GET /customers",
+              "Value C": "GET /customers",
+              "Value #D": "GET /products",
+              "Value D": "GET /products",
+              "Value #E": "GET /orders/{id}",
+              "Value E": "GET /orders/{id}",
+              "Value #F": "POST /customers",
+              "Value F": "POST /customers",
+              "Value #G": "PUT /customers/{id}",
+              "Value G": "PUT /customers/{id}",
+              "Value #H": "POST /orders",
+              "Value H": "POST /orders"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "Linguagem"
+              }
+            ]
+          }
+        }
+      ],
       "type": "table"
     },
     {
@@ -653,11 +271,11 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 10
       },
-      "id": 40,
+      "id": 111,
       "panels": [],
-      "title": "Recursos por rodada",
+      "title": "Leituras",
       "type": "row"
     },
     {
@@ -665,1075 +283,1505 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "percent",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 24
-      },
-      "id": 41,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "CPU media da API",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "percent",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 24
-      },
-      "id": 42,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"locust\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "CPU media do Locust",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "percent",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 24
-      },
-      "id": 43,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"postgres\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "CPU media do PostgreSQL",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "bytes",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 32
-      },
-      "id": 44,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Memoria media da API",
-      "type": "bargauge"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 40
-      },
-      "id": 45,
-      "panels": [],
-      "title": "Latencia e volume da carga",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "ms",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 41
-      },
-      "id": 46,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia media",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "ms",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 41
-      },
-      "id": 47,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P50",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "decimals": 2,
-          "unit": "ms",
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 41
-      },
-      "id": 48,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P99",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "unit": "short",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 49
-      },
-      "id": 49,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_requests{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Requisicoes por rodada",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
-          "decimals": 3,
-          "unit": "percentunit",
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
           "thresholds": {
-            "mode": "absolute",
+            "mode": "percentage",
             "steps": [
               {
-                "color": "green",
+                "color": "#182e4e",
                 "value": null
               },
               {
-                "color": "red",
-                "value": 0.000001
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
               }
             ]
           },
-          "min": 0
-        },
-        "overrides": []
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^python$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2CC0C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^node$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^java$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^go$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^dotnet$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 49
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 11
       },
-      "id": 50,
+      "id": 112,
       "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
           "fields": "",
-          "values": false
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "showUnfilled": true,
-        "valueMode": "text"
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_error_rate{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /health\"}",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{language}} - {{users}} usuarios",
+          "legendFormat": "__auto",
           "range": false,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /health\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /health\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
         }
       ],
-      "title": "Taxa de erro",
-      "type": "bargauge"
+      "title": "GET /health - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^python$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2CC0C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^node$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^java$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^go$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^dotnet$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 4,
+        "y": 11
+      },
+      "id": 113,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers/{id}\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers/{id}\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers/{id}\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "GET /customers/{id} - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^python$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2CC0C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^node$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^java$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^go$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^dotnet$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 11
+      },
+      "id": 114,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /customers\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "GET /customers - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^python$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2CC0C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^node$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^java$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^go$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^dotnet$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 12,
+        "y": 11
+      },
+      "id": 115,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /products\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /products\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /products\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "GET /products - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^python$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#F2CC0C"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^node$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^java$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^go$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "/^dotnet$/"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 11
+      },
+      "id": 116,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /orders/{id}\"}",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /orders/{id}\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"GET /orders/{id}\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "title": "GET /orders/{id} - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 11
+      },
+      "id": 110,
+      "options": {
+        "code": {
+          "language": "plaintext",
+          "showLineNumbers": false,
+          "showMiniMap": false
+        },
+        "content": "### Como ler\n\nEm tudo nesta tela, **menor e mais rapido**. Barra maior e cor mais quente significam mais lento.\n\n**Matriz** - compara operacoes entre si. Escala por coluna: quem e melhor naquela operacao.\n\n**Estes paineis** - as cinco na mesma operacao, ja ordenadas. A coluna *vezes* diz quantas vezes cada uma e mais lenta que a primeira.\n\nCPU e memoria **nao** descem ao nivel de operacao; estao em *Recursos da rodada*.",
+        "mode": "markdown"
+      },
+      "title": "",
+      "transparent": true,
+      "type": "text"
     },
     {
       "collapsed": false,
@@ -1741,11 +1789,11 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 57
+        "y": 18
       },
-      "id": 51,
+      "id": 120,
       "panels": [],
-      "title": "PostgreSQL durante a medicao",
+      "title": "Escritas",
       "type": "row"
     },
     {
@@ -1753,20 +1801,133 @@
         "type": "prometheus",
         "uid": "Prometheus"
       },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
       "fieldConfig": {
         "defaults": {
-          "decimals": 2,
-          "unit": "short",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "min": 0
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
         },
         "overrides": [
           {
             "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
               "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
+              "options": "/^python$/"
             },
             "properties": [
               {
@@ -1781,7 +1942,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
+              "options": "/^node$/"
             },
             "properties": [
               {
@@ -1796,7 +1957,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
+              "options": "/^java$/"
             },
             "properties": [
               {
@@ -1811,7 +1972,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
+              "options": "/^go$/"
             },
             "properties": [
               {
@@ -1826,7 +1987,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+              "options": "/^dotnet$/"
             },
             "properties": [
               {
@@ -1841,57 +2002,228 @@
         ]
       },
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 8,
         "x": 0,
-        "y": 58
+        "y": 19
       },
-      "id": 52,
+      "id": 121,
       "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
           "fields": "",
-          "values": false
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "showUnfilled": true,
-        "valueMode": "text"
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_connections{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /customers\"}",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{language}}",
+          "legendFormat": "__auto",
           "range": false,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /customers\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /customers\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
         }
       ],
-      "title": "Conexoes medias",
-      "type": "bargauge"
+      "title": "POST /customers - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "Prometheus"
       },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
       "fieldConfig": {
         "defaults": {
-          "decimals": 3,
-          "unit": "ops",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "min": 0
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
         },
         "overrides": [
           {
             "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
               "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
+              "options": "/^python$/"
             },
             "properties": [
               {
@@ -1906,7 +2238,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
+              "options": "/^node$/"
             },
             "properties": [
               {
@@ -1921,7 +2253,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
+              "options": "/^java$/"
             },
             "properties": [
               {
@@ -1936,7 +2268,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
+              "options": "/^go$/"
             },
             "properties": [
               {
@@ -1951,7 +2283,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+              "options": "/^dotnet$/"
             },
             "properties": [
               {
@@ -1966,57 +2298,228 @@
         ]
       },
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 8,
         "x": 8,
-        "y": 58
+        "y": 19
       },
-      "id": 53,
+      "id": 122,
       "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
           "fields": "",
-          "values": false
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "showUnfilled": true,
-        "valueMode": "text"
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_transactions_per_second{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"PUT /customers/{id}\"}",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{language}} - {{transaction}}",
+          "legendFormat": "__auto",
           "range": false,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"PUT /customers/{id}\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"PUT /customers/{id}\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
         }
       ],
-      "title": "Transacoes por segundo",
-      "type": "bargauge"
+      "title": "PUT /customers/{id} - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "ms"
+              }
+            ]
+          }
+        }
+      ],
+      "type": "table"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "Prometheus"
       },
+      "description": "As cinco implementacoes na mesma operacao, da mais rapida para a mais lenta. A coluna 'vezes' mostra quantas vezes cada uma e mais lenta que a primeira; a primeira marca 1,00. A escala da barra e propria deste painel - a comparacao entre operacoes diferentes se faz na matriz acima.",
       "fieldConfig": {
         "defaults": {
-          "decimals": 3,
-          "unit": "percentunit",
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
-          "min": 0
+          "custom": {
+            "align": "auto",
+            "inspect": false
+          },
+          "thresholds": {
+            "mode": "percentage",
+            "steps": [
+              {
+                "color": "#182e4e",
+                "value": null
+              },
+              {
+                "color": "#25527e",
+                "value": 45
+              },
+              {
+                "color": "#4f8092",
+                "value": 65
+              },
+              {
+                "color": "#c76d4d",
+                "value": 80
+              },
+              {
+                "color": "#e57361",
+                "value": 92
+              }
+            ]
+          }
         },
         "overrides": [
           {
             "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 78
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "ms"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "ms"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vezes"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              },
+              {
+                "id": "custom.width",
+                "value": 62
+              },
+              {
+                "id": "custom.align",
+                "value": "right"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "auto"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
               "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
+              "options": "/^python$/"
             },
             "properties": [
               {
@@ -2031,7 +2534,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
+              "options": "/^node$/"
             },
             "properties": [
               {
@@ -2046,7 +2549,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
+              "options": "/^java$/"
             },
             "properties": [
               {
@@ -2061,7 +2564,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
+              "options": "/^go$/"
             },
             "properties": [
               {
@@ -2076,7 +2579,7 @@
           {
             "matcher": {
               "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+              "options": "/^dotnet$/"
             },
             "properties": [
               {
@@ -2091,287 +2594,2449 @@
         ]
       },
       "gridPos": {
-        "h": 8,
+        "h": 7,
         "w": 8,
         "x": 16,
-        "y": 58
+        "y": 19
       },
-      "id": 54,
+      "id": 123,
       "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
           "fields": "",
-          "values": false
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "showUnfilled": true,
-        "valueMode": "text"
+        "showHeader": true,
+        "sortBy": [
+          {
+            "desc": false,
+            "displayName": "ms"
+          }
+        ]
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_postgres_cache_hit_ratio{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /orders\"}",
+          "format": "table",
           "instant": true,
-          "legendFormat": "{{language}}",
+          "legendFormat": "__auto",
           "range": false,
           "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /orders\"} / on(endpoint) group_left() min by(endpoint) (benchmark_endpoint_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",quantile=\"$quantile\",endpoint=\"POST /orders\"})",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
         }
       ],
-      "title": "Cache hit ratio",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 0,
-          "unit": "short",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0
+      "title": "POST /orders - menor e mais rapido",
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "ms",
+              "Value A": "ms",
+              "Value #B": "vezes",
+              "Value B": "vezes"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
               {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
+                "desc": false,
+                "field": "ms"
               }
             ]
           }
-        ]
-      },
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "collapsed": true,
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 1,
+        "w": 24,
         "x": 0,
-        "y": 66
+        "y": 26
       },
-      "id": 55,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
+      "id": 130,
+      "panels": [
         {
-          "editorMode": "code",
-          "expr": "benchmark_result_postgres_blocks_total{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{operation}}",
-          "range": false,
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "reqps",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 27
+          },
+          "id": 21,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_throughput_rps{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput mediano por linguagem",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 0,
+              "unit": "short",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 27
+          },
+          "id": 49,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_requests{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Requisicoes por rodada",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "ms",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 27
+          },
+          "id": 46,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Latencia media",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "ms",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 35
+          },
+          "id": 47,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Latencia P50",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "ms",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 35
+          },
+          "id": 22,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Latencia P95 por linguagem",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "ms",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 35
+          },
+          "id": 48,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Latencia P99",
+          "type": "bargauge"
         }
       ],
-      "title": "Blocos lidos e encontrados em cache",
-      "type": "bargauge"
+      "title": "Latencia agregada e vazao - contexto, nao por operacao",
+      "type": "row"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "decimals": 2,
-          "unit": "bytes",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^python(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#F2CC0C"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^node(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#73BF69"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^java(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#FF9830"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^go(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#56D9EB"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "/^dotnet(?:$|\\s+-\\s+).*/"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "#B877D9"
-                }
-              }
-            ]
-          }
-        ]
-      },
+      "collapsed": true,
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 66
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
       },
-      "id": 56,
-      "options": {
-        "displayMode": "basic",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "text"
-      },
-      "targets": [
+      "id": 131,
+      "panels": [
         {
-          "editorMode": "code",
-          "expr": "benchmark_result_postgres_database_size_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "percent",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 29
+          },
+          "id": 41,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "CPU media da API",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "percent",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 29
+          },
+          "id": 42,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"locust\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "CPU media do Locust",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "percent",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 29
+          },
+          "id": 43,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"postgres\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "CPU media do PostgreSQL",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "bytes",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 37
+          },
+          "id": 44,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Memoria media da API",
+          "type": "bargauge"
         }
       ],
-      "title": "Tamanho medio do banco",
-      "type": "bargauge"
+      "title": "Recursos da rodada - container inteiro, nao atribuivel por endpoint",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 132,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "s",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 0,
+            "y": 31
+          },
+          "id": 23,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_duration_seconds{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Tempo medido sem warmup",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "decimals": 2,
+              "unit": "percent",
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 6,
+            "y": 31
+          },
+          "id": 24,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_rps_variability_percent{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Variacao entre rodadas",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 12,
+            "y": 31
+          },
+          "id": 25,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_failures{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Falhas HTTP",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "decimals": 3,
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.000001
+                  }
+                ]
+              },
+              "min": 0
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 6,
+            "x": 18,
+            "y": 31
+          },
+          "id": 50,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_error_rate{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{users}} usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Taxa de erro",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "auto"
+                },
+                "inspect": false
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 38
+          },
+          "id": 26,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_confidence{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "format": "table",
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Confianca metodologica por resultado",
+          "type": "table"
+        }
+      ],
+      "title": "Validade da medicao",
+      "type": "row"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 133,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 2,
+              "unit": "short",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 0,
+            "y": 33
+          },
+          "id": 52,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_postgres_connections{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Conexoes medias",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 3,
+              "unit": "ops",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 8,
+            "y": 33
+          },
+          "id": 53,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_postgres_transactions_per_second{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{transaction}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Transacoes por segundo",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 3,
+              "unit": "percentunit",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 33
+          },
+          "id": 54,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_postgres_cache_hit_ratio{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Cache hit ratio",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 0,
+              "unit": "short",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 41
+          },
+          "id": 55,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_postgres_blocks_total{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}} - {{operation}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Blocos lidos e encontrados em cache",
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "decimals": 2,
+              "unit": "bytes",
+              "color": {
+                "mode": "palette-classic"
+              },
+              "min": 0
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^python(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#F2CC0C"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^node(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#73BF69"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^java(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#FF9830"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^go(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#56D9EB"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byRegexp",
+                  "options": "/^dotnet(?:$|\\s+-\\s+).*/"
+                },
+                "properties": [
+                  {
+                    "id": "color",
+                    "value": {
+                      "mode": "fixed",
+                      "fixedColor": "#B877D9"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 41
+          },
+          "id": 56,
+          "options": {
+            "displayMode": "basic",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "valueMode": "text"
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_result_postgres_database_size_bytes{classification=\"official\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+              "instant": true,
+              "legendFormat": "{{language}}",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Tamanho medio do banco",
+          "type": "bargauge"
+        }
+      ],
+      "title": "PostgreSQL durante a medicao",
+      "type": "row"
     }
   ],
   "refresh": "5s",
@@ -2438,6 +5103,43 @@
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "media",
+          "value": "avg"
+        },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Latencia",
+        "multi": false,
+        "name": "quantile",
+        "options": [
+          {
+            "selected": true,
+            "text": "media",
+            "value": "avg"
+          },
+          {
+            "selected": false,
+            "text": "P50",
+            "value": "p50"
+          },
+          {
+            "selected": false,
+            "text": "P95",
+            "value": "p95"
+          },
+          {
+            "selected": false,
+            "text": "P99",
+            "value": "p99"
+          }
+        ],
+        "query": "media : avg,P50 : p50,P95 : p95,P99 : p99",
+        "skipUrlSync": false,
+        "type": "custom"
       },
       {
         "allValue": ".*",
@@ -2541,6 +5243,6 @@
   "timezone": "browser",
   "title": "TCC Benchmark - Resultados Oficiais",
   "uid": "tcc-benchmark-overview",
-  "version": 7,
+  "version": 10,
   "weekStart": ""
 }

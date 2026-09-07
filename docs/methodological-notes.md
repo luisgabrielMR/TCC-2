@@ -104,6 +104,35 @@ O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir
 
 O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark durante a carga. Cada reset usa `TRUNCATE`, repoe o seed, executa `VACUUM (ANALYZE)` e `CHECKPOINT` e zera as estatisticas cumulativas do banco. Isso evita que manutencao em segundo plano, a escrita inicial do seed ou contadores herdados ocorram em instantes diferentes para cada linguagem.
 
+## Banco compartilhado como limite comum
+
+O PostgreSQL e unico e compartilhado pelas cinco implementacoes, com cota de 1,0
+CPU. Se ele saturar a propria cota, as cinco passam a enfileirar atras do mesmo
+limite e a diferenca entre elas deixa de ser observavel: o resultado passa a
+descrever o banco, nao os ecossistemas. E o mesmo raciocinio que ja justificava o
+gate de folga do gerador de carga, aplicado ao outro recurso compartilhado.
+
+A metodologia 10 acrescenta `database_headroom_met`: a CPU media do container
+`postgres` na janela de medicao, normalizada pela cota, deve ficar abaixo de 90%.
+Ausencia da serie do cAdvisor tambem reprova em modo oficial. O valor bruto e o
+maximo por intervalo continuam registrados em `shared_database` no `metadata.json`.
+
+Com o seed de 200.000 registros isso deixou de ser hipotetico. `GET /customers`
+emite `SELECT count(*)::int AS total FROM customers` sem filtro e responde por 15%
+do cenario misto; a contagem percorre a tabela inteira a cada requisicao. O custo e
+identico para as cinco e nao enviesa a comparacao, mas comprime a diferenca entre
+elas, do mesmo modo que o caminho de escrita. O gate nao corrige isso: ele impede
+que uma rodada em que o banco saturou seja classificada como oficial.
+
+Os parametros de memoria do PostgreSQL passam a ser declarados no Compose nos
+valores padrao da versao 17 - `shared_buffers=128MB`, `effective_cache_size=4GB`,
+`work_mem=4MB` e `max_connections=100`. O comportamento nao muda; o que muda e que
+o tamanho do cache deixa de ser um default implicito da imagem. Com o seed atual o
+conjunto de trabalho excede `shared_buffers`, entao quanto do banco fica residente
+determina o resultado e precisa ser reproduzivel. O preflight le os valores
+efetivos em `pg_settings`, normaliza as unidades internas e bloqueia rodada oficial
+em caso de divergencia.
+
 ## Metricas comparaveis
 
 O protocolo de encerramento revisao 3 fecha a janela agregada quando o ultimo
@@ -140,13 +169,13 @@ O percentual de CPU do `docker stats` e expresso por nucleo logico: aproximadame
 
 A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma linguagem, aquece, coleta, encerra e somente entao inicia a proxima.
 
-O perfil oficial `fixed_200` executa cinco rodadas completas. A ordem das linguagens e rotacionada entre rodadas para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; na metodologia 7, uma combinacao `fixed_200` com menos de cinco rodadas continua marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, entrega abaixo de 97,5% do alvo, ordem nao rotacionada nas cinco posicoes, variacao de RPS acima de 10%, instabilidade interna ou falta de folga do gerador invalidam a combinacao. Metodologias historicas e a bateria separada de saturacao preservam o criterio de repeticoes configurado para elas.
+O perfil oficial `fixed_200` executa cinco rodadas completas. A ordem das linguagens e rotacionada entre rodadas para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; a partir da metodologia 7, uma combinacao `fixed_200` com menos de cinco rodadas continua marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, entrega abaixo de 97,5% do alvo, ordem nao rotacionada nas cinco posicoes, variacao de RPS acima de 10%, instabilidade interna, falta de folga do gerador ou saturacao do banco compartilhado invalidam a combinacao. Metodologias historicas e a bateria separada de saturacao preservam o criterio de repeticoes configurado para elas.
 
 O `campaign_fingerprint` vincula o commit ao `protocol_sha256`. O manifesto canonico inclui carga, pacing, duracao, warmup, processos Locust, pool, cotas, intervalos, perfil, Compose e calibracao. CSVs, exportador Prometheus e dashboards carregam essas dimensoes; rodadas de protocolos diferentes permanecem visiveis, mas nunca compoem a mesma mediana ou classificacao de confianca.
 
 ## Proveniencia e classificacao
 
-A metodologia atual e `9`: preserva o limite SQL da revisao 8 e acrescenta manifesto canonico, exclusao do ramp-up, validacao da duracao configurada e reconciliacao independente dos histogramas de todos os workers. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
+A metodologia atual e `10`: preserva tudo da revisao 9 - manifesto canonico, exclusao do ramp-up, validacao da duracao configurada e reconciliacao independente dos histogramas de todos os workers - e acrescenta o gate de folga do banco compartilhado e a declaracao explicita dos parametros de memoria do PostgreSQL. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual, parametros do PostgreSQL conforme declarados e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
 
 ## Carga controlada e capacidade
 
@@ -155,7 +184,7 @@ A metodologia atual e `9`: preserva o limite SQL da revisao 8 e acrescenta manif
 O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
 # Measurement revision 9
 
-New runs use methodology 9. Do not combine them with revision 8: the campaign
+New runs use methodology 10. Do not combine them with revision 9: the campaign
 protocol, measurement boundary and percentile evidence changed. Historical results remain untouched.
 Regenerate verification and load-generator calibration for the new clean commit.
 

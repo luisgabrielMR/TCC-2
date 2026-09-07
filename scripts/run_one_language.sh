@@ -177,8 +177,13 @@ PREFLIGHT_JSON="$(cat "$PREFLIGHT_PATH")"
 MONITORING_PREFLIGHT_JSON="$(cat "$MONITORING_PREFLIGHT_PATH")"
 CALIBRATION_CAPACITY_RPS="$($PYTHON_BIN -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")).get("load_generator_calibration", {}).get("validated_capacity_rps"); print("null" if value is None else value)' "$PREFLIGHT_PATH")"
 LOCUST_CPU_QUOTA="$($PYTHON_BIN -c 'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["resource_policy"]["effective"]["limits"]["locust"]["effective_cpu_quota"])' "$PREFLIGHT_PATH")"
+POSTGRES_CPU_QUOTA="$($PYTHON_BIN -c 'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["resource_policy"]["effective"]["limits"]["postgres"]["effective_cpu_quota"])' "$PREFLIGHT_PATH")"
 if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) > 0 else 1)' "$LOCUST_CPU_QUOTA"; then
   echo "O preflight nao confirmou a cota efetiva de CPU do Locust." >&2
+  exit 2
+fi
+if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) > 0 else 1)' "$POSTGRES_CPU_QUOTA"; then
+  echo "O preflight nao confirmou a cota efetiva de CPU do PostgreSQL." >&2
   exit 2
 fi
 UNTRACKED_FILES_JSON="$("$PYTHON_BIN" -c 'import json,sys; print(json.dumps(json.load(open(sys.argv[1], encoding="utf-8"))["git"].get("untracked_files", []), ensure_ascii=True))' "$PREFLIGHT_PATH")"
@@ -319,8 +324,36 @@ if [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then
     GENERATOR_HEADROOM_MET=false
   fi
 fi
+# O banco e compartilhado pelas cinco implementacoes. Se ele saturar a propria cota,
+# todas passam a enfileirar atras do mesmo limite e a diferenca entre linguagens deixa
+# de ser observavel - o mesmo raciocinio que justifica o gate de folga do gerador.
+read -r POSTGRES_CPU_AVERAGE_PERCENT POSTGRES_CPU_MAX_PERCENT <<EOF
+$($PYTHON_BIN -c '
+import csv, sys
+try:
+    rows=csv.DictReader(open(sys.argv[1], encoding="utf-8-sig"))
+    row=next((row for row in rows if row.get("component") == "postgresql"), None)
+    print("{} {}".format(row["cpu_average_percent"], row["cpu_max_percent"]) if row else "null null")
+except OSError:
+    print("null null")
+' "$RESULT_DIR/cadvisor_summary.csv")
+EOF
+POSTGRES_CPU_QUOTA_AVERAGE_PERCENT=null
+POSTGRES_CPU_QUOTA_MAX_PERCENT=null
+if [ "$POSTGRES_CPU_AVERAGE_PERCENT" != null ]; then
+  POSTGRES_CPU_QUOTA_AVERAGE_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$POSTGRES_CPU_AVERAGE_PERCENT" "$POSTGRES_CPU_QUOTA")"
+  POSTGRES_CPU_QUOTA_MAX_PERCENT="$($PYTHON_BIN -c 'import sys; print(f"{float(sys.argv[1]) / float(sys.argv[2]):.6f}")' "$POSTGRES_CPU_MAX_PERCENT" "$POSTGRES_CPU_QUOTA")"
+fi
+DATABASE_HEADROOM_MET=true
+if [ "$POSTGRES_CPU_QUOTA_AVERAGE_PERCENT" = null ]; then
+  if [ "$RUN_MODE" = official ]; then DATABASE_HEADROOM_MET=false; fi
+elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$POSTGRES_CPU_QUOTA_AVERAGE_PERCENT"; then
+  DATABASE_HEADROOM_MET=false
+  echo "AVISO: PostgreSQL usou $POSTGRES_CPU_QUOTA_AVERAGE_PERCENT% da propria cota de CPU." >&2
+  echo "O banco compartilhado saturou; a diferenca entre as linguagens nao e comparavel nesta rodada." >&2
+fi
 RESULT_CLASSIFICATION=non_official
-if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ]; then
+if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ] && [ "$DATABASE_HEADROOM_MET" = true ]; then
   RESULT_CLASSIFICATION=official
 fi
 "$SCRIPT_DIR/reset_db.sh"
@@ -448,6 +481,17 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "calibrated_capacity_rps": $CALIBRATION_CAPACITY_RPS,
     "calibration_headroom_factor_required": 1.25,
     "host": "$LOCUST_HOST"
+  },
+  "shared_database": {
+    "postgres_cpu_quota": $POSTGRES_CPU_QUOTA,
+    "postgres_cpu_average_percent": $POSTGRES_CPU_AVERAGE_PERCENT,
+    "postgres_cpu_max_percent": $POSTGRES_CPU_MAX_PERCENT,
+    "postgres_cpu_quota_average_percent": $POSTGRES_CPU_QUOTA_AVERAGE_PERCENT,
+    "postgres_cpu_quota_max_percent": $POSTGRES_CPU_QUOTA_MAX_PERCENT,
+    "database_headroom_cpu_metric": "window_average_normalized_by_cpu_quota",
+    "database_headroom_threshold_percent": 90,
+    "database_headroom_met": $DATABASE_HEADROOM_MET,
+    "interpretation": "o banco e compartilhado pelas cinco implementacoes; saturacao dele limita todas por igual e invalida a comparacao"
   },
   "test_phase": {
     "started_at": "$TEST_STARTED_AT",

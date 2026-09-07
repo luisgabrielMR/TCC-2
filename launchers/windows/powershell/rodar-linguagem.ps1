@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "9")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "10")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -241,6 +241,24 @@ try {
         $generatorHeadroomMet = $generatorHeadroomMet -and $null -ne $calibratedCapacityRps -and
             $achievedRps -le ([double]$calibratedCapacityRps * 0.8)
     }
+    # O banco e compartilhado pelas cinco implementacoes. Se ele saturar a propria cota,
+    # todas enfileiram atras do mesmo limite e a comparacao entre linguagens deixa de ser
+    # observavel - o mesmo raciocinio do gate de folga do gerador.
+    $postgresCpuQuota = [double]$preflight.resource_policy.effective.limits.postgres.effective_cpu_quota
+    $postgresResource = Import-Csv (Join-Path $resultDirectory "cadvisor_summary.csv") |
+        Where-Object { $_.component -eq "postgresql" } | Select-Object -First 1
+    $postgresCpuAveragePercent = if ($postgresResource) { [double]$postgresResource.cpu_average_percent } else { $null }
+    $postgresCpuMaxPercent = if ($postgresResource) { [double]$postgresResource.cpu_max_percent } else { $null }
+    $postgresCpuQuotaAveragePercent = if ($null -eq $postgresCpuAveragePercent) {
+        $null
+    } else {
+        [math]::Round($postgresCpuAveragePercent / $postgresCpuQuota, 6)
+    }
+    $postgresCpuQuotaMaxPercent = if ($null -eq $postgresCpuMaxPercent) { $null } else { [math]::Round($postgresCpuMaxPercent / $postgresCpuQuota, 6) }
+    $databaseHeadroomMet = if ($null -eq $postgresCpuQuotaAveragePercent) { $RunMode -ne "official" } else { $postgresCpuQuotaAveragePercent -lt 90 }
+    if (-not $databaseHeadroomMet -and $null -ne $postgresCpuQuotaAveragePercent) {
+        Write-Warning "PostgreSQL usou $postgresCpuQuotaAveragePercent% da propria cota de CPU. O banco compartilhado saturou; a diferenca entre as linguagens nao e comparavel nesta rodada."
+    }
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
     $mainRunStarted = $false
@@ -274,9 +292,9 @@ try {
         "dotnet" { "Pooling nativo do Npgsql" }
     }
     $metadata = [ordered]@{
-        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet) { "official" } else { "non_official" })
+        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet) { "official" } else { "non_official" })
         requested_run_mode = $RunMode
-        official_run = ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet)
+        official_run = ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet)
         language = $Language
         scenario = $resultScenario
         workload_scenario = $Scenario
@@ -368,6 +386,17 @@ try {
             calibrated_capacity_rps = $calibratedCapacityRps
             calibration_headroom_factor_required = 1.25
             host = $locustHost
+        }
+        shared_database = [ordered]@{
+            postgres_cpu_quota = $postgresCpuQuota
+            postgres_cpu_average_percent = $postgresCpuAveragePercent
+            postgres_cpu_max_percent = $postgresCpuMaxPercent
+            postgres_cpu_quota_average_percent = $postgresCpuQuotaAveragePercent
+            postgres_cpu_quota_max_percent = $postgresCpuQuotaMaxPercent
+            database_headroom_cpu_metric = "window_average_normalized_by_cpu_quota"
+            database_headroom_threshold_percent = 90
+            database_headroom_met = $databaseHeadroomMet
+            interpretation = "o banco e compartilhado pelas cinco implementacoes; saturacao dele limita todas por igual e invalida a comparacao"
         }
         test_phase = [ordered]@{
             started_at = $testStartedAt.ToString("o")
