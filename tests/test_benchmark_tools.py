@@ -777,15 +777,12 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
         self.assertIn("[System.IO.Path]::GetTempFileName()", script)
         self.assertNotIn("New-TemporaryFile", script)
 
-    def test_windows_official_launcher_starts_postgres_before_preflight(self) -> None:
+    def test_windows_official_launcher_does_not_run_a_redundant_campaign_preflight(self) -> None:
         script = (
             ROOT / "launchers" / "windows" / "powershell" / "menu-testes.ps1"
         ).read_text(encoding="utf-8")
-        start = script.index('Invoke-BenchmarkCompose @("up", "-d", "postgres")')
-        wait = script.index("Wait-BenchmarkPostgres $environment")
-        preflight = script.index("scripts/preflight.py")
-        self.assertLess(start, wait)
-        self.assertLess(wait, preflight)
+        official_launcher = script[script.index("function Invoke-NextOfficialRound {"):script.index("function Invoke-Summarize {")]
+        self.assertNotIn("scripts/preflight.py", official_launcher)
 
     def test_calibrators_start_every_required_monitoring_target(self) -> None:
         scripts = [
