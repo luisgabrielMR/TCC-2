@@ -15,7 +15,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_METHODOLOGY = 13
+CURRENT_METHODOLOGY = 14
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -26,6 +26,9 @@ CPU_QUOTAS = {
     "dotnet-api": 2.0,
 }
 PROFILE_OVERRIDES = {
+    # 125 req/s exhausted the PostgreSQL CPU headroom in the mixed workload.
+    # 100 users x 1.0 s keeps the same closed-load shape with a 100 req/s ceiling.
+    "fixed_100": (100, 20, 1.0, 100),
     # 200 req/s exceeded the sustainable mixed-workload capacity on this host.
     # 100 users x 0.8 s provides a controlled 125 req/s ceiling.
     "fixed_125": (100, 20, 0.8, 125),

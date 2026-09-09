@@ -110,7 +110,7 @@ function Invoke-RunAllProfile(
 }
 
 function Invoke-RunAll {
-    Invoke-RunAllProfile "fixed_125"
+    Invoke-RunAllProfile "fixed_100"
 }
 
 function Get-ResultScenarioName([string]$Profile) {
@@ -123,7 +123,7 @@ function Get-ResultScenarioName([string]$Profile) {
 }
 
 function Get-OfficialCampaignIdentity($Environment) {
-    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_125"
+    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_100"
     $python = Get-BenchmarkPythonCommand
     $arguments = @($python.Prefix) + @(
         (Join-Path $Root "scripts/benchmark_protocol.py"),
@@ -175,7 +175,7 @@ function Get-OfficialLanguagesForSequence(
 
 function Get-NextOfficialRoundPlan {
     $environment = Get-BenchmarkEnvironment
-    $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_125"
+    $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_100"
     $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_ROUNDS" "5")
     if ($totalRounds -lt 1) { throw "OFFICIAL_ROUNDS deve ser maior que zero." }
     $campaign = Get-OfficialCampaignIdentity $environment

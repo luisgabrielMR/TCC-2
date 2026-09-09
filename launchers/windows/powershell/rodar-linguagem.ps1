@@ -5,7 +5,7 @@ param(
     [ValidateSet("smoke", "warmup", "read_heavy", "write_heavy", "mixed")]
     [string]$Scenario = "mixed",
     [int]$RunNumber = 0,
-    [ValidateSet("environment", "fixed_125", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
+    [ValidateSet("environment", "fixed_100", "fixed_125", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
     [string]$LoadProfile = "environment",
     [ValidateSet("pilot", "official")]
     [string]$RunMode = "pilot"
@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "13")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "14")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -32,6 +32,8 @@ $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTE
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
 switch ($LoadProfile) {
+    # fixed_125 excedeu a margem de CPU do PostgreSQL neste workload.
+    "fixed_100" { $users = 100; $spawnRate = 20; $waitSeconds = "1.0"; $loadTargetRps = 100 }
     # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
     # capacidade sustentavel medida para o workload misto neste ambiente.
     "fixed_125" { $users = 100; $spawnRate = 20; $waitSeconds = "0.8"; $loadTargetRps = 125 }

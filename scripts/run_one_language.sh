@@ -21,6 +21,8 @@ fi
 LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
+  # fixed_125 excedeu a margem de CPU do PostgreSQL neste workload.
+  fixed_100) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20; LOCUST_WAIT_SECONDS=1.0; LOAD_TARGET_RPS=100 ;;
   # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
   # capacidade sustentavel medida para o workload misto neste ambiente.
   fixed_125) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20; LOCUST_WAIT_SECONDS=0.8; LOAD_TARGET_RPS=125 ;;

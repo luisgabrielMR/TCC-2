@@ -148,7 +148,7 @@ output_path.write_text(json.dumps(artifact, indent=2) + "\n", encoding="utf-8")
 PY
 
 "$PYTHON_BIN" "$SCRIPT_DIR/preflight.py" --mode pilot --api-service "$API_SERVICE" \
-  --load-profile fixed_125 --output "$CALIBRATION_ROOT/calibration-validation.json"
+  --load-profile fixed_100 --output "$CALIBRATION_ROOT/calibration-validation.json"
 "$PYTHON_BIN" -c 'import json,sys; report=json.load(open(sys.argv[1], encoding="utf-8"))["load_generator_calibration"]; print("Calibration capacity: {:.3f} req/s".format(report["validated_capacity_rps"])); raise SystemExit(0 if report["valid"] else 2)' \
   "$CALIBRATION_ROOT/calibration-validation.json"
 echo "Calibracao gravada em $LOAD_GENERATOR_CALIBRATION_FILE"

@@ -258,7 +258,7 @@ def confidence(rows: list[dict]) -> str:
     if any(row["measurement_status"] != "stable" for row in rows):
         return "invalid_instability"
     required_runs = 5 if any(
-        integer(row.get("methodology")) >= 7 and row.get("load_profile") in {"fixed_200", "fixed_125"}
+        integer(row.get("methodology")) >= 7 and row.get("load_profile") in {"fixed_200", "fixed_125", "fixed_100"}
         for row in rows
     ) else 3
     if len(rows) < required_runs:

@@ -159,7 +159,7 @@ try {
     Invoke-BenchmarkPython @(
         (Join-Path $script:BenchmarkRoot "scripts/preflight.py"),
         "--mode", "pilot", "--api-service", $service,
-        "--load-profile", "fixed_125", "--output", $validationPath
+        "--load-profile", "fixed_100", "--output", $validationPath
     )
     $calibrationValidation = (Get-Content $validationPath -Raw | ConvertFrom-Json).load_generator_calibration
     if (-not $calibrationValidation.valid) {

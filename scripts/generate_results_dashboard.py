@@ -67,7 +67,7 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_instability"
     required_runs = 5 if any(
         int(number(row.get("methodologyVersion")) or 1) >= 7
-        and row.get("loadProfile") in {"fixed_200", "fixed_125"}
+        and row.get("loadProfile") in {"fixed_200", "fixed_125", "fixed_100"}
         for row in rows
     ) else 3
     if len(rows) < required_runs:

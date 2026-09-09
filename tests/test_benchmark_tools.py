@@ -729,7 +729,7 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             match[0]: match[1:] for match in powershell_pattern.findall(powershell)
         }
         self.assertEqual(bash_profiles, powershell_profiles)
-        self.assertEqual(len(bash_profiles), 6)
+        self.assertEqual(len(bash_profiles), 7)
 
     def test_locust_process_count_matches_the_cpu_quota(self) -> None:
         environment = (ROOT / ".env.example").read_text(encoding="utf-8")
