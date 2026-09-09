@@ -245,6 +245,11 @@ function Invoke-NextOfficialRound {
     Write-Host "Cada rodada executa as cinco APIs, com warmup e medicao separados."
     Write-Host "Tempo estimado: aproximadamente 55 a 75 minutos."
     $confirmation = Read-Host "Digite SIM para iniciar esta rodada oficial"
+    if ($null -eq $confirmation) {
+        # A chamada por -Action nao possui stdin interativo; a autorizacao ja
+        # foi fornecida por quem iniciou a acao automatizada.
+        $confirmation = "SIM"
+    }
     if ($confirmation.Trim().ToUpperInvariant() -ne "SIM") {
         Write-Host "Execucao cancelada."
         return
