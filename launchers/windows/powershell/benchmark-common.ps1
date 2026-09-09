@@ -52,7 +52,21 @@ function Invoke-BenchmarkCompose {
             Start-Sleep -Seconds 5
         }
     }
-    $serviceNames = @($Arguments | Where-Object { $_ -notmatch '^-' -and $_ -notin @('up', 'down', 'start', 'stop') })
+    $serviceNames = @()
+    $optionTakesValue = $false
+    foreach ($argument in $Arguments) {
+        if ($optionTakesValue) {
+            $optionTakesValue = $false
+            continue
+        }
+        if ($argument -in @('--profile', '--project-name', '--file', '--env-file')) {
+            $optionTakesValue = $true
+            continue
+        }
+        if ($argument -notmatch '^-' -and $argument -notin @('up', 'down', 'start', 'stop')) {
+            $serviceNames += $argument
+        }
+    }
     $diagnostic = if ($serviceNames.Count) { (& docker compose logs --tail 80 @serviceNames 2>&1 | Out-String).Trim() } else { "" }
     throw "docker compose falhou apos $attempts tentativa(s): $($Arguments -join ' ')`n$diagnostic"
 }
