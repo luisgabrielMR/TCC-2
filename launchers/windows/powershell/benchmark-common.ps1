@@ -42,10 +42,19 @@ function Invoke-BenchmarkCompose {
         return
     }
 
-    & docker compose @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "docker compose falhou: $($Arguments -join ' ')"
+    $isServiceStartup = $Arguments.Count -ge 2 -and $Arguments[0] -eq "up" -and $Arguments -contains "-d"
+    $attempts = if ($isServiceStartup) { 3 } else { 1 }
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        & docker compose @Arguments
+        if ($LASTEXITCODE -eq 0) { return }
+        if ($attempt -lt $attempts) {
+            Write-Warning "docker compose falhou ao iniciar servico(s); nova tentativa em 5 segundos ($attempt/$attempts): $($Arguments -join ' ')"
+            Start-Sleep -Seconds 5
+        }
     }
+    $serviceNames = @($Arguments | Where-Object { $_ -notmatch '^-' -and $_ -notin @('up', 'down', 'start', 'stop') })
+    $diagnostic = if ($serviceNames.Count) { (& docker compose logs --tail 80 @serviceNames 2>&1 | Out-String).Trim() } else { "" }
+    throw "docker compose falhou apos $attempts tentativa(s): $($Arguments -join ' ')`n$diagnostic"
 }
 
 function Invoke-BenchmarkComposeBuild {
