@@ -239,8 +239,9 @@ try {
     }
     $locustCpuQuotaMaxPercent = if ($null -eq $locustCpuMaxPercent) { $null } else { [math]::Round($locustCpuMaxPercent / $locustCpuQuota, 6) }
     $generatorHeadroomMet = if ($null -eq $locustCpuQuotaAveragePercent) { $RunMode -ne "official" } else { $locustCpuQuotaAveragePercent -lt 90 }
+    $calibrationRequired = [bool]$preflight.load_generator_calibration.required
     $calibratedCapacityRps = $preflight.load_generator_calibration.validated_capacity_rps
-    if ($LoadProfile -like "fixed_*" -or $LoadProfile -like "saturation_*") {
+    if ($calibrationRequired -and ($LoadProfile -like "fixed_*" -or $LoadProfile -like "saturation_*")) {
         $generatorHeadroomMet = $generatorHeadroomMet -and $null -ne $calibratedCapacityRps -and
             $achievedRps -le ([double]$calibratedCapacityRps * 0.8)
     }
@@ -387,7 +388,7 @@ try {
             generator_headroom_cpu_metric = "window_average_normalized_by_cpu_quota"
             generator_headroom_met = $generatorHeadroomMet
             calibrated_capacity_rps = $calibratedCapacityRps
-            calibration_headroom_factor_required = 1.25
+            calibration_headroom_factor_required = $(if ($calibrationRequired) { 1.25 } else { $null })
             host = $locustHost
         }
         shared_database = [ordered]@{

@@ -178,6 +178,7 @@ EOF
 PREFLIGHT_JSON="$(cat "$PREFLIGHT_PATH")"
 MONITORING_PREFLIGHT_JSON="$(cat "$MONITORING_PREFLIGHT_PATH")"
 CALIBRATION_CAPACITY_RPS="$($PYTHON_BIN -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")).get("load_generator_calibration", {}).get("validated_capacity_rps"); print("null" if value is None else value)' "$PREFLIGHT_PATH")"
+CALIBRATION_REQUIRED="$($PYTHON_BIN -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")).get("load_generator_calibration", {}).get("required", False); print(str(bool(value)).lower())' "$PREFLIGHT_PATH")"
 LOCUST_CPU_QUOTA="$($PYTHON_BIN -c 'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["resource_policy"]["effective"]["limits"]["locust"]["effective_cpu_quota"])' "$PREFLIGHT_PATH")"
 POSTGRES_CPU_QUOTA="$($PYTHON_BIN -c 'import json,sys; p=json.load(open(sys.argv[1], encoding="utf-8")); print(p["resource_policy"]["effective"]["limits"]["postgres"]["effective_cpu_quota"])' "$PREFLIGHT_PATH")"
 if ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) > 0 else 1)' "$LOCUST_CPU_QUOTA"; then
@@ -321,7 +322,7 @@ if [ "$LOCUST_CPU_QUOTA_AVERAGE_PERCENT" = null ]; then
 elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$LOCUST_CPU_QUOTA_AVERAGE_PERCENT"; then
   GENERATOR_HEADROOM_MET=false
 fi
-if [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then
+if [ "$CALIBRATION_REQUIRED" = true ] && [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then
   if [ "$CALIBRATION_CAPACITY_RPS" = null ] || ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) <= float(sys.argv[2]) * 0.8 else 1)' "$ACHIEVED_RPS" "$CALIBRATION_CAPACITY_RPS"; then
     GENERATOR_HEADROOM_MET=false
   fi
@@ -481,7 +482,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "generator_headroom_cpu_metric": "window_average_normalized_by_cpu_quota",
     "generator_headroom_met": $GENERATOR_HEADROOM_MET,
     "calibrated_capacity_rps": $CALIBRATION_CAPACITY_RPS,
-    "calibration_headroom_factor_required": 1.25,
+    "calibration_headroom_factor_required": $(if [ "$CALIBRATION_REQUIRED" = true ]; then echo 1.25; else echo null; fi),
     "host": "$LOCUST_HOST"
   },
   "shared_database": {

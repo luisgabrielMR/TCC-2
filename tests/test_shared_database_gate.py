@@ -71,6 +71,18 @@ class DatabaseHeadroomGateTests(unittest.TestCase):
             POWERSHELL.count("$generatorHeadroomMet -and $databaseHeadroomMet"), 2
         )
 
+    def test_optional_calibration_does_not_gate_generator_headroom(self):
+        self.assertIn('CALIBRATION_REQUIRED=', RUNNER)
+        self.assertIn(
+            'if [ "$CALIBRATION_REQUIRED" = true ] && [[ "$LOAD_PROFILE" == fixed_* || "$LOAD_PROFILE" == saturation_* ]]; then',
+            RUNNER,
+        )
+        self.assertIn('$calibrationRequired = [bool]$preflight.load_generator_calibration.required', POWERSHELL)
+        self.assertIn(
+            'if ($calibrationRequired -and ($LoadProfile -like "fixed_*" -or $LoadProfile -like "saturation_*")) {',
+            POWERSHELL,
+        )
+
     def test_both_runners_record_the_same_shared_database_fields(self):
         fields = (
             "postgres_cpu_quota",
