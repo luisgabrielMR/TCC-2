@@ -89,6 +89,10 @@ de pool e monitoramento deixam residuos, inclusive negativos nas estimativas.
 
 ## Pendencias e limites
 
+> Histórico de revisão anterior: as referências a `fixed_200` e ao workload
+> anterior não definem a configuração atual. O cenário `mixed` atual exclui
+> `/health` e distribui uniformemente sete operações PostgreSQL.
+
 - Nao houve coleta de latencias individuais de alta resolucao nem mudanca do
   histograma Locust. Isso exigiria avaliar o overhead do instrumento e recalibrar.
 - O protocolo de encerramento revisao 2 reconcilia todos os workers e rejeita
@@ -138,7 +142,7 @@ nas amostras PostgreSQL. Agora usa `--allow_dynamic_housekeeping=false` e
 `--housekeeping_interval=1s`; o validador consulta o comando do container real
 e bloqueia elegibilidade oficial sem esses argumentos. Os timestamps preservados
 sao os das amostras armazenadas no Prometheus, inclusive timestamps fornecidos
-pelo proprio exportador, nao uma grade artificial de cinco segundos.
+pelo proprio exportador, nao uma grade temporal artificial.
 
 Piloto final: `results/summaries/worker-audit-pilot-20260904e/`.
 Quatro workers, cinco endpoints GET, 3,000 requisicoes, zero falhas, cancelamentos

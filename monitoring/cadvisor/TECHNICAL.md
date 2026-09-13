@@ -16,7 +16,10 @@ image store containerd do Docker Desktop. O validador exige séries associadas
 aos IDs reais dos containers, não agregados como `/`, `/docker` ou
 `/restricted`.
 
-`scripts/export_prometheus_data.py` calcula médias temporais e picos na janela
-da medição. CPU é normalizada pela quota do container; memória é working set.
-Uma série ausente, com gap excessivo ou reset de contador invalida evidência
-oficial. `docker stats` permanece diagnóstico complementar de piloto.
+O Prometheus coleta o cAdvisor e o PostgreSQL exporter a cada 1 s, alinhado ao
+`--housekeeping_interval=1s` acima; esse alinhamento não altera o argumento do
+cAdvisor. `scripts/export_prometheus_data.py` calcula médias temporais e picos
+na janela da medição. CPU é normalizada pela quota do container; memória é
+working set. Uma série ausente, com gap superior a 1,5 vezes o intervalo
+registrado ou reset de contador invalida evidência oficial. `docker stats`
+permanece diagnóstico complementar de piloto.

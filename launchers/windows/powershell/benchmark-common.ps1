@@ -185,10 +185,16 @@ function Invoke-BenchmarkLocust {
         [string]$HostUrl,
         [string]$CsvPrefix,
         [string]$WaitSeconds = "0.1",
+        [int]$ScheduleSeed = 0,
         [Parameter(Mandatory = $true)]
         [ValidateRange(1, 64)]
         [int]$Processes
     )
+
+    if ($ScheduleSeed -le 0) {
+        $ScheduleSeed = [int](Get-BenchmarkValue (Get-BenchmarkEnvironment) "WORKLOAD_SCHEDULE_SEED" "20260913")
+    }
+    if ($ScheduleSeed -le 0) { throw "WORKLOAD_SCHEDULE_SEED deve ser um inteiro positivo." }
 
     $containerRoot = "/mnt/results/"
     if (-not $CsvPrefix.StartsWith($containerRoot)) {
@@ -197,6 +203,7 @@ function Invoke-BenchmarkLocust {
     $relativePrefix = $CsvPrefix.Substring($containerRoot.Length).Replace("/", [IO.Path]::DirectorySeparatorChar)
     $hostPrefix = Join-Path (Join-Path $script:BenchmarkRoot "results") $relativePrefix
     $finalizer = Join-Path $script:BenchmarkRoot "scripts/finalize_locust_csv.py"
+    $mixRecorder = Join-Path $script:BenchmarkRoot "scripts/record_workload_mix.py"
     Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix, "--prepare")
 
     $durationSeconds = ConvertTo-BenchmarkDurationSeconds $Duration
@@ -209,12 +216,17 @@ function Invoke-BenchmarkLocust {
         "-e", "PAYLOAD_DIR=/mnt/payloads",
         "-e", "LOCUST_WAIT_SECONDS=$WaitSeconds",
         "-e", "LOCUST_PROCESSES=$Processes",
+        "-e", "WORKLOAD_SCHEDULE_SEED=$ScheduleSeed",
         "locust", "-f", "locustfile.py", "--headless", "--stop-timeout", "5", "--processes", "$Processes",
         "-u", "$Users", "-r", "$SpawnRate", "-t", "${watchdogSeconds}s",
         "--benchmark-measurement-seconds", "$durationSeconds",
         "--host", $HostUrl, "--csv", $CsvPrefix, "--only-summary"
     )
     Invoke-BenchmarkPython @($finalizer, "--prefix", $hostPrefix)
+    Invoke-BenchmarkPython @(
+        $mixRecorder, "--scenario", $Scenario, "--schedule-seed", "$ScheduleSeed",
+        "--prefix", $hostPrefix
+    )
 }
 
 function ConvertTo-BenchmarkDurationSeconds {
@@ -241,6 +253,7 @@ function Invoke-BenchmarkWarmup {
         [int]$StabilityWindowSeconds,
         [double]$MaxRpsDriftPercent,
         [string]$WaitSeconds,
+        [int]$ScheduleSeed = 0,
         [ValidateRange(1, 64)]
         [int]$Processes,
         [string]$HostUrl,
@@ -254,7 +267,7 @@ function Invoke-BenchmarkWarmup {
     $attemptDirectory = Join-Path $script:BenchmarkRoot $attemptRelative
     New-Item -ItemType Directory -Force $attemptDirectory | Out-Null
     Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
-    Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds -Processes $Processes | Out-Host
+    Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds $ScheduleSeed -Processes $Processes | Out-Host
 
     $validationPath = Join-Path $attemptDirectory "validation.json"
     Invoke-BenchmarkPython @(
@@ -371,7 +384,7 @@ function Export-BenchmarkPrometheus {
         "--output", (Join-Path $ResultDirectory "prometheus_series.json"),
         "--start", $startArgument,
         "--end", $endArgument,
-        "--step", "5",
+        "--step", "1",
         "--require-postgres",
         "--minimum-cadvisor-coverage-percent", $MinimumCadvisorCoveragePercent.ToString("R", [Globalization.CultureInfo]::InvariantCulture),
         "--component", "api=$ApiService,tcc_benchmark_$($ApiService.Replace('-', '_'))",

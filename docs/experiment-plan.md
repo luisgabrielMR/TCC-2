@@ -1,5 +1,10 @@
 # Plano do experimento
 
+> Histórico de uma revisão anterior. Este arquivo preserva decisões que podem
+> mencionar `fixed_200` e um `mixed` que incluía `/health`; não descreve o
+> protocolo atual. Para o workload atual, use `methodological-notes.md` e
+> `load-tests/locust/config/scenarios.json`.
+
 ## Escopo
 
 O estudo compara Python, Node.js, Java, Go e C#/.NET no mesmo PostgreSQL, com SQL direto, sem ORM e com os oito endpoints de `docs/api-contract.md`. A interpretacao vale somente para o workload, hardware, alocacao Docker, versoes e configuracao registrados.
@@ -19,10 +24,13 @@ Os cenarios `smoke`, `read_heavy`, `write_heavy` e `mixed` usam os mesmos pesos 
 
 Os perfis de carga respondem a duas perguntas distintas, e por isso sao dois conjuntos separados. Um perfil unico com pacing nao responde nenhuma das duas: o pacing impoe um teto de `usuarios / wait_seconds` requisicoes por segundo, e uma implementacao mais rapida que esse teto apenas espera.
 
-- `fixed_200`: 150 usuarios, spawn rate 30 e pacing de 0,75 s, com teto de 200 req/s. A concorrencia adicional absorve a cauda sub-segundo observada no workload misto; ainda assim, por ser pacing em malha fechada, a rodada exige entrega minima de 97,5% e rejeita qualquer taxa inferior. A comparacao principal e de latencia e recursos sob taxa equivalente, nao de capacidade maxima.
+- `fixed_200`: 150 usuarios, spawn rate 30 e pacing de 0,75 s, com teto de 200 req/s. A concorrencia adicional absorve a cauda sub-segundo observada no workload misto. Este perfil permanece apenas como registro histórico e não pertence ao protocolo atual.
 - `saturation_25`, `saturation_50`, `saturation_100`, `saturation_200` e `saturation_400`: sem pacing, em malha fechada. Cada usuario dispara a proxima requisicao assim que a anterior responde, entao o teto passa a ser da propria API. A vazao volta a ser variavel de resposta. O ponto de saturacao e o degrau em que o ganho de RPS ao dobrar a concorrencia cai abaixo de 5%, ou em que a taxa de erro passa de 1%, ou em que a deriva de RPS passa de 10%.
 
 Os perfis `controlled_50`, `capacity_100` e `capacity_200` continuam definidos apenas para releitura do historico.
+
+No protocolo atual, aplicável somente aos perfis `fixed_*`, a entrega mínima é
+99% da taxa nominal: 49,5 req/s em `fixed_50` e 99 req/s em `fixed_100`.
 
 A carga percorre a rede interna do Docker. Pelo caminho anterior, atraves da porta publicada no host, o `GET /health` custava de 6 a 7 ms sem consultar o banco, e esse piso entrava em toda medicao de leitura.
 

@@ -16,8 +16,9 @@ BASE_CUSTOMERS = 200_000
 BASE_CATEGORIES = 5
 BASE_PRODUCTS = 100
 BASE_ORDERS = 200_000
-# At 5,000 total req/s for five minutes, the mixed scenario expects 150,000
-# customer creates. Keep one third of deterministic headroom for task variance.
+# At the official fixed_100 ceiling for five minutes, the uniform mixed scenario
+# expects about 4,286 customer creates. Keep substantial deterministic headroom
+# for longer diagnostic workloads without changing the payload source.
 CREATE_CUSTOMERS = 200_000
 UPDATE_CUSTOMERS = 200
 # One deterministic order payload per baseline customer distributes inserts

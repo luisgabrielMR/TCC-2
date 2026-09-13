@@ -6,7 +6,8 @@ Abra o Docker Desktop manualmente e aguarde `Docker Engine running`. Depois use 
 
 - `00_MENU_TESTES.bat`: menu inicial com verificacao, calibracao, rodada oficial, Grafana e opcoes avancadas.
 - `01_VERIFICAR_PROJETO.bat`: verificacao completa sem gerar resultado oficial.
-- `02_PROXIMA_RODADA_OFICIAL.bat`: proxima rodada oficial `fixed_200`.
+- `02_PROXIMA_RODADA_OFICIAL.bat`: próxima etapa da campanha oficial; alterna
+  os perfis `fixed_50` e `fixed_100` conforme o plano de rodadas.
 - `03_ABRIR_GRAFANA.bat`: abre os dois dashboards.
 - `04_MENU_AVANCADO.bat`: preparacao, pilotos e capacidade.
 
@@ -25,7 +26,7 @@ Use `./launchers/linux-wsl/menu-testes.sh` ou os scripts individuais para diagno
 ./launchers/linux-wsl/preparar-banco.sh
 ./launchers/linux-wsl/gerar-payloads.sh
 ./launchers/linux-wsl/validar-banco.sh
-./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 fixed_200 pilot
+./launchers/linux-wsl/rodar-linguagem.sh python mixed 0 fixed_100 pilot
 ./launchers/linux-wsl/testar-todas-sequencialmente.sh
 ```
 

@@ -101,11 +101,13 @@ O seed determinístico cria:
 - 200.000 pagamentos
 - 400.000 registros de auditoria
 
-O perfil `fixed_200` limita o warmup a 200 requisições por segundo durante 300
-segundos. Com os pesos de 10% para `POST /customers` e 15% para `POST /orders`,
-isso corresponde, no máximo esperado, a 6.000 clientes e 9.000 pedidos novos.
-Assim, a maior mudança de escala após o warmup é de 4,5%; o reset subsequente
-recompõe exatamente esta linha de base antes da coleta principal.
+No maior perfil oficial atual, `fixed_100`, o warmup dura 300 segundos com
+teto nominal de 100 requisições por segundo. Como `POST /customers` e
+`POST /orders` têm, cada um, peso 1/7 no cenário `mixed`, isso corresponde a
+aproximadamente 4.286 novos clientes e 4.286 novos pedidos. A mudança de escala
+por tabela é de aproximadamente 2,15% sobre o baseline de 200.000 registros;
+o reset subsequente recompõe exatamente esta linha de base antes da coleta
+principal.
 
 ## Seed
 

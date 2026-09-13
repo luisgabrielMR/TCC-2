@@ -7,17 +7,17 @@ a revisao academica aprovada deve ser conferida antes da entrega.
 
 | Aspecto | Implementacao / evidencia | Limite de interpretacao |
 | --- | --- | --- |
-| Cinco ecossistemas e oito operacoes | apps/, common/openapi/, testes contratuais | Nao isola linguagem de runtime, servidor e driver |
+| Cinco ecossistemas, oito APIs e sete operacoes no mixed | Contrato HTTP preserva `/health`; `config/scenarios.json` e testes de workload definem as sete operacoes PostgreSQL | Nao isola linguagem de runtime, servidor e driver |
 | SQL direto e dataset comum | SQL parametrizado, mesmo schema/seed, testes de estado final | Custo comum do SQL pode dominar a latencia |
 | Pool maximo20 | Compose e drivers; configuracao comum 1/20/10s/60s/1800s | Minimo persistente e escopo de timeout variam por driver |
-| Referencia e sensibilidade | fixed_50 principal; fixed_100 complementar; mesmos100 usuarios, pacing2s/1s | Dez pilotos locais documentados; carga fechada, nao aberta; campanha oficial ainda nao executada |
-| Workload reproduzivel | Ciclo suave ponderado por worker; manifesto/hash; payloads particionados | Intercalacao concorrente e prefixo final podem diferir |
+| Perfis oficiais de carga | fixed_50 e fixed_100; mesmos100 usuarios, pacing2s/1s | Niveis devem ser analisados separadamente; carga fechada, nao aberta; campanha oficial ainda nao executada |
+| Workload reproduzivel | Ciclos ponderados embaralhados por semente/worker; manifesto, `locust_workload_mix.json` e payloads particionados | Intercalacao concorrente e prefixo final podem diferir; analisar contagens realizadas |
 | Recursos | PG1 CPU, API2, gerador4; Go GOMAXPROCS2 | Quotas nao sao reservas; registrar host e memoria Docker efetiva |
 | Software | Imagens por digest e inventario preflight; Docker29.5.2 / Compose5.1.4 exigidos | Nao substituir versoes aprovadas pelo PDF para contornar divergencias |
 | Preparacao | Reset logico, seed200k, VACUUM ANALYZE, CHECKPOINT; warmup300s | Nao limpa cache do SO ou do runtime |
 | Janela de medicao | 300s apos spawn; reconciliacao dos workers, drenagem5s | Percentis em histogramas arredondados; duracao de pilotos e distinta |
 | Recursos por container | cAdvisor -> Prometheus; recorte temporal e cobertura | Nao atribuir CPU/memoria a endpoints |
-| Diagnostico do banco | postgres-exporter: sessoes ativas/esperas nao Client, Lock, IO | Snapshots5s nao medem tempo total de espera nem provam ausencia de gargalo |
+| Diagnostico do banco | postgres-exporter: sessoes ativas/esperas nao Client, Lock, IO | Snapshots1s nao medem tempo total de espera nem provam ausencia de gargalo |
 | Compatibilidade PG17 | Coletor legado stat_bgwriter desativado; query estendida no exporter0.15 | Query estendida e deprecated nessa versao fixada; nao atualizada implicitamente |
 | Gerador | CPU cAdvisor e entrega efetiva; calibracao health-only opcional | CPU media abaixo do limite nao prova capacidade sob toda carga |
 | Repeticoes e ordem | Menu Windows:5 por nivel; rotacao das linguagens e alternancia dos niveis | Preparado nao significa executado |

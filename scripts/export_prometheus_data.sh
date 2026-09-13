@@ -22,7 +22,7 @@ arguments=(
   --output "$RESULT_DIR/prometheus_series.json" \
   --start "$START_EPOCH" \
   --end "$END_EPOCH" \
-  --step 5 \
+  --step 1 \
   --require-postgres \
   --minimum-cadvisor-coverage-percent "$MINIMUM_CADVISOR_COVERAGE_PERCENT" \
   --component "api=$API_SERVICE,tcc_benchmark_${API_SERVICE//-/_}" \

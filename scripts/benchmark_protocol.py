@@ -19,9 +19,15 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCUST_ROOT = ROOT / "load-tests" / "locust"
 if str(LOCUST_ROOT) not in sys.path:
     sys.path.insert(0, str(LOCUST_ROOT))
-from workload_schedule import DeterministicActionSchedule, load_scenario, static_workload_manifest
+from workload_schedule import (
+    DeterministicActionSchedule,
+    load_scenario,
+    schedule_seed,
+    static_workload_manifest,
+)
 
 CURRENT_METHODOLOGY = 15
+FIXED_LOAD_MINIMUM_DELIVERY_PERCENT = 99
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -49,6 +55,19 @@ PROFILE_OVERRIDES = {
     "capacity_200": (200, 40, None, None),
 }
 _DURATION = re.compile(r"^([0-9]+(?:\.[0-9]+)?)(ms|s|m|h)?$")
+
+
+def minimum_delivery_rps(target_rps: int | float | None) -> float | None:
+    """Return the fixed-load delivery floor, or no floor for variable-rate profiles."""
+    if target_rps is None:
+        return None
+    return float(target_rps) * FIXED_LOAD_MINIMUM_DELIVERY_PERCENT / 100
+
+
+def meets_minimum_delivery(achieved_rps: float, target_rps: int | float | None) -> bool:
+    """Apply the fixed-load floor without imposing it on variable-rate profiles."""
+    floor = minimum_delivery_rps(target_rps)
+    return floor is None or achieved_rps >= floor
 
 
 def load_environment() -> dict[str, str]:
@@ -118,7 +137,7 @@ def _compose_digest() -> str:
     return hashlib.sha256(completed.stdout).hexdigest()
 
 
-def workload_manifest(scenario: str) -> dict[str, Any]:
+def workload_manifest(scenario: str, workload_schedule_seed: int) -> dict[str, Any]:
     if scenario == "health_only":
         return static_workload_manifest("single_action_v1", scenario, [
             {"action": "get_health", "endpoint": "GET /health", "weight": 1},
@@ -133,7 +152,7 @@ def workload_manifest(scenario: str) -> dict[str, Any]:
         ]
         return static_workload_manifest("ordered_smoke_sequence_v1", "smoke", actions)
     workload_scenario, actions = load_scenario(LOCUST_ROOT / "config" / "scenarios.json", scenario)
-    return DeterministicActionSchedule(workload_scenario, actions).manifest
+    return DeterministicActionSchedule(workload_scenario, actions, workload_schedule_seed).manifest
 
 
 def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | None = None) -> dict[str, Any]:
@@ -153,7 +172,10 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
     if not math.isfinite(wait_seconds) or wait_seconds < 0:
         raise ValueError("LOCUST_WAIT_SECONDS must be finite and non-negative")
 
-    workload = workload_manifest(scenario)
+    workload_schedule_seed = schedule_seed(
+        environment.get("WORKLOAD_SCHEDULE_SEED", "20260913")
+    )
+    workload = workload_manifest(scenario, workload_schedule_seed)
     protocol = {
         "schema_version": 1,
         "methodology_version": methodology,
@@ -169,7 +191,10 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "processes": _number(environment, "LOCUST_PROCESSES", "4", int),
             "nominal_pacing_rps": target_rps,
             "target_rps": target_rps,
-            "minimum_delivery_percent": 97.5 if target_rps is not None else None,
+            "minimum_delivery_percent": (
+                FIXED_LOAD_MINIMUM_DELIVERY_PERCENT if target_rps is not None else None
+            ),
+            "minimum_delivery_rps": minimum_delivery_rps(target_rps),
             "target": {
                 "network_mode": "host_override" if host_override else "docker_internal_compose_service",
                 "url_template": host_override or "http://{api-service}:8000",
@@ -197,7 +222,7 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
         "metrics": {
             "postgres_collector_revision": 3,
             "collector_interval_seconds": _number(environment, "METRICS_SAMPLE_INTERVAL_SECONDS", "2"),
-            "prometheus_scrape_interval_seconds": 5,
+            "prometheus_scrape_interval_seconds": 1,
             "cadvisor_housekeeping_interval_seconds": 1,
         },
         "execution": {

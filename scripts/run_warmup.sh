@@ -27,6 +27,7 @@ run_attempt() {
     -e PAYLOAD_DIR=/mnt/payloads \
     -e LOCUST_WAIT_SECONDS="$LOCUST_WAIT_SECONDS" \
     -e LOCUST_PROCESSES="$LOCUST_PROCESSES" \
+    -e WORKLOAD_SCHEDULE_SEED="$WORKLOAD_SCHEDULE_SEED" \
     locust \
     -f locustfile.py \
     --headless \
@@ -40,6 +41,8 @@ run_attempt() {
     --csv "/mnt/$host_prefix" \
     --only-summary || return 2
   "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$host_prefix" || return 2
+  "$PYTHON_BIN" "$SCRIPT_DIR/record_workload_mix.py" --scenario "$SCENARIO_NAME" \
+    --schedule-seed "$WORKLOAD_SCHEDULE_SEED" --prefix "$host_prefix" || return 2
   "$PYTHON_BIN" "$SCRIPT_DIR/validate_warmup_stability.py" \
     --stats "${host_prefix}_stats.csv" \
     --diagnose-latency-stability \

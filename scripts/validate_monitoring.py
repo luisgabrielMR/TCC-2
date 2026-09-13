@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 
+EXPECTED_PROMETHEUS_SCRAPE_INTERVAL = "1s"
+
+
 def prometheus_get(base_url: str, path: str, parameters: dict[str, str] | None = None) -> dict[str, Any]:
     url = base_url.rstrip("/") + path
     if parameters:
@@ -93,6 +96,21 @@ def cadvisor_collection_config() -> dict[str, Any]:
         return {"command": [], "fixed_interval_valid": False}
 
 
+def prometheus_collection_config(targets: list[dict[str, Any]]) -> dict[str, Any]:
+    required_jobs = ("postgres", "cadvisor")
+    intervals = {
+        job: sorted({str(target.get("scrapeInterval", "")) for target in targets
+                     if target.get("labels", {}).get("job") == job})
+        for job in required_jobs
+    }
+    valid = all(intervals[job] == [EXPECTED_PROMETHEUS_SCRAPE_INTERVAL] for job in required_jobs)
+    return {
+        "expected_scrape_interval": EXPECTED_PROMETHEUS_SCRAPE_INTERVAL,
+        "scrape_intervals_by_job": intervals,
+        "fixed_interval_valid": valid,
+    }
+
+
 def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -> dict[str, Any]:
     targets_payload = prometheus_get(base_url, "/api/v1/targets")
     targets = targets_payload.get("data", {}).get("activeTargets", [])
@@ -112,6 +130,9 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
     collection_config = cadvisor_collection_config()
     if not collection_config["fixed_interval_valid"]:
         cadvisor_blockers.append("cAdvisor must use fixed one-second housekeeping (dynamic collection disabled)")
+    prometheus_config = prometheus_collection_config(targets)
+    if not prometheus_config["fixed_interval_valid"]:
+        cadvisor_blockers.append("Prometheus must scrape postgres-exporter and cAdvisor every 1s")
     operational_blockers: list[str] = []
     for component, (service, name) in components.items():
         identifier = container_id(name)
@@ -183,6 +204,7 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         "cadvisor_target_up": target_health.get("cadvisor") == "up",
         "cadvisor_components": component_status,
         "cadvisor_collection_config": collection_config,
+        "prometheus_collection_config": prometheus_config,
         "postgres_exporter_series": len(postgres_series),
         "results_exporter_series": len(results_exporter_series),
         "results_exporter_healthy": results_exporter_healthy,

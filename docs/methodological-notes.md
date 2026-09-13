@@ -13,23 +13,39 @@ Conferir o texto final com esse PDF antes de entregar o TCC.
 
 ## Desenho principal
 
-- Cenario: mixed, oito operacoes. Pesos: health 5%; cliente individual 15%;
-  listagem de clientes 15%; produtos 15%; pedido individual 15%; criar cliente
-  10%; atualizar cliente 10%; criar pedido 15%. Sao 60% leituras com banco,
-  35% escritas e 5% health sem banco.
-- Referencia principal: fixed_50; nivel complementar de maior pressao: fixed_100.
-  Os pilotos de 13/09/2026 fundamentam essa distincao (ver relatorio abaixo).
-  Ambos usam 100 usuarios,
-  spawn rate 20/s, quatro processos Locust. Pacing: 2 s e 1 s respectivamente.
+- A automacao recebe implementacao, cenario, perfil de carga, modo e numero da
+  rodada, quando informado, e aplica a sequencia padronizada de preparacao,
+  aquecimento, medicao, coleta, validacao e registro de artefatos.
+- O cenario padrao e `mixed`, obrigatorio para perfis `fixed_*`. Ele contem
+  exclusivamente sete operacoes funcionais que acessam o PostgreSQL: cliente
+  individual, listagem de clientes, produtos, pedido individual, criacao de
+  cliente, atualizacao de cliente e criacao de pedido. Todas possuem peso 1.
+  `GET /health` fica fora da janela medida de `mixed`, pois nao executa
+  operacao no banco; permanece apenas para disponibilidade, inicializacao,
+  smoke, preflight e calibracao health-only.
+
+O cenário de carga foi definido atribuindo a mesma probabilidade às sete operações funcionais que acessam o banco de dados. Essa estratégia evita privilegiar artificialmente determinado endpoint ou tipo de operação e garante participação equivalente dos diferentes caminhos de execução no workload. Como quatro das sete operações são de leitura e três são de escrita, a composição resultante corresponde a aproximadamente 57,14% de leituras e 42,86% de escritas. Esses percentuais não representam uma estimativa de tráfego de produção, mas decorrem diretamente da distribuição uniforme das operações avaliadas.
+- A campanha oficial atual percorre `OFFICIAL_PROFILES=fixed_50,fixed_100`.
+  Ambos usam 100 usuarios, spawn rate 20/s e quatro processos Locust.
+  `fixed_50` usa pacing de 2 s e teto nominal de 50 req/s; `fixed_100` usa
+  pacing de 1 s e teto nominal de 100 req/s.
+- Os perfis `fixed_*` sobrescrevem usuarios, spawn rate e pacing, sem depender
+  dos valores gerais de `LOCUST_USERS`, `LOCUST_SPAWN_RATE` e
+  `LOCUST_WAIT_SECONDS`. Isso impede que duas execucoes de um mesmo perfil
+  recebam cargas diferentes por configuracao local.
 - Modelo FECHADO com pacing: usuarios aguardam respostas; 50/100 req/s sao
   taxas nominais, nao chegadas abertas independentes. Publicar a taxa efetiva.
   Nao usar esse desenho para inferir comportamento sob fila aberta/sobrecarga.
 - A primeira requisicao de cada usuario recebe uma fase distribuida no periodo.
   O tempo de spawn nao e contado pelo pacing da primeira tarefa.
-- Selecao suave e deterministica das operacoes por worker, com ciclo de 20
-  operacoes no mixed e offsets distintos. Cada ciclo completo respeita os pesos.
-  O prefixo incompleto no encerramento pode diferir; guardar contagens reais.
-  Nao ha promessa de ordem global identica: respostas e escalonamento variam.
+- Cada worker usa fluxo proprio: a agenda cria ciclos de sete operacoes com os
+  pesos exatos e embaralha cada ciclo por Fisher-Yates a partir de uma semente
+  explicita. `WORKLOAD_SCHEDULE_SEED` e a derivacao por worker ficam no
+  manifesto; a ordem e reproduzivel para a mesma semente, mas nao fica fixa
+  entre ciclos. O prefixo incompleto no encerramento pode diferir; por isso,
+  `locust_workload_mix.json` guarda contagens reais por endpoint validadas a
+  partir do CSV final do Locust. Nao ha promessa de ordem global identica:
+  respostas e escalonamento variam.
 - Payloads de criacao de clientes usam faixas disjuntas por worker; outros
   payloads percorrem ciclos com offsets. Nao se garante identica intercalacao
   concorrente de atualizacoes, nem identico instante de acesso a cada registro.
@@ -45,12 +61,12 @@ Conferir o texto final com esse PDF antes de entregar o TCC.
 A avaliacao local das dez combinacoes esta em
 [Validacao da metodologia 15](validation-methodology-15.md). O nivel50 manteve
 CPU media PostgreSQL de 32,6% a 36,9% da cota, enquanto o nivel100 atingiu
-63,3% a 73,3%, incluindo tres avisos de margem >=70%. Por isso, nivel50 e a
-referencia principal; nivel100 permanece como comparacao complementar de
-sensibilidade a carga. Nao misturar seus resultados nem apresentar o nivel100
-como evidencia de banco sem pressao. Ambos exigem repeticoes oficiais separadas.
-Foram observadas esperas de I/O mesmo no nivel50; a escolha nao elimina nem
-isola o custo do banco e nao demonstra latencias estacionarias.
+63,3% a 73,3%, incluindo tres avisos de margem >=70%. A configuracao atual
+mantem ambos na campanha oficial e nao designa um perfil como referencia
+principal. Interpretar e divulgar os niveis separadamente; nao misturar seus
+resultados nem apresentar um deles como evidencia de ausencia de pressao no
+banco. Foram observadas esperas de I/O mesmo no nivel50; os niveis nao eliminam
+nem isolam o custo do banco e nao demonstram latencias estacionarias.
 
 Antes da campanha, executar ambos os niveis em todas as APIs. Avaliar entrega
 da carga, falhas, latencia por endpoint, CPU media E picos do banco/gerador,
@@ -59,10 +75,12 @@ de 90% da cota NAO prova ausencia de gargalo. Preferir margem ampla e examinar
 a mudanca entre os dois niveis. Esperas amostradas iguais a zero tambem nao
 provam ausencia de esperas curtas.
 
+Nos perfis de taxa fixa, a execução somente é aceita quando a taxa efetivamente entregue corresponde a, no mínimo, 99% da taxa nominal configurada. Esse limiar foi definido previamente para limitar a diferença de carga entre as implementações comparadas a 1%, admitindo apenas pequenas variações operacionais de temporização do gerador. Assim, `fixed_50` exige pelo menos 49,5 req/s e `fixed_100`, pelo menos 99 req/s. A regra é aplicada somente aos perfis `fixed_*`; uma rodada oficial abaixo desse limite é registrada como `non_official`.
+
 O relatorio opcional assess_primary_pilots.py recebe uma sequence_id explicita
 e confere as dez combinacoes, fontes executaveis iguais e um protocolo por
 nivel, snapshots, estabilidade, CPU e cobertura. Para selecao dos pilotos,
-sinaliza entrega fora de +/-2,5% do nominal, CPU media PostgreSQL >=70% como
+sinaliza entrega abaixo do mínimo fixo registrado no protocolo, CPU media PostgreSQL >=70% como
 aviso de margem, picos >=90% e esperas observadas. Esses avisos nao sao novos
 preflights nem uma prova automatica de ausencia de gargalo. Eles devem ser
 interpretados antes do congelamento, e nao ajustados apos ver um ranking.
@@ -120,9 +138,10 @@ spawn; encerra na ultima fronteira de parada dos workers, com drenagem limitada
 a 5 s das requisicoes iniciadas antes da parada. Contagens/histogramas devem
 reconciliar; requests cancelados ou pendentes nao sao promovidos.
 
-Prometheus coleta a cada 5 s; cAdvisor usa housekeeping de 1 s. Revisao3 do
-coletor exporta timestamps reais, margem de scrape e medias ponderadas pelo
-tempo, rejeitando gaps/reset/ambiguidade quando a evidencia e obrigatoria.
+Prometheus coleta a cada 1 s, incluindo cAdvisor e PostgreSQL exporter;
+cAdvisor usa housekeeping de 1 s. Revisao3 do coletor exporta timestamps reais,
+margem de scrape e medias ponderadas pelo tempo, rejeitando
+gaps/reset/ambiguidade quando a evidencia e obrigatoria.
 CPU bruta100% equivale a um core; dividir pela quota para obter percentual
 da cota. Working set de memoria e por container. CPU/memoria NAO sao
 atribuicoes por endpoint. docker stats permanece complementar.

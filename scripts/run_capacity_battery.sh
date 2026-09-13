@@ -5,9 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/_lib.sh"
 
-# fixed_200 pertence exclusivamente a bateria oficial de cinco rodadas. Esta
-# bateria separada responde apenas "qual o limite observado de cada API" e nao
-# pode introduzir repeticoes extras na coorte de taxa fixa.
+# Esta bateria separada responde apenas "qual o limite observado de cada API" e
+# nao pode introduzir repeticoes extras na coorte oficial de taxa fixa.
 IFS=' ' read -r -a profiles <<< "${BENCHMARK_PROFILES:-saturation_25 saturation_50 saturation_100 saturation_200 saturation_400}"
 for profile in "${profiles[@]}"; do
   if [[ "$profile" != saturation_* ]]; then

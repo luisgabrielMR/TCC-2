@@ -83,7 +83,7 @@ class MeasurementPrecisionTests(unittest.TestCase):
         response = {"status": "success", "data": {"resultType": "matrix", "result": []}}
         with patch("scripts.export_prometheus_data.urllib.request.urlopen") as fetch:
             fetch.return_value.__enter__.return_value.read.return_value = json.dumps(response)
-            self.assertEqual(query_range("http://localhost:9090", 'up{job="postgres"}', 100, 110, 5), response)
+            self.assertEqual(query_range("http://localhost:9090", 'up{job="postgres"}', 100, 110, 1), response)
         url = urlparse(fetch.call_args.args[0])
         self.assertEqual(url.path, "/api/v1/query")
         self.assertEqual(parse_qs(url.query)["query"], ['up{job="postgres"}[10001ms]'])
@@ -93,17 +93,17 @@ class MeasurementPrecisionTests(unittest.TestCase):
         with patch("scripts.export_prometheus_data.urllib.request.urlopen") as fetch:
             fetch.return_value.__enter__.return_value.read.return_value = '{"status":"error"}'
             with self.assertRaises(RuntimeError):
-                query_range("http://localhost", "up", 100, 110, 5)
+                query_range("http://localhost", "up", 100, 110, 1)
 
     def test_internal_gap_does_not_count_as_full_coverage(self):
-        quality = sample_quality([(0, 1), (5, 2), (95, 3), (100, 4)], 0, 100, 7.5)
-        self.assertEqual(quality["covered_seconds"], 10)
-        self.assertEqual(quality["maximum_gap_seconds"], 90)
+        quality = sample_quality([(0, 1), (1, 2), (99, 3), (100, 4)], 0, 100, 1.5)
+        self.assertEqual(quality["covered_seconds"], 2)
+        self.assertEqual(quality["maximum_gap_seconds"], 98)
 
     def test_counter_reset_is_not_treated_as_exact_delta(self):
-        quality = sample_quality([(0, 20), (5, 2), (10, 5)], 0, 10, 7.5, True)
+        quality = sample_quality([(0, 20), (1, 2), (2, 5)], 0, 2, 1.5, True)
         self.assertEqual(quality["counter_resets"], 1)
-        self.assertEqual(quality["covered_seconds"], 5)
+        self.assertEqual(quality["covered_seconds"], 1)
 
     def test_known_id_never_falls_back_to_another_container(self):
         series = [{"metric": {"id": "/docker/old", "container_label_com_docker_compose_service": "locust"}}]
@@ -121,9 +121,9 @@ class MeasurementPrecisionTests(unittest.TestCase):
     def test_official_postgres_rejects_gaps_and_resets(self):
         keys = ("postgres_up", "postgres_connections", "postgres_commits_total", "postgres_rollbacks_total",
                 "postgres_blocks_read", "postgres_blocks_hit", "postgres_database_size_bytes")
-        for values, end in (([[0, "1"], [100, "2"]], 100), ([[0, "20"], [5, "2"]], 5)):
+        for values, end in (([[0, "1"], [100, "2"]], 100), ([[0, "20"], [1, "2"]], 1)):
             with self.subTest(values=values), tempfile.TemporaryDirectory() as temp:
-                result = {"start_epoch": 0, "end_epoch": end, "step_seconds": 5, "queries": {
+                result = {"start_epoch": 0, "end_epoch": end, "step_seconds": 1, "queries": {
                     key: {"response": {"data": {"result": [{"values": values}]}}} for key in keys}}
                 with self.assertRaisesRegex(RuntimeError, "reset or scrape gap"):
                     write_postgres_summary(Path(temp) / "out.csv", result, require=True)

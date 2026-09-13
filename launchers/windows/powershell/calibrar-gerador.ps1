@@ -28,7 +28,9 @@ $locustStarted = $false
 New-Item -ItemType Directory -Force $calibrationRoot | Out-Null
 
 try {
-    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "prometheus", "grafana", "cadvisor")
+    # Prometheus needs a process restart to apply the bind-mounted scrape configuration.
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "--force-recreate", "prometheus")
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "grafana", "cadvisor")
     Reset-BenchmarkDatabase $environment
     Invoke-BenchmarkCompose @("--profile", $Language, "up", "-d", "--build", $service)
     $apiStarted = $true

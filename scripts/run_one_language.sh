@@ -45,11 +45,16 @@ if [[ ( "$LOAD_PROFILE" == capacity_* || "$LOAD_PROFILE" == saturation_* || "$LO
   exit 2
 fi
 # run_warmup.sh e um processo separado e leria o padrao do .env. O aquecimento
-# precisa do mesmo pacing da medicao, entao o valor do perfil e exportado.
+# precisa do mesmo pacing e da mesma semente da medicao, entao ambos sao exportados.
 export LOCUST_WAIT_SECONDS
 export LOCUST_PROCESSES
+export WORKLOAD_SCHEDULE_SEED
 if ! [[ "$LOCUST_PROCESSES" =~ ^[1-9][0-9]*$ ]]; then
   echo "LOCUST_PROCESSES deve ser um inteiro positivo." >&2
+  exit 2
+fi
+if ! [[ "$WORKLOAD_SCHEDULE_SEED" =~ ^[1-9][0-9]*$ ]]; then
+  echo "WORKLOAD_SCHEDULE_SEED deve ser um inteiro positivo." >&2
   exit 2
 fi
 
@@ -69,9 +74,8 @@ if [ "$RUN_NUMBER" -le 0 ]; then
 fi
 API_SERVICE="$(api_service_for_language "$LANGUAGE")"
 API_DIR="apps/$API_SERVICE"
-# A carga percorre a rede interna do Docker. O proxy de porta do host acrescenta
-# um salto de encaminhamento que aparecia integralmente na latencia medida:
-# o GET /health, que nao consulta o banco, custava de 6 a 7 ms por esse caminho.
+# A carga percorre a rede interna do Docker. O mixed mede somente as operacoes
+# funcionais que acessam o PostgreSQL; /health fica para disponibilidade e smoke.
 # LOCUST_HOST_OVERRIDE permite voltar ao caminho pelo host para comparacao.
 LOCUST_HOST="${LOCUST_HOST_OVERRIDE:-http://$API_SERVICE:8000}"
 RESULT_DIR="results/raw/$LANGUAGE/$RESULT_SCENARIO/run_$RUN_NUMBER"
@@ -122,11 +126,14 @@ MONITORING_PREFLIGHT_PATH="$RESULT_DIR/monitoring-preflight.json"
 PROTOCOL_PATH="$RESULT_DIR/protocol-manifest.json"
 "$PYTHON_BIN" "$SCRIPT_DIR/benchmark_protocol.py" --load-profile "$LOAD_PROFILE" \
   --scenario "$SCENARIO_NAME" --output "$PROTOCOL_PATH"
-IFS='|' read -r PROTOCOL_SHA CAMPAIGN_FINGERPRINT MEASUREMENT_DURATION_SECONDS DURATION_TOLERANCE_SECONDS PROTOCOL_USERS PROTOCOL_SPAWN PROTOCOL_WAIT PROTOCOL_PROCESSES <<EOF
-$("$PYTHON_BIN" -c 'import json,sys; m=json.load(open(sys.argv[1], encoding="utf-8")); p=m["protocol"]["load"]; print("|".join(map(str,(m["protocol_sha256"],m["campaign_fingerprint"],p["measurement_duration_seconds"],m["protocol"]["execution"]["duration_tolerance_seconds"],p["users"],p["spawn_rate"],p["wait_seconds"],p["processes"]))))' "$PROTOCOL_PATH")
+IFS='|' read -r PROTOCOL_SHA CAMPAIGN_FINGERPRINT MEASUREMENT_DURATION_SECONDS DURATION_TOLERANCE_SECONDS PROTOCOL_USERS PROTOCOL_SPAWN PROTOCOL_WAIT PROTOCOL_PROCESSES PROTOCOL_SCHEDULE_SEED PROTOCOL_TARGET_RPS PROTOCOL_MINIMUM_DELIVERY_PERCENT PROTOCOL_MINIMUM_DELIVERY_RPS <<EOF
+$("$PYTHON_BIN" -c 'import json,sys; m=json.load(open(sys.argv[1], encoding="utf-8")); p=m["protocol"]["load"]; w=m["protocol"]["workload"]; value=lambda item: "" if item is None else str(item); print("|".join(value(item) for item in (m["protocol_sha256"],m["campaign_fingerprint"],p["measurement_duration_seconds"],m["protocol"]["execution"]["duration_tolerance_seconds"],p["users"],p["spawn_rate"],p["wait_seconds"],p["processes"],w["schedule_seed"],p["target_rps"],p["minimum_delivery_percent"],p["minimum_delivery_rps"])))' "$PROTOCOL_PATH")
 EOF
 if [ "$PROTOCOL_USERS" != "$LOCUST_USERS" ] || [ "$PROTOCOL_SPAWN" != "$LOCUST_SPAWN_RATE" ] || \
    [ "$PROTOCOL_PROCESSES" != "$LOCUST_PROCESSES" ] || \
+   [ "$PROTOCOL_SCHEDULE_SEED" != "$WORKLOAD_SCHEDULE_SEED" ] || \
+   [ "$LOAD_TARGET_RPS" != "$PROTOCOL_TARGET_RPS" ] || \
+   { [ -n "$LOAD_TARGET_RPS" ] && { [ -z "$PROTOCOL_MINIMUM_DELIVERY_PERCENT" ] || [ -z "$PROTOCOL_MINIMUM_DELIVERY_RPS" ]; }; } || \
    ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) == float(sys.argv[2]) else 1)' "$PROTOCOL_WAIT" "$LOCUST_WAIT_SECONDS"; then
   echo "O runner divergiu do manifesto canonico do protocolo." >&2
   exit 2
@@ -137,7 +144,9 @@ if [ -n "${BENCHMARK_CAMPAIGN_FINGERPRINT:-}" ] && [ "$BENCHMARK_CAMPAIGN_FINGER
   exit 2
 fi
 
-docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter prometheus grafana cadvisor
+# Prometheus needs a process restart to apply the bind-mounted scrape configuration.
+docker compose --profile monitoring up -d --force-recreate prometheus
+docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter grafana cadvisor
 "$SCRIPT_DIR/reset_db.sh"
 
 docker compose --profile "$LANGUAGE" up -d --build "$API_SERVICE"
@@ -226,6 +235,7 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   -e PAYLOAD_DIR=/mnt/payloads \
   -e LOCUST_WAIT_SECONDS="$LOCUST_WAIT_SECONDS" \
   -e LOCUST_PROCESSES="$LOCUST_PROCESSES" \
+  -e WORKLOAD_SCHEDULE_SEED="$WORKLOAD_SCHEDULE_SEED" \
   locust \
   -f locustfile.py \
   --headless \
@@ -239,6 +249,8 @@ SCENARIO="$SCENARIO_NAME" docker compose --profile load run --rm \
   --csv "/mnt/$RESULT_DIR/locust" \
   --only-summary
 "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$RESULT_DIR/locust"
+"$PYTHON_BIN" "$SCRIPT_DIR/record_workload_mix.py" --scenario "$SCENARIO_NAME" \
+  --schedule-seed "$WORKLOAD_SCHEDULE_SEED" --prefix "$RESULT_DIR/locust"
 RUNNER_FINISHED_MONOTONIC_NS="$($PYTHON_BIN -c 'import time; print(time.monotonic_ns())')"
 RUNNER_ELAPSED_SECONDS="$($PYTHON_BIN -c 'import sys; print(f"{(int(sys.argv[2])-int(sys.argv[1]))/1e9:.6f}")' "$RUNNER_STARTED_MONOTONIC_NS" "$RUNNER_FINISHED_MONOTONIC_NS")"
 
@@ -290,11 +302,11 @@ EOF
 if [ -n "$LOAD_TARGET_RPS" ]; then
   RATE_TARGET_MET="$($PYTHON_BIN -c '
 import sys
-achieved, target = float(sys.argv[1]), float(sys.argv[2])
-print(str(achieved >= target * 0.975).lower())
-' "$ACHIEVED_RPS" "$LOAD_TARGET_RPS")"
+achieved, minimum = float(sys.argv[1]), float(sys.argv[2])
+print(str(achieved >= minimum).lower())
+' "$ACHIEVED_RPS" "$PROTOCOL_MINIMUM_DELIVERY_RPS")"
   if [ "$RATE_TARGET_MET" != true ]; then
-    echo "AVISO: alvo de $LOAD_TARGET_RPS req/s nao atingido (obtido $ACHIEVED_RPS)." >&2
+    echo "AVISO: entrega minima de $PROTOCOL_MINIMUM_DELIVERY_PERCENT% ($PROTOCOL_MINIMUM_DELIVERY_RPS req/s) para o alvo de $LOAD_TARGET_RPS req/s nao atingida (obtido $ACHIEVED_RPS)." >&2
     echo "Investigar API, banco e gerador; o resultado nao representa a carga-alvo." >&2
   fi
 fi
@@ -380,7 +392,7 @@ if [ "$BENCHMARK_KIND" = capacity ]; then
   NOTES="Teste extra de escalabilidade; representa o limite pratico observado neste ambiente."
 fi
 if [ "$BENCHMARK_KIND" = fixed_rate ]; then
-  NOTES="Taxa-alvo maxima de $LOAD_TARGET_RPS req/s para todas as linguagens; exige entrega minima de 97,5% e compara latencia e recursos."
+  NOTES="Taxa-alvo maxima de $LOAD_TARGET_RPS req/s para todas as linguagens; exige entrega minima de $PROTOCOL_MINIMUM_DELIVERY_PERCENT% ($PROTOCOL_MINIMUM_DELIVERY_RPS req/s) e compara latencia e recursos."
 fi
 if [ "$BENCHMARK_KIND" = saturation ]; then
   NOTES="Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container."
@@ -394,6 +406,8 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
   "language": "$LANGUAGE",
   "scenario": "$RESULT_SCENARIO",
   "workload_scenario": "$SCENARIO_NAME",
+  "workload_schedule_file": "locust_workload_schedule.json",
+  "workload_mix_file": "locust_workload_mix.json",
   "load_profile": "$LOAD_PROFILE",
   "methodology_version": $METHODOLOGY_VERSION,
   "protocol_sha256": "$PROTOCOL_SHA",
@@ -468,8 +482,13 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "processes": $LOCUST_PROCESSES,
     "duration": "$LOCUST_DURATION",
     "wait_seconds": $LOCUST_WAIT_SECONDS,
+    "workload_schedule_seed": $WORKLOAD_SCHEDULE_SEED,
+    "workload_schedule_file": "locust_workload_schedule.json",
+    "workload_mix_file": "locust_workload_mix.json",
     "theoretical_rps_ceiling": $THEORETICAL_RPS_CEILING,
     "target_rps": ${LOAD_TARGET_RPS:-null},
+    "minimum_delivery_percent": ${PROTOCOL_MINIMUM_DELIVERY_PERCENT:-null},
+    "minimum_delivery_rps": ${PROTOCOL_MINIMUM_DELIVERY_RPS:-null},
     "achieved_rps": $ACHIEVED_RPS,
     "reported_rps": $LOCUST_REPORTED_RPS,
     "throughput_source": "request_count / monotonic elapsed_seconds",
@@ -532,7 +551,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "minimum_cadvisor_coverage_percent": 90,
     "sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "docker_stats_sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
-    "prometheus_scrape_interval_seconds": 5,
+    "prometheus_scrape_interval_seconds": 1,
     "cadvisor_housekeeping_interval_seconds": 1,
     "container_primary_source": "cAdvisor via Prometheus",
     "container_cpu_source": "cAdvisor via Prometheus",
@@ -555,7 +574,7 @@ if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" != true ]; then
   exit 2
 fi
 if [ "$RUN_MODE" = official ] && [ "$RATE_TARGET_MET" != true ]; then
-  echo "A rodada oficial nao atingiu a taxa minima do perfil e foi registrada como non_official." >&2
+  echo "A rodada oficial nao atingiu a entrega minima de $PROTOCOL_MINIMUM_DELIVERY_PERCENT% ($PROTOCOL_MINIMUM_DELIVERY_RPS req/s) e foi registrada como non_official." >&2
   exit 2
 fi
 if [ "$RUN_MODE" = official ] && [ "$GENERATOR_HEADROOM_MET" != true ]; then

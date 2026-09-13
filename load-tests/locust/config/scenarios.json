@@ -19,14 +19,13 @@
       {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 10}
     ],
     "mixed": [
-      {"action": "get_health", "endpoint": "GET /health", "weight": 5},
-      {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 15},
-      {"action": "list_customers", "endpoint": "GET /customers", "weight": 15},
-      {"action": "list_products", "endpoint": "GET /products", "weight": 15},
-      {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 15},
-      {"action": "create_customer", "endpoint": "POST /customers", "weight": 10},
-      {"action": "update_customer", "endpoint": "PUT /customers/{id}", "weight": 10},
-      {"action": "create_order", "endpoint": "POST /orders", "weight": 15}
+      {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 1},
+      {"action": "list_customers", "endpoint": "GET /customers", "weight": 1},
+      {"action": "list_products", "endpoint": "GET /products", "weight": 1},
+      {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 1},
+      {"action": "create_customer", "endpoint": "POST /customers", "weight": 1},
+      {"action": "update_customer", "endpoint": "PUT /customers/{id}", "weight": 1},
+      {"action": "create_order", "endpoint": "POST /orders", "weight": 1}
     ]
   }
 }

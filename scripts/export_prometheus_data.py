@@ -30,6 +30,7 @@ QUERIES = {
     "cadvisor_cpu_usage_seconds_total": 'container_cpu_usage_seconds_total{job="cadvisor",cpu="total"}',
     "cadvisor_memory_working_set_bytes": 'container_memory_working_set_bytes{job="cadvisor"}',
 }
+DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS = 1
 
 
 def query_range(base_url: str, query: str, start: float, end: float, step: int) -> dict:
@@ -270,7 +271,7 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
     start = float(result["start_epoch"])
     end = float(result["end_epoch"])
     elapsed = max(end - start, 0.0)
-    maximum_gap = float(result.get("step_seconds", 5)) * 1.5
+    maximum_gap = float(result.get("step_seconds", DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS)) * 1.5
     quality = {key: sample_quality(series, start, end, maximum_gap,
                key in {"postgres_commits_total", "postgres_rollbacks_total", "postgres_blocks_read", "postgres_blocks_hit"})
                for key, series in samples.items()}
@@ -373,7 +374,7 @@ def write_cadvisor_summary(
         if len(selected_cpu) != 1 or len(selected_memory) != 1:
             missing.append(f"{component}:expected_one_cpu_and_memory_series")
             continue
-        maximum_gap = float(result.get("step_seconds", 5)) * 1.5
+        maximum_gap = float(result.get("step_seconds", DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS)) * 1.5
         cpu_quality = sample_quality(clean_samples(selected_cpu[0]), start, end, maximum_gap, True)
         memory_quality = sample_quality(clean_samples(selected_memory[0]), start, end, maximum_gap)
         cpu_observations = series_cpu_observations(
@@ -441,7 +442,7 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     parser.add_argument("--start", required=True, type=float)
     parser.add_argument("--end", required=True, type=float)
-    parser.add_argument("--step", type=int, default=5)
+    parser.add_argument("--step", type=int, default=DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS)
     parser.add_argument("--component", action="append", default=[])
     parser.add_argument("--require-cadvisor", action="store_true")
     parser.add_argument("--require-postgres", action="store_true")

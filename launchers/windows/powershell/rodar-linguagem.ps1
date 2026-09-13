@@ -28,6 +28,8 @@ $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
 $locustProcesses = [int](Get-BenchmarkValue $environment "LOCUST_PROCESSES" "4")
 if ($locustProcesses -lt 1) { throw "LOCUST_PROCESSES deve ser um inteiro positivo." }
 $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTERVAL_SECONDS" "2")
+$workloadScheduleSeed = [int](Get-BenchmarkValue $environment "WORKLOAD_SCHEDULE_SEED" "20260913")
+if ($workloadScheduleSeed -le 0) { throw "WORKLOAD_SCHEDULE_SEED deve ser um inteiro positivo." }
 # $loadTargetRps marca os perfis de taxa fixa: a vazao vira variavel controlada,
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
@@ -61,9 +63,8 @@ $benchmarkKind = if ($LoadProfile -like "capacity_*") { "capacity" }
     elseif ($LoadProfile -like "saturation_*") { "saturation" }
     else { "controlled_load" }
 $service = "$Language-api"
-# A carga percorre a rede interna do Docker. Pelo proxy de porta do host, o
-# GET /health custava de 6 a 7 ms sem consultar o banco, e esse piso entrava em
-# toda medicao de leitura.
+# A carga percorre a rede interna do Docker; o mixed mede somente as operacoes
+# funcionais que acessam o PostgreSQL. /health fica para disponibilidade e smoke.
 $locustHost = Get-BenchmarkValue $environment "LOCUST_HOST_OVERRIDE" "http://${service}:8000"
 $scenarioDirectory = Join-Path $script:BenchmarkRoot "results/raw/$Language/$resultScenario"
 if ($RunNumber -le 0) {
@@ -97,12 +98,20 @@ $protocolScript = Join-Path $script:BenchmarkRoot "scripts/benchmark_protocol.py
 Invoke-BenchmarkPython @($protocolScript, "--load-profile", $LoadProfile, "--scenario", $Scenario, "--output", $protocolPath)
 $protocolManifest = Get-Content $protocolPath -Raw | ConvertFrom-Json
 $protocolHash = $protocolManifest.protocol_sha256
-$measurementDurationSeconds = [double]$protocolManifest.protocol.load.measurement_duration_seconds
+$protocolLoad = $protocolManifest.protocol.load
+$measurementDurationSeconds = [double]$protocolLoad.measurement_duration_seconds
 $durationToleranceSeconds = [double]$protocolManifest.protocol.execution.duration_tolerance_seconds
-if ([int]$protocolManifest.protocol.load.users -ne $users -or
-    [int]$protocolManifest.protocol.load.spawn_rate -ne $spawnRate -or
-    [double]$protocolManifest.protocol.load.wait_seconds -ne [double]$waitSeconds -or
-    [int]$protocolManifest.protocol.load.processes -ne $locustProcesses) {
+$protocolScheduleSeed = [int]$protocolManifest.protocol.workload.schedule_seed
+$minimumDeliveryPercent = $protocolLoad.minimum_delivery_percent
+$minimumDeliveryRps = $protocolLoad.minimum_delivery_rps
+if ([int]$protocolLoad.users -ne $users -or
+    [int]$protocolLoad.spawn_rate -ne $spawnRate -or
+    [double]$protocolLoad.wait_seconds -ne [double]$waitSeconds -or
+    [int]$protocolLoad.processes -ne $locustProcesses -or
+    (($null -eq $loadTargetRps) -ne ($null -eq $protocolLoad.target_rps)) -or
+    ($null -ne $loadTargetRps -and [double]$protocolLoad.target_rps -ne [double]$loadTargetRps) -or
+    ($null -ne $loadTargetRps -and ($null -eq $minimumDeliveryPercent -or $null -eq $minimumDeliveryRps)) -or
+    $protocolScheduleSeed -ne $workloadScheduleSeed) {
     throw "O runner divergiu do manifesto canonico do protocolo."
 }
 $startedAt = (Get-Date).ToString("o")
@@ -110,7 +119,9 @@ $commit = (& git rev-parse --short HEAD 2>$null)
 if (-not $commit) { $commit = "unknown" }
 
 try {
-    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "prometheus", "grafana", "cadvisor")
+    # Prometheus needs a process restart to apply the bind-mounted scrape configuration.
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "--force-recreate", "prometheus")
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "grafana", "cadvisor")
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
     Invoke-BenchmarkCompose @("--profile", $Language, "up", "-d", "--build", $service)
@@ -163,7 +174,7 @@ try {
         -InitialDurationSeconds $warmupSeconds `
         -StabilityWindowSeconds $warmupWindowSeconds `
         -MaxRpsDriftPercent $warmupMaxDriftPercent `
-        -WaitSeconds $waitSeconds `
+        -WaitSeconds $waitSeconds -ScheduleSeed $workloadScheduleSeed `
         -Processes $locustProcesses `
         -HostUrl $locustHost `
         -ResultRelative $resultRelative
@@ -174,7 +185,7 @@ try {
     $mainRunStarted = $true
     $databaseNeedsReset = $true
     $testStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    Invoke-BenchmarkLocust $Scenario $users $spawnRate $duration $locustHost "/mnt/$resultRelative/locust" $waitSeconds -Processes $locustProcesses
+    Invoke-BenchmarkLocust $Scenario $users $spawnRate $duration $locustHost "/mnt/$resultRelative/locust" $waitSeconds $workloadScheduleSeed -Processes $locustProcesses
     $testStopwatch.Stop()
     $runnerElapsedSeconds = [math]::Round($testStopwatch.Elapsed.TotalSeconds, 3)
     if (-not (Test-Path $boundsPath)) { throw "Locust nao produziu os limites exatos da medicao." }
@@ -222,9 +233,9 @@ try {
         [math]::Round([double]$aggregated."Request Count" / $testElapsedSeconds, 9)
     } else { 0 }
     if ($null -ne $loadTargetRps) {
-        $rateTargetMet = ($achievedRps -ge ($loadTargetRps * 0.975))
+        $rateTargetMet = ($achievedRps -ge [double]$minimumDeliveryRps)
         if (-not $rateTargetMet) {
-            Write-Warning "Alvo de $loadTargetRps req/s nao atingido (obtido $achievedRps). Investigar API, banco e gerador; este resultado nao representa a carga-alvo."
+            Write-Warning "Entrega minima de $minimumDeliveryPercent% ($minimumDeliveryRps req/s) para o alvo de $loadTargetRps req/s nao atingida (obtido $achievedRps). Investigar API, banco e gerador; este resultado nao representa a carga-alvo."
         }
     }
     Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
@@ -302,6 +313,8 @@ try {
         language = $Language
         scenario = $resultScenario
         workload_scenario = $Scenario
+        workload_schedule_file = "locust_workload_schedule.json"
+        workload_mix_file = "locust_workload_mix.json"
         load_profile = $LoadProfile
         methodology_version = $methodologyVersion
         protocol_sha256 = $protocolHash
@@ -373,8 +386,13 @@ try {
             processes = $locustProcesses
             duration = $duration
             wait_seconds = [double]$waitSeconds
+            workload_schedule_seed = $workloadScheduleSeed
+            workload_schedule_file = "locust_workload_schedule.json"
+            workload_mix_file = "locust_workload_mix.json"
             theoretical_rps_ceiling = $(if ([double]$waitSeconds -gt 0) { [math]::Round($users / [double]$waitSeconds, 3) } else { $null })
             target_rps = $loadTargetRps
+            minimum_delivery_percent = $minimumDeliveryPercent
+            minimum_delivery_rps = $minimumDeliveryRps
             achieved_rps = $achievedRps
             reported_rps = $locustReportedRps
             throughput_source = "request_count / monotonic elapsed_seconds"
@@ -437,7 +455,7 @@ try {
             minimum_cadvisor_coverage_percent = 90
             sample_interval_seconds = $metricsInterval
             docker_stats_sample_interval_seconds = $metricsInterval
-            prometheus_scrape_interval_seconds = 5
+            prometheus_scrape_interval_seconds = 1
             cadvisor_housekeeping_interval_seconds = 1
             container_primary_source = "cAdvisor via Prometheus"
             container_cpu_source = "cAdvisor via Prometheus"
@@ -453,7 +471,7 @@ try {
         }
         notes = $(switch ($benchmarkKind) {
             "controlled_load" { "Carga controlada; nao representa a capacidade maxima da API." }
-            "fixed_rate" { "Taxa-alvo maxima de $loadTargetRps req/s para todas as linguagens; exige entrega minima de 97,5% e compara latencia e recursos." }
+            "fixed_rate" { "Taxa-alvo maxima de $loadTargetRps req/s para todas as linguagens; exige entrega minima de $minimumDeliveryPercent% ($minimumDeliveryRps req/s) e compara latencia e recursos." }
             "saturation" { "Malha fechada sem pacing; a vazao e variavel de resposta e representa o limite observado com a CPU alocada a este container." }
             default { "Teste extra de escalabilidade; representa o limite pratico observado neste ambiente." }
         })
@@ -463,7 +481,7 @@ try {
         throw "A medicao oficial ficou instavel e foi registrada como non_official: $($measurementValidation.reasons -join '; ')"
     }
     if ($RunMode -eq "official" -and -not $rateTargetMet) {
-        throw "A rodada oficial nao atingiu o alvo de $loadTargetRps req/s (obtido $achievedRps) e foi registrada como non_official."
+        throw "A rodada oficial nao atingiu a entrega minima de $minimumDeliveryPercent% ($minimumDeliveryRps req/s) para o alvo de $loadTargetRps req/s (obtido $achievedRps) e foi registrada como non_official."
     }
     if ($RunMode -eq "official" -and -not $generatorHeadroomMet) {
         throw "A rodada oficial ficou sem a folga exigida do gerador (CPU ou capacidade calibrada) e foi registrada como non_official."

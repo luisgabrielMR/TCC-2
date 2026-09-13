@@ -53,6 +53,7 @@ from scripts.summarize_results import (
 )
 from scripts.validate_monitoring import (
     metric_matches as monitoring_metric_matches,
+    prometheus_collection_config,
     wait_for_official_evidence,
 )
 from scripts.validate_warmup_stability import DEFAULT_SCENARIOS, validate
@@ -71,7 +72,7 @@ class WarmupValidationTests(unittest.TestCase):
             writer.writeheader()
             for endpoint in endpoints:
                 writer.writerow({"Name": endpoint, "Request Count": 100, "Failure Count": 0})
-            writer.writerow({"Name": "Aggregated", "Request Count": 800, "Failure Count": 0})
+            writer.writerow({"Name": "Aggregated", "Request Count": len(endpoints) * 100, "Failure Count": 0})
 
         history = root / "locust_stats_history.csv"
         with history.open("w", encoding="utf-8", newline="") as handle:
@@ -521,21 +522,22 @@ class ResourceWindowTests(unittest.TestCase):
     def test_postgres_summary_requires_and_reduces_a_complete_window(self) -> None:
         def response(values: list[float]) -> dict:
             return {"data": {"result": [{
-                "values": [[100 + index * 5, str(value)] for index, value in enumerate(values)]
+                "values": [[100 + index, str(value)] for index, value in enumerate(values)]
             }]}}
 
         series = {
-            "postgres_up": [1, 1, 1],
-            "postgres_connections": [4, 8, 6],
-            "postgres_commits_total": [100, 105, 107],
-            "postgres_rollbacks_total": [2, 2, 3],
-            "postgres_blocks_read": [10, 12, 13],
-            "postgres_blocks_hit": [1000, 1040, 1097],
-            "postgres_database_size_bytes": [50_000_000, 50_100_000, 50_200_000],
+            "postgres_up": [1] * 11,
+            "postgres_connections": [4, 5, 6, 7, 8, 8, 7, 7, 6, 6, 6],
+            "postgres_commits_total": [100, 101, 101, 102, 103, 104, 105, 105, 106, 106, 107],
+            "postgres_rollbacks_total": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3],
+            "postgres_blocks_read": [10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13],
+            "postgres_blocks_hit": [1000, 1010, 1020, 1030, 1040, 1050, 1060, 1070, 1080, 1090, 1097],
+            "postgres_database_size_bytes": [50_000_000 + index * 20_000 for index in range(11)],
         }
         result = {
             "start_epoch": 100,
             "end_epoch": 110,
+            "step_seconds": 1,
             "queries": {key: {"response": response(values)} for key, values in series.items()},
         }
         with tempfile.TemporaryDirectory() as temp:
@@ -701,7 +703,7 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
                 last = json.loads(line)
         self.assertRegex(first["address"]["postalCode"], r"^\d{8}$")
         self.assertRegex(last["address"]["postalCode"], r"^\d{8}$")
-        expected_creates = 5_000 * 300 * 0.10
+        expected_creates = 100 * 300 / 7
         self.assertGreaterEqual(
             EXPECTED_CUSTOMER_CREATE_PAYLOADS,
             expected_creates * 1.25,
@@ -1077,6 +1079,17 @@ class SummaryFixtureTests(unittest.TestCase):
 
 
 class MonitoringValidationTests(unittest.TestCase):
+    def test_prometheus_requires_one_second_scrapes_for_postgres_and_cadvisor(self) -> None:
+        targets = [
+            {"labels": {"job": "postgres"}, "scrapeInterval": "1s"},
+            {"labels": {"job": "cadvisor"}, "scrapeInterval": "1s"},
+        ]
+        configuration = prometheus_collection_config(targets)
+        self.assertTrue(configuration["fixed_interval_valid"])
+        self.assertEqual(configuration["scrape_intervals_by_job"], {"postgres": ["1s"], "cadvisor": ["1s"]})
+        targets[1]["scrapeInterval"] = "5s"
+        self.assertFalse(prometheus_collection_config(targets)["fixed_interval_valid"])
+
     def test_real_container_id_matches_but_generic_cgroups_do_not(self) -> None:
         identifier = "47d788b3861af3662a9752f3090c3d5aac548deedbdd2cb900ad51a45b60042d"
         self.assertTrue(monitoring_metric_matches(

@@ -11,10 +11,10 @@ BASE_ORDERS = 200_000
 
 SEED_TEMPLATE = f"""BEGIN;
 
--- The fixed_200 warmup is limited to 200 req/s for 300 seconds. In the
--- mixed scenario, 10% of requests create customers and 15% create orders:
--- 6,000 and 9,000 records respectively. This 200,000-record baseline keeps
--- the largest expected warmup scale change at or below 4.5%.
+-- The official fixed_100 warmup is limited to 100 req/s for 300 seconds. In
+-- the uniform mixed scenario, customer and order creation each have weight 1/7:
+-- about 4,286 records each. This 200,000-record baseline keeps the expected
+-- scale change of either table at approximately 2.15%.
 
 INSERT INTO categories (id, name)
 VALUES

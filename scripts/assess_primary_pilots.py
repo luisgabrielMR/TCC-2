@@ -34,6 +34,25 @@ def first_csv(path):
         return next(csv.DictReader(handle), {})
 
 
+def prometheus_scrape_interval_seconds(metadata, manifest):
+    for source in (metadata.get("metrics", {}), manifest.get("protocol", {}).get("metrics", {})):
+        interval = numeric(source.get("prometheus_scrape_interval_seconds"))
+        if interval is not None and interval > 0:
+            return interval
+    return 1.0
+
+
+def recorded_minimum_delivery_rps(metadata, manifest):
+    for source in (
+        metadata.get("locust", {}),
+        manifest.get("protocol", {}).get("load", {}),
+    ):
+        minimum = numeric(source.get("minimum_delivery_rps"))
+        if minimum is not None and minimum > 0:
+            return minimum
+    return None
+
+
 def assess(raw: Path, sequence: str) -> dict:
     rows = []
     sources = []
@@ -51,6 +70,7 @@ def assess(raw: Path, sequence: str) -> dict:
         sources.append(manifest["protocol"].get("experimental_source_sha256"))
         commits.add(manifest.get("commit_sha"))
         protocols[profile].add(manifest.get("protocol_sha256"))
+        maximum_cadvisor_gap = prometheus_scrape_interval_seconds(metadata, manifest) * 1.5
         reasons = []
         try:
             aggregate = next(row for row in verified_stats(directory / "locust") if row["Name"] == "Aggregated")
@@ -62,9 +82,11 @@ def assess(raw: Path, sequence: str) -> dict:
         database = metadata.get("shared_database", {})
         target = numeric(load.get("target_rps"))
         delivered = numeric(load.get("achieved_rps"))
+        minimum_delivery = recorded_minimum_delivery_rps(metadata, manifest)
         failures = numeric(aggregate.get("Failure Count"))
-        if target is None or delivered is None or target <= 0 or abs(delivered / target - 1) > 0.025:
-            reasons.append("Delivered rate differs by more than 2.5% from nominal (pilot selection criterion)")
+        if (target is None or delivered is None or target <= 0 or minimum_delivery is None
+                or delivered < minimum_delivery):
+            reasons.append("Delivered rate is below the recorded fixed-load minimum")
         if failures != 0:
             reasons.append("HTTP failures or missing HTTP evidence")
         if (numeric(aggregate.get("Request Count")) or 0) <= 0:
@@ -96,7 +118,7 @@ def assess(raw: Path, sequence: str) -> dict:
             gap = numeric(resource.get("maximum_scrape_gap_seconds"))
             if ((numeric(resource.get("coverage_percent")) or 0) < 90
                     or numeric(resource.get("cpu_counter_resets")) != 0
-                    or gap is None or gap > 7.5):
+                    or gap is None or gap > maximum_cadvisor_gap):
                 reasons.append(f"Insufficient cAdvisor evidence for {component}")
         diagnostics = []
         # Advisory selection margin, distinct from the existing 90% operational gate.
@@ -111,7 +133,7 @@ def assess(raw: Path, sequence: str) -> dict:
             "language": language, "profile": profile, "path": str(directory),
             "classification": metadata.get("result_classification"),
             "campaign_fingerprint": manifest.get("campaign_fingerprint"),
-            "nominal_rps": target, "delivered_rps": delivered,
+            "nominal_rps": target, "minimum_delivery_rps": minimum_delivery, "delivered_rps": delivered,
             "requests": numeric(aggregate.get("Request Count")), "failures": failures,
             "average_ms": numeric(aggregate.get("Average Response Time")),
             "p95_ms": numeric(aggregate.get("95%")),

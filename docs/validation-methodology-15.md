@@ -7,6 +7,11 @@ O PDF aprovado nao esta disponivel neste checkout: conferir a correspondencia
 com sua revisao academica antes da entrega. Este relatorio usa codigo e artefatos
 locais como evidencia, sem declarar que o texto aprovado foi relido.
 
+> Os dez pilotos descritos abaixo foram executados antes da redefinição atual
+> do `mixed`: naquele momento ele incluía `GET /health` e oito operações. Eles
+> continuam como evidência histórica de implementação, mas não validam o mix
+> atual de sete operações PostgreSQL; a nova configuração requer pilotos novos.
+
 Host registrado no preflight: AMD Ryzen 5 3600 (6 nucleos/12 threads);
 Docker com 8 CPUs logicas e 8.327.397.376 bytes de memoria disponivel.
 Docker Engine 29.5.2, Compose 5.1.4, kernel WSL
@@ -62,21 +67,23 @@ CSVs e resumos por campanha, consolidacao padrao e geracao do dashboard foram
 executados com sucesso. Nenhum piloto foi promovido para official; nenhum
 resultado historico foi removido.
 
-## Decisao e limites
+## Leitura dos pilotos e limites
 
-**fixed_50 e a referencia principal; fixed_100 e o nivel complementar de
-maior pressao.** A decisao usa margem do banco e entrega da carga, nao a ordem
-de desempenho das linguagens. No nivel100, Node, Go e .NET ultrapassaram o
-aviso previamente definido de CPU media PG >=70%; nao ultrapassaram o criterio
-operacional de 90%. A maior media foi73,3%; maior pico78,5%. No nivel50,
-as medias ficaram abaixo37% e os picos abaixo41%. CPU Locust media ficou
-abaixo5% da cota em todos os pilotos.
+Os pilotos mostram diferencas de margem entre os dois niveis, mas nao definem
+um perfil como referencia principal. A configuracao atual agenda `fixed_50` e
+`fixed_100` como campanhas oficiais distintas. No nivel100, Node, Go e .NET
+ultrapassaram o aviso previamente definido de CPU media PG >=70%; nao
+ultrapassaram o criterio operacional de 90%. A maior media foi73,3%; maior
+pico78,5%. No nivel50, as medias ficaram abaixo37% e os picos abaixo41%.
+CPU Locust media ficou abaixo5% da cota em todos os pilotos.
 
 Isso NAO prova ausencia de gargalo: houve amostras de espera por I/O em todos
-os pilotos e por lock em Python/Java no nivel100. Os gauges amostrados a cada
-5s nao medem tempo total de espera. CPU baixa nao exclui dependencia de I/O,
-locks, custo de SQL ou armazenamento. Nenhum parametro de durabilidade foi
-relaxado e nenhum SQL foi alterado para obter numeros melhores.
+os pilotos e por lock em Python/Java no nivel100. Os artefatos desses pilotos
+foram amostrados a cada 5 s e nao medem tempo total de espera. A configuracao
+atual coleta a cada 1 s, sem reescrever esses artefatos historicos. CPU baixa
+nao exclui dependencia de I/O, locks, custo de SQL ou armazenamento. Nenhum
+parametro de durabilidade foi relaxado e nenhum SQL foi alterado para obter
+numeros melhores.
 
 `stable=true` nao significa latencia estacionaria: a deriva de latencia por
 endpoint e diagnostica. Houve avisos, inclusive variacoes elevadas nas escritas.

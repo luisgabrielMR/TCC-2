@@ -11,7 +11,12 @@ from locust import HttpUser, constant, constant_pacing, events, task
 from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 from payload_sequences import PayloadCycle, PayloadSequence
-from workload_schedule import DeterministicActionSchedule, initial_user_phase, load_scenario
+from workload_schedule import (
+    DeterministicActionSchedule,
+    initial_user_phase,
+    load_scenario,
+    schedule_seed,
+)
 from measurement_audit import CooperativeStopMixin, install
 import gevent
 
@@ -23,6 +28,7 @@ WAIT_SECONDS = float(os.getenv("LOCUST_WAIT_SECONDS", "0.1"))
 LOCUST_PROCESSES = int(os.getenv("LOCUST_PROCESSES", "1"))
 if LOCUST_PROCESSES < 1:
     raise RuntimeError("LOCUST_PROCESSES must be a positive integer")
+WORKLOAD_SCHEDULE_SEED = schedule_seed(os.getenv("WORKLOAD_SCHEDULE_SEED", "20260913"))
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
 if SCENARIO in {"smoke", "health_only"}:
     WORKLOAD_SCENARIO = SCENARIO
@@ -30,7 +36,9 @@ if SCENARIO in {"smoke", "health_only"}:
     action_schedule = None
 else:
     WORKLOAD_SCENARIO, SCENARIO_ACTIONS = load_scenario(SCENARIO_CONFIG_PATH, SCENARIO)
-    action_schedule = DeterministicActionSchedule(WORKLOAD_SCENARIO, SCENARIO_ACTIONS)
+    action_schedule = DeterministicActionSchedule(
+        WORKLOAD_SCENARIO, SCENARIO_ACTIONS, WORKLOAD_SCHEDULE_SEED
+    )
 
 measurement_started_wall_ns: int | None = None
 measurement_started_monotonic_ns: int | None = None
@@ -168,7 +176,7 @@ order_ids = PayloadCycle(PAYLOAD_DIR / "ids_orders.jsonl", parse_json=False)
 
 @events.test_start.add_listener
 def configure_payload_streams(environment, **_kwargs) -> None:
-    """Distribui payloads unicos e defasa os ciclos deterministas por worker."""
+    """Distribui payloads e fluxos de acoes deterministas por worker."""
     global worker_slot, worker_total, next_user_index
     runner = environment.runner
     if isinstance(runner, MasterRunner):
@@ -197,7 +205,7 @@ def configure_payload_streams(environment, **_kwargs) -> None:
     for stream in (customers_update, orders_create, customer_ids, category_ids, order_ids):
         stream.configure_worker_offset(worker_index)
     if action_schedule is not None:
-        action_schedule.configure_worker_offset(worker_index, stride)
+        action_schedule.configure_worker_stream(worker_index, stride)
 
 
 @events.init.add_listener
@@ -288,5 +296,5 @@ class BenchmarkUser(CooperativeStopMixin, HttpUser):
             return
 
         if action_schedule is None:
-            raise RuntimeError(f"No deterministic action schedule is available for {SCENARIO}")
+            raise RuntimeError(f"No workload action schedule is available for {SCENARIO}")
         getattr(self, action_schedule.next_action())()

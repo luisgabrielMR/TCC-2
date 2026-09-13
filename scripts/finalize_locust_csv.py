@@ -55,6 +55,7 @@ def prepare(prefix: Path) -> None:
         path.unlink()
     Path(f"{prefix}_measurement_bounds.json").unlink(missing_ok=True)
     Path(f"{prefix}_expected_workers.json").unlink(missing_ok=True)
+    Path(f"{prefix}_workload_mix.json").unlink(missing_ok=True)
     for path in prefix.parent.glob(f"{prefix.name}_worker_*_final.json"):
         path.unlink()
 

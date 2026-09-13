@@ -32,7 +32,9 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$CALIBRATION_ROOT"
-docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter prometheus grafana cadvisor
+# Prometheus needs a process restart to apply the bind-mounted scrape configuration.
+docker compose --profile monitoring up -d --force-recreate prometheus
+docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter grafana cadvisor
 "$SCRIPT_DIR/reset_db.sh"
 docker compose --profile "$LANGUAGE" up -d --build "$API_SERVICE"
 API_STARTED=true

@@ -12,7 +12,8 @@ linguagem.
 | PostgreSQL exporter | lê informações internas do banco | [README](exporters/README.md) |
 | Results exporter | transforma resultados salvos em métricas | [README](results-exporter/README.md) |
 
-Durante uma rodada, Prometheus coleta os dados; Grafana apenas os apresenta.
+Durante uma rodada, Prometheus coleta os dados a cada segundo; Grafana apenas
+os apresenta.
 Os CSVs e JSONs em `../results/` continuam sendo os artefatos que devem ser
 preservados. O dashboard não é uma segunda medição independente.
 

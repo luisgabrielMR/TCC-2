@@ -1,4 +1,5 @@
 import sys
+import math
 import unittest
 from pathlib import Path
 
@@ -22,9 +23,9 @@ class SeedConfigurationTests(unittest.TestCase):
         self.assertEqual(seed.SEED_SQL.read_text(encoding="utf-8"), seed.SEED_TEMPLATE)
 
     def test_seed_limits_warmup_growth_to_five_percent(self):
-        fixed_200_requests = 200 * 300
-        expected_customer_creates = fixed_200_requests * 10 // 100
-        expected_order_creates = fixed_200_requests * 15 // 100
+        fixed_100_requests = 100 * 300
+        expected_customer_creates = math.ceil(fixed_100_requests / 7)
+        expected_order_creates = math.ceil(fixed_100_requests / 7)
         self.assertLessEqual(expected_customer_creates / seed.BASE_CUSTOMERS, 0.05)
         self.assertLessEqual(expected_order_creates / seed.BASE_ORDERS, 0.05)
 
