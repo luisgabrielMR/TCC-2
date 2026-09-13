@@ -5,10 +5,22 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 if [ -f ".env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . ".env"
-  set +a
+  # .env is key/value data, not a shell script (profile lists contain spaces).
+  # Explicit process overrides must survive in child warmup/measurement runners.
+  while IFS= read -r benchmark_env_line || [ -n "$benchmark_env_line" ]; do
+    benchmark_env_line="${benchmark_env_line%$'\r'}"
+    if [[ "$benchmark_env_line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]]; then
+      benchmark_env_key="${BASH_REMATCH[1]}"
+      benchmark_env_value="${BASH_REMATCH[2]}"
+      if [[ "$benchmark_env_value" == \"*\" || "$benchmark_env_value" == \'*\' ]]; then
+        benchmark_env_value="${benchmark_env_value:1:${#benchmark_env_value}-2}"
+      fi
+      if [ -z "${!benchmark_env_key+x}" ]; then
+        printf -v "$benchmark_env_key" '%s' "$benchmark_env_value"
+        export "$benchmark_env_key"
+      fi
+    fi
+  done < .env
 fi
 
 POSTGRES_DB="${POSTGRES_DB:-benchmark_db}"
@@ -35,7 +47,7 @@ WARMUP_STABILITY_WINDOW_SECONDS="${WARMUP_STABILITY_WINDOW_SECONDS:-45}"
 WARMUP_MAX_RPS_DRIFT_PERCENT="${WARMUP_MAX_RPS_DRIFT_PERCENT:-10}"
 METRICS_SAMPLE_INTERVAL_SECONDS="${METRICS_SAMPLE_INTERVAL_SECONDS:-2}"
 BENCHMARK_REPETITIONS="${BENCHMARK_REPETITIONS:-3}"
-METHODOLOGY_VERSION="${METHODOLOGY_VERSION:-14}"
+METHODOLOGY_VERSION="${METHODOLOGY_VERSION:-15}"
 OFFICIAL_PROFILE="${OFFICIAL_PROFILE:-fixed_100}"
 OFFICIAL_ROUNDS="${OFFICIAL_ROUNDS:-5}"
 LOAD_GENERATOR_CALIBRATION_FILE="${LOAD_GENERATOR_CALIBRATION_FILE:-results/summaries/load-generator-calibration.json}"

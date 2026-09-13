@@ -10,12 +10,18 @@ import math
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CURRENT_METHODOLOGY = 14
+LOCUST_ROOT = ROOT / "load-tests" / "locust"
+if str(LOCUST_ROOT) not in sys.path:
+    sys.path.insert(0, str(LOCUST_ROOT))
+from workload_schedule import DeterministicActionSchedule, load_scenario, static_workload_manifest
+
+CURRENT_METHODOLOGY = 15
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,
@@ -26,6 +32,7 @@ CPU_QUOTAS = {
     "dotnet-api": 2.0,
 }
 PROFILE_OVERRIDES = {
+    "fixed_50": (100, 20, 2.0, 50),
     # 125 req/s exhausted the PostgreSQL CPU headroom in the mixed workload.
     # 100 users x 1.0 s keeps the same closed-load shape with a 100 req/s ceiling.
     "fixed_100": (100, 20, 1.0, 100),
@@ -82,6 +89,18 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else "missing"
 
 
+def experimental_sources() -> dict[str, str]:
+    """Include dirty/untracked executable inputs, excluding docs and run artifacts."""
+    completed = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
+         "apps", "database", "common", "load-tests", "scripts", "monitoring",
+         "launchers", "docker-compose.yml", ".env.example"],
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    )
+    return {name: _sha256(ROOT / name) for name in sorted(set(completed.stdout.splitlines()))
+            if name and Path(name).suffix.lower() not in {".md", ".txt"}}
+
+
 def _compose_digest() -> str:
     command = ["docker", "compose"]
     for profile in ("python", "node", "java", "go", "dotnet", "load", "monitoring"):
@@ -97,6 +116,24 @@ def _compose_digest() -> str:
             + completed.stderr.decode(errors="replace").strip()
         )
     return hashlib.sha256(completed.stdout).hexdigest()
+
+
+def workload_manifest(scenario: str) -> dict[str, Any]:
+    if scenario == "health_only":
+        return static_workload_manifest("single_action_v1", scenario, [
+            {"action": "get_health", "endpoint": "GET /health", "weight": 1},
+        ])
+    if scenario == "smoke":
+        actions = [
+            {"action": "get_health", "endpoint": "GET /health", "weight": 1},
+            {"action": "get_customer", "endpoint": "GET /customers/{id}", "weight": 1},
+            {"action": "list_customers", "endpoint": "GET /customers", "weight": 1},
+            {"action": "list_products", "endpoint": "GET /products", "weight": 1},
+            {"action": "get_order", "endpoint": "GET /orders/{id}", "weight": 1},
+        ]
+        return static_workload_manifest("ordered_smoke_sequence_v1", "smoke", actions)
+    workload_scenario, actions = load_scenario(LOCUST_ROOT / "config" / "scenarios.json", scenario)
+    return DeterministicActionSchedule(workload_scenario, actions).manifest
 
 
 def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | None = None) -> dict[str, Any]:
@@ -116,26 +153,30 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
     if not math.isfinite(wait_seconds) or wait_seconds < 0:
         raise ValueError("LOCUST_WAIT_SECONDS must be finite and non-negative")
 
-    calibration_path = ROOT / environment.get(
-        "LOAD_GENERATOR_CALIBRATION_FILE", "results/summaries/load-generator-calibration.json"
-    )
+    workload = workload_manifest(scenario)
     protocol = {
         "schema_version": 1,
         "methodology_version": methodology,
         "scenario": scenario,
         "load_profile": load_profile,
         "load": {
+            "model": "closed_paced_users_v1" if wait_seconds > 0 else "closed_unpaced_users_v1",
+            "initial_phase": "evenly_spread_users_v1" if wait_seconds > 0 else "none",
             "users": users,
             "spawn_rate": spawn_rate,
             "wait_seconds": wait_seconds,
             "measurement_duration_seconds": duration_seconds(environment.get("LOCUST_DURATION", "5m")),
             "processes": _number(environment, "LOCUST_PROCESSES", "4", int),
+            "nominal_pacing_rps": target_rps,
             "target_rps": target_rps,
+            "minimum_delivery_percent": 97.5 if target_rps is not None else None,
             "target": {
                 "network_mode": "host_override" if host_override else "docker_internal_compose_service",
                 "url_template": host_override or "http://{api-service}:8000",
             },
         },
+        "workload": workload,
+        "experimental_source_sha256": experimental_sources(),
         "warmup": {
             "duration_seconds": _number(environment, "WARMUP_DURATION_SECONDS", "300", int),
             "users": users,
@@ -154,6 +195,7 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
         "database_seed_sha256": _sha256(ROOT / "database" / "init" / "002_seed_base_data.sql"),
         "resource_cpu_quotas": CPU_QUOTAS,
         "metrics": {
+            "postgres_collector_revision": 3,
             "collector_interval_seconds": _number(environment, "METRICS_SAMPLE_INTERVAL_SECONDS", "2"),
             "prometheus_scrape_interval_seconds": 5,
             "cadvisor_housekeeping_interval_seconds": 1,
@@ -169,7 +211,7 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "drained_request_rule": "started_before_worker_stop_boundary",
         },
         "compose_config_sha256": _compose_digest(),
-        "calibration_sha256": _sha256(calibration_path),
+        "calibration_sha256": "optional_not_part_of_protocol",
     }
     canonical = json.dumps(protocol, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
     protocol_hash = hashlib.sha256(canonical).hexdigest()

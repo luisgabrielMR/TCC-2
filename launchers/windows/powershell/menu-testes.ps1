@@ -122,8 +122,8 @@ function Get-ResultScenarioName([string]$Profile) {
     return "mixed"
 }
 
-function Get-OfficialCampaignIdentity($Environment) {
-    $profile = Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_100"
+function Get-OfficialCampaignIdentity($Environment, [string]$Profile = "") {
+    $profile = if ($Profile) { $Profile } else { Get-BenchmarkValue $Environment "OFFICIAL_PROFILE" "fixed_100" }
     $python = Get-BenchmarkPythonCommand
     $arguments = @($python.Prefix) + @(
         (Join-Path $Root "scripts/benchmark_protocol.py"),
@@ -176,12 +176,18 @@ function Get-OfficialLanguagesForSequence(
 function Get-NextOfficialRoundPlan {
     $environment = Get-BenchmarkEnvironment
     $officialProfile = Get-BenchmarkValue $environment "OFFICIAL_PROFILE" "fixed_100"
+    $profiles = @((Get-BenchmarkValue $environment "OFFICIAL_PROFILES" $officialProfile) -split '[,\s]+' | Where-Object { $_ })
+    if ($profiles.Count -ne @($profiles | Select-Object -Unique).Count) { throw "OFFICIAL_PROFILES possui duplicatas." }
     $totalRounds = [int](Get-BenchmarkValue $environment "OFFICIAL_ROUNDS" "5")
     if ($totalRounds -lt 1) { throw "OFFICIAL_ROUNDS deve ser maior que zero." }
-    $campaign = Get-OfficialCampaignIdentity $environment
+    $campaigns = @{}
+    foreach ($profile in $profiles) { $campaigns[$profile] = Get-OfficialCampaignIdentity $environment $profile }
 
     $languages = @("python", "node", "java", "go", "dotnet")
     for ($round = 1; $round -le $totalRounds; $round++) {
+      for ($profileIndex = 0; $profileIndex -lt $profiles.Count; $profileIndex++) {
+        $officialProfile = $profiles[($profileIndex + $round - 1) % $profiles.Count]
+        $campaign = $campaigns[$officialProfile]
         $sequenceId = "${officialProfile}_$($campaign.fingerprint)_official_round_${round}_of_${totalRounds}"
         $completed = @(Get-OfficialLanguagesForSequence `
             $sequenceId $officialProfile $campaign.methodology_version $campaign.commit_sha)
@@ -201,6 +207,7 @@ function Get-NextOfficialRoundPlan {
                 completed_languages = @($completed)
             }
         }
+      }
     }
 
     return [pscustomobject]@{
@@ -218,7 +225,7 @@ function Get-NextOfficialRoundPlan {
 function Show-OfficialStatus {
     $plan = Get-NextOfficialRoundPlan
     if ($plan.all_complete) {
-        Write-Host "Rodadas oficiais: $($plan.total_rounds)/$($plan.total_rounds) completas." -ForegroundColor Green
+        Write-Host "Todos os perfis configurados: $($plan.total_rounds) rodadas completas por perfil." -ForegroundColor Green
         return
     }
     Write-Host "Proxima rodada oficial: $($plan.round)/$($plan.total_rounds)" -ForegroundColor Cyan

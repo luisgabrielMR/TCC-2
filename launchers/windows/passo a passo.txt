@@ -1,73 +1,67 @@
 ﻿INICIO RAPIDO
 
-PRE-REQUISITO
-1. Abrir o Docker Desktop manualmente.
-2. Aguardar aparecer Docker Engine running.
-3. Fechar programas pesados e nao executar outros testes durante a rodada.
+PROTOCOLO 15
 
-ATALHOS PRINCIPAIS
-1. 00_MENU_TESTES.bat: mostra somente as opcoes essenciais.
-2. 01_VERIFICAR_PROJETO.bat: valida banco, APIs, contrato e monitoramento.
-3. 02_PROXIMA_RODADA_OFICIAL.bat: executa uma rodada oficial completa.
-4. 03_ABRIR_GRAFANA.bat: abre os dashboards.
-5. 04_MENU_AVANCADO.bat: preparacao manual, pilotos e testes de capacidade.
+PRE-REQUISITOS
+1. Abrir Docker Desktop e aguardar o Engine.
+2. Fechar programas pesados e evitar outras cargas durante as medicoes.
+3. Conferir .env: Docker Engine 29.5.2 e Compose 5.1.4.
 
-ANTES DA PRIMEIRA RODADA OFICIAL
-1. Revisar e versionar todas as alteracoes; git status deve estar limpo.
-2. Executar 01_VERIFICAR_PROJETO.bat no commit limpo.
-3. A verificacao deve concluir e atualizar results/summaries/project-verification.json.
-4. No 00_MENU_TESTES.bat, executar Calibrar gerador de carga.
-5. A calibracao deve concluir os cinco degraus e comprovar folga do Locust.
-6. Nao alterar arquivos, Docker ou configuracoes depois da verificacao/calibracao.
+ATALHOS
+- 00_MENU_TESTES.bat: menu principal.
+- 01_VERIFICAR_PROJETO.bat: banco, cinco APIs, contrato e monitoramento.
+- 02_PROXIMA_RODADA_OFICIAL.bat: cinco APIs de um perfil/rodada.
+- 03_ABRIR_GRAFANA.bat: dashboards.
+- 04_MENU_AVANCADO.bat: preparacao, pilotos e perfis auxiliares/historicos.
 
-EXECUTAR AS CINCO RODADAS OFICIAIS
+ANTES DA CAMPANHA
+1. Concluir a verificacao funcional e analisar pilotos dos dois niveis.
+2. Versionar o protocolo definitivo; a execucao oficial exige Git limpo.
+3. Manter OFFICIAL_PROFILES=fixed_50,fixed_100 para o desenho de dois niveis.
+4. Nao alterar codigo, configuracoes, imagens ou recursos durante a campanha.
+5. Calibracao health_only e diagnostico opcional. O fluxo atual nao exige
+   recalibracao por commit nem relatorio de verificacao do mesmo commit.
+6. Pilotos curtos nao substituem repeticoes oficiais.
+
+CAMPANHA OFICIAL
 1. Executar 02_PROXIMA_RODADA_OFICIAL.bat.
-2. O preflight oficial ocorre antes da carga e bloqueia qualquer divergencia.
-3. Conferir a rodada e a ordem mostradas na tela; digitar SIM.
-4. Cada clique executa somente uma rodada completa das cinco APIs.
-5. Repetir em outro momento ate completar 5/5 rodadas.
-6. Cada rodada leva aproximadamente 55 a 75 minutos.
-7. Se houver interrupcao, executar o mesmo atalho novamente; as linguagens ja
-   concluidas como official sao ignoradas e a rodada e retomada.
+2. Conferir perfil, rodada, campanha e ordem; confirmar com SIM.
+3. Cada chamada executa cinco APIs de um perfil, nao os dois juntos.
+4. Completar cinco rodadas POR PERFIL: dez chamadas completas,
+   cinquenta medicoes de API no total.
+5. O planejador alterna perfis e rotaciona a ordem das linguagens.
+6. Em caso de interrupcao, repetir o atalho. Somente resultados oficiais da
+   campanha correspondente contam para decidir o que falta.
+7. Preparacao, restauracao e coleta tambem consomem tempo.
 
-METODOLOGIA DA BATERIA
-- perfil: fixed_200, alvo de 200 req/s;
-- cenario: mixed;
-- 50 usuarios;
-- warmup: 300 segundos por API;
-- medicao: 5 minutos por API, sem incluir o warmup;
-- cinco rodadas completas, totalizando 25 medicoes de API;
-- ordem rotacionada entre as rodadas;
-- reset deterministico do benchmark_db entre APIs;
-- CPU e memoria oficiais coletadas pelo cAdvisor;
-- PostgreSQL coletado pelo postgres-exporter;
-- nenhuma rodada e official se qualquer gate falhar.
+CONDICOES PADRAO
+- mixed: mesmas operacoes, SQL, payloads e dataset entre as APIs;
+- fixed_50: 100 usuarios, pacing 2 segundos, teto nominal 50 req/s;
+- fixed_100: 100 usuarios, pacing 1 segundo, teto nominal 100 req/s;
+- carga FECHADA com pacing: nao e chegada aberta nem garante taxa entregue;
+- ciclo ponderado deterministico por worker; quatro processos Locust;
+- fases iniciais dos usuarios distribuidas;
+- warmup 300 segundos; medicao 300 segundos, excluindo warmup;
+- cinco repeticoes por linguagem e por perfil;
+- pool maximo 20; cotas API 2 CPU, banco 1 CPU, Locust 4 CPU;
+- restauracao logica deterministica entre execucoes; nao e cache frio;
+- CPU/memoria via cAdvisor; atividade/esperas via postgres-exporter;
+- verificar taxa entregue, erros, estabilidade e cobertura.
 
-TESTE EXTRA DE SATURACAO
-- perfis separados: saturation_25, 50, 100, 200 e 400;
-- pacing zero, sempre no workload mixed;
-- bateria piloto por padrao;
-- nunca usa controlled_50 ou fixed_200 como baseline da sua coorte.
+INTERPRETACAO E RESULTADOS
+1. Consultar docs/methodological-notes.md para condicoes, limites e metricas.
+2. Resultados Oficiais filtra classification=official; pilotos permanecem
+   non_official, sem promocao por copia ou renomeacao.
+3. Nao misturar perfis, campanhas ou protocolos antigos na comparacao.
+4. run_N nao identifica sozinho a repeticao oficial. Consultar classificacao,
+   campaign_fingerprint e execution_order dos metadados.
+5. CPU baixa do banco nao prova ausencia de gargalo. Considerar taxa entregue,
+   latencias, sessoes ativas e esperas de I/O/locks.
+6. Esperas sao amostras periodicas, nao duracoes acumuladas.
+7. Comparam-se implementacoes/ecossistemas sob condicoes iguais, nao um
+   efeito causal exclusivamente da linguagem.
 
-RESULTADOS
-1. Executar 03_ABRIR_GRAFANA.bat.
-2. Resultados Oficiais mostra somente classification=official.
-3. Monitoramento e Diagnostico mostra pilotos e detalhes por endpoint.
-4. A primeira rodada oficial pode usar pastas run_2 porque o piloto run_1 foi
-   preservado. A identificacao oficial fica em execution_order.sequence_id.
-
-CRITERIOS DE UMA RODADA OFICIAL
-- Docker ativo e versoes aprovadas pelo preflight;
-- Docker Engine 29.5.2 e Compose 5.1.4;
-- Git limpo e commit registrado;
-- project-verification.json correspondente ao mesmo commit;
-- calibracao health_only correspondente ao mesmo commit, imagens e alocacao;
-- contrato e estado final equivalentes nas cinco APIs;
-- aquecimento estavel;
-- janela principal exata;
-- cAdvisor validado para API, PostgreSQL e Locust;
-- postgres-exporter, Prometheus e Grafana saudaveis;
-- zero falhas HTTP;
-- pelo menos 97,5% do alvo fixed_200;
-- CPU media do Locust na janela abaixo de 90% da cota e 25% de folga calibrada;
-- resultado gravado com result_classification=official.
+PERFIS AUXILIARES
+- saturation_25, 50, 100, 200 e 400: pacing zero; pilotos por padrao.
+- fixed_125 e outros perfis antigos nao integram a campanha de dois niveis.
+- Preservar resultados historicos e analisar em coortes separadas.

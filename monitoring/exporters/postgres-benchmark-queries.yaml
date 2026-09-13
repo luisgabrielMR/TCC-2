@@ -1,0 +1,39 @@
+pg_benchmark_activity:
+  query: |
+    SELECT
+      current_database() AS datname,
+      count(*) FILTER (WHERE state = 'active' AND pid <> pg_backend_pid()) AS active_sessions,
+      count(*) FILTER (
+        WHERE state = 'active'
+          AND wait_event_type IS NOT NULL AND wait_event_type <> 'Client'
+          AND pid <> pg_backend_pid()
+      ) AS waiting_sessions,
+      count(*) FILTER (
+        WHERE state = 'active'
+          AND wait_event_type = 'Lock'
+          AND pid <> pg_backend_pid()
+      ) AS waiting_lock_sessions,
+      count(*) FILTER (
+        WHERE state = 'active'
+          AND wait_event_type = 'IO'
+          AND pid <> pg_backend_pid()
+      ) AS waiting_io_sessions
+    FROM pg_stat_activity
+    WHERE datname = current_database() AND backend_type = 'client backend'
+      AND application_name <> 'benchmark_exporter'
+  metrics:
+    - datname:
+        usage: "LABEL"
+        description: "PostgreSQL database name"
+    - active_sessions:
+        usage: "GAUGE"
+        description: "Active client backend sessions, excluding exporter connections"
+    - waiting_sessions:
+        usage: "GAUGE"
+        description: "Active backend sessions waiting on a non-client event"
+    - waiting_lock_sessions:
+        usage: "GAUGE"
+        description: "Active backend sessions waiting on a lock"
+    - waiting_io_sessions:
+        usage: "GAUGE"
+        description: "Active backend sessions waiting on I/O"

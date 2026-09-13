@@ -1,32 +1,44 @@
-# Matriz de aderencia ao TCC
+# Matriz de aderencia ao TCC — metodologia 15
 
-Fonte documental verificada: `TCC_Luis_Gabriel_Mendonca_Reos (27).pdf`, paginas 9 a 15. Esta matriz registra o estado executavel do projeto; nao substitui o preflight de cada rodada.
+Esta matriz registra o protocolo implementado, nao declara uma campanha concluida.
+A referencia documental anterior foi o PDF TCC_Luis_Gabriel_Mendonca_Reos (27),
+paginas 9 a 15. O PDF nao esta versionado no repositorio; a correspondencia com
+a revisao academica aprovada deve ser conferida antes da entrega.
 
-| Requisito do TCC | Estado atual | Evidencia ou gate |
+| Aspecto | Implementacao / evidencia | Limite de interpretacao |
 | --- | --- | --- |
-| Python, Node.js, Java, Go e C#/.NET | OK | Cinco imagens construidas e contrato comum aprovado. |
-| Oito endpoints equivalentes | OK | OpenAPI possui oito operacoes; teste contratual cobre sucesso, validacao e erro de banco. |
-| PostgreSQL 17 unico e compartilhado | OK | `postgres:17` fixado por digest; schema, seed e estado final comparados. |
-| SQL direto, sem ORM | OK | Drivers nativos e SQL parametrizado nas cinco APIs; busca estatica sem ORM/query builder. |
-| Texto SQL equivalente entre as cinco | OK | Nenhum cast de conversao no SQL comparado; formatacao monetaria feita na aplicacao nas cinco linguagens. |
-| Locust 2.32.6 | OK | Imagem fixada por digest e workloads comuns por cenario/perfil. |
-| Prometheus 2.55.1, Grafana 11.3.0 e postgres-exporter 0.15.0 | OK | Targets `up`, Grafana saudavel e dois dashboards provisionados. |
-| cAdvisor 0.49.1 por container | Pendente | Ja houve evidencia por ID real, mas precisa ser revalidado no ambiente e commit da proxima bateria. |
-| Rejeitar cgroups genericos | OK | Teste automatizado rejeita `/`, `/docker` e `/restricted`. |
-| P50, P95, P99, media, RPS, requisicoes, falhas e erro | OK | Locust e tres CSVs processados usam o esquema metodologico atual. |
-| CPU e memoria oficiais vindas do cAdvisor | OK | `--require-cadvisor`; `docker stats` permanece apenas complementar. |
-| Metricas PostgreSQL na janela da medicao | OK | Consulta com margem de scrape, recorte por sobreposicao e gauges ponderados pelo tempo. |
-| Docker Engine 29.5.2 | Pendente | O TCC exige 29.5.2; o ultimo host auditado usava 29.7.2 e permanece bloqueado ate ajuste manual. |
-| Docker Compose 5.1.4 | Pendente | O TCC exige 5.1.4; o ultimo host auditado usava 5.3.1 e permanece bloqueado ate ajuste manual. |
-| Hardware registrado | OK | Ryzen 5 3600, 6 nucleos/12 threads, 31,93 GiB fisicos e NVMe registrados. |
-| Alocacao efetiva dos containers | Parcial | Host e Docker sao registrados; cotas do Compose e `NanoCpus` ativos sao validados. Cotas nao sao reservas exclusivas. |
-| Git limpo e verificacao no mesmo commit | Pendente | Arvore limpa no commit anterior; as correcoes deste bloco precisam de novo commit e nova verificacao completa. |
-| Imagens fixadas por digest | OK | Infraestrutura e `FROM` das APIs usam SHA-256. |
-| Separacao `legacy`/`non_official`/`official` | OK | Consolidador final usa somente `official` por padrao. |
-| Cinco rodadas e ordem rotacionada | Preparado | Runner retomavel implementado; bateria ainda nao iniciada. |
-| Calibracao do gerador | Pendente | Gate implementado; falta executar `/health` 25/50/100/200/400 no commit limpo e ambiente correto. |
-| Preflight oficial sem bloqueios | Pendente | Docker/Compose, Git limpo, nova verificacao, cAdvisor e calibracao ainda precisam ser aprovados. |
+| Cinco ecossistemas e oito operacoes | apps/, common/openapi/, testes contratuais | Nao isola linguagem de runtime, servidor e driver |
+| SQL direto e dataset comum | SQL parametrizado, mesmo schema/seed, testes de estado final | Custo comum do SQL pode dominar a latencia |
+| Pool maximo20 | Compose e drivers; configuracao comum 1/20/10s/60s/1800s | Minimo persistente e escopo de timeout variam por driver |
+| Referencia e sensibilidade | fixed_50 principal; fixed_100 complementar; mesmos100 usuarios, pacing2s/1s | Dez pilotos locais documentados; carga fechada, nao aberta; campanha oficial ainda nao executada |
+| Workload reproduzivel | Ciclo suave ponderado por worker; manifesto/hash; payloads particionados | Intercalacao concorrente e prefixo final podem diferir |
+| Recursos | PG1 CPU, API2, gerador4; Go GOMAXPROCS2 | Quotas nao sao reservas; registrar host e memoria Docker efetiva |
+| Software | Imagens por digest e inventario preflight; Docker29.5.2 / Compose5.1.4 exigidos | Nao substituir versoes aprovadas pelo PDF para contornar divergencias |
+| Preparacao | Reset logico, seed200k, VACUUM ANALYZE, CHECKPOINT; warmup300s | Nao limpa cache do SO ou do runtime |
+| Janela de medicao | 300s apos spawn; reconciliacao dos workers, drenagem5s | Percentis em histogramas arredondados; duracao de pilotos e distinta |
+| Recursos por container | cAdvisor -> Prometheus; recorte temporal e cobertura | Nao atribuir CPU/memoria a endpoints |
+| Diagnostico do banco | postgres-exporter: sessoes ativas/esperas nao Client, Lock, IO | Snapshots5s nao medem tempo total de espera nem provam ausencia de gargalo |
+| Compatibilidade PG17 | Coletor legado stat_bgwriter desativado; query estendida no exporter0.15 | Query estendida e deprecated nessa versao fixada; nao atualizada implicitamente |
+| Gerador | CPU cAdvisor e entrega efetiva; calibracao health-only opcional | CPU media abaixo do limite nao prova capacidade sob toda carga |
+| Repeticoes e ordem | Menu Windows:5 por nivel; rotacao das linguagens e alternancia dos niveis | Preparado nao significa executado |
+| Separacao dos dados | classification + campaign_fingerprint + protocol_sha256; filtro --campaign | Piloto abreviado permanece non_official; historicos nao sao promovidos |
+| Analise | Latencias, vazao, erros, recursos; medianas e min-max entre rodadas | Sem teste de significancia; adequate nao e confianca estatistica |
+| Prontidao cientifica | Verificacao funcional + pilotos + congelamento + campanha completa | Nenhum desses passos substitui os outros |
 
-## Interpretacao
+## Evidencia de execucao
 
-O projeto permanece funcionalmente preparado, mas nao esta elegivel a rodada oficial neste estado. As versoes do PDF nao devem ser alteradas para acompanhar o host. Depois de revisar e versionar as correcoes, e necessario ajustar Docker/Compose manualmente, reexecutar a verificacao completa, calibrar o gerador e obter os dois gates de preflight/monitoramento sem bloqueios. Qualquer conclusao futura deve permanecer limitada ao workload, a alocacao Docker e ao hardware registrados em cada rodada.
+A verificacao integrada gera results/raw/verification/<timestamp>/ e
+results/summaries/project-verification.json. Os pilotos ficam nas pastas
+de linguagem/perfil/run_N, com classificacao non_official e tempos registrados.
+Consultar os artefatos da execucao atual, nao inferir aprovacao a partir desta
+matriz ou de registros de uma metodologia antiga.
+
+## Criterio de encerramento
+
+Finalizar implementacao e testes, revisar os dois niveis nos pilotos, versionar
+o protocolo com autorizacao do autor, e so entao executar as cinco repeticoes
+completas por nivel. Relatar falhas e exclusoes em vez de selecionar apenas
+as rodadas favoraveis. Nao existe garantia absoluta de ausencia de gargalos ou
+de erros futuros; as conclusoes precisam ser sustentadas pelas series coletadas.
+
+Detalhes e procedimento: [Notas metodologicas](methodological-notes.md).

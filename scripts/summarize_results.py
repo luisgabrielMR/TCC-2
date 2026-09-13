@@ -19,6 +19,9 @@ RAW = ROOT / "results" / "raw"
 PROCESSED = ROOT / "results" / "processed"
 SUMMARIES = ROOT / "results" / "summaries"
 LANGUAGE_ORDER = {name: index for index, name in enumerate(("python", "node", "java", "go", "dotnet"))}
+ACTIVITY_FIELDS = [f"postgres_{name}_{aggregation}"
+                   for name in ("active_sessions", "waiting_sessions", "waiting_lock_sessions", "waiting_io_sessions")
+                   for aggregation in ("average", "max")]
 
 ENDPOINT_FIELDS = [
     "language", "scenario", "load_profile", "methodology_version", "result_classification",
@@ -50,7 +53,7 @@ LANGUAGE_FIELDS = [
     "measurement_first_window_rps", "measurement_last_window_rps",
     "measurement_rps_change_percent", "measurement_final_window_drift_percent",
     "measurement_final_windows_stable", "measurement_stability_status",
-]
+] + ACTIVITY_FIELDS + ["postgres_activity_diagnostics_available"]
 
 SCALABILITY_FIELDS = [
     "language", "workload_family", "scenario", "load_profile", "methodology_version", "result_classification",
@@ -110,7 +113,7 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_instability"
     required_runs = 5 if any(
         int(number(row.get("methodology_version"), 1)) >= 7
-        and row.get("load_profile") in {"fixed_200", "fixed_125", "fixed_100"}
+        and row.get("load_profile", "").startswith("fixed_")
         for row in rows
     ) else 3
     if len(rows) < required_runs:
@@ -352,6 +355,10 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
                 measurement_change, final_windows_stable, measurement_available
             ),
         }
+        run["postgres_activity_diagnostics_available"] = postgres_summary.get("activity_diagnostics_available") == "True"
+        for field in ACTIVITY_FIELDS:
+            value = postgres_summary.get(field.removeprefix("postgres_"))
+            run[field] = number(value) if value not in (None, "") else None
         runs.append(run)
 
         for row in stats:
@@ -560,10 +567,14 @@ def generate_outputs(
     processed: Path,
     summaries: Path,
     classification: str = "official",
+    campaign: str | None = None,
 ) -> tuple[Path, Path, Path, Path]:
     processed.mkdir(parents=True, exist_ok=True)
     summaries.mkdir(parents=True, exist_ok=True)
     runs, endpoints = collect_runs(raw)
+    if campaign:
+        runs = [row for row in runs if row.get("campaign_fingerprint") == campaign]
+        endpoints = [row for row in endpoints if row.get("campaign_fingerprint") == campaign]
     if classification != "all":
         runs = [row for row in runs if row.get("result_classification") == classification]
         endpoints = [row for row in endpoints if row.get("result_classification") == classification]
@@ -572,6 +583,8 @@ def generate_outputs(
     scaling = scalability_rows(runs)
 
     for row in runs:
+        for field in ACTIVITY_FIELDS:
+            row[field] = "" if row[field] is None else f"{row[field]:.6f}"
         requests = row["requests"]
         row["error_rate"] = f"{(row['failures'] / requests) if requests else 0:.6f}"
         for key in (
@@ -619,17 +632,18 @@ def generate_outputs(
             handle.write(f"- Classificacao consolidada: `{classification}`\n")
             handle.write(f"- Rodadas consolidadas: {len(runs)}\n")
             handle.write(f"- Rodadas com duracao util: {sum(number(row['test_elapsed_seconds']) > 0 for row in runs)}/{len(runs)}\n")
-            handle.write("- O perfil fixed_200 mede latencia sob taxa-alvo; a familia saturation mede o limite observado separadamente.\n")
+            handle.write("- Perfis fixed_* usam carga fechada com pacing: registrar a taxa efetivamente entregue; nao sao chegadas abertas.\n")
+            handle.write("- Comparar somente dentro do mesmo perfil, campanha e protocolo. As linhas abaixo nao formam um ranking entre campanhas.\n")
             handle.write(f"- Arquivo por linguagem: `{language_path}`\n")
             handle.write(f"- Arquivo por endpoint: `{endpoint_path}`\n")
             handle.write(f"- Arquivo de escalabilidade: `{scalability_path}`\n\n")
             if scaling:
                 handle.write("## Escalabilidade\n\n")
-                handle.write("| Linguagem | Usuarios | Rodadas | RPS mediano [min-max] | P95 (ms) | Tempo (s) | Estabilidade | Confianca |\n")
-                handle.write("|---|---:|---:|---:|---:|---:|---|---|\n")
+                handle.write("| Campanha | Perfil | Linguagem | Usuarios | Rodadas | RPS mediano [min-max] | P95 (ms) | Tempo (s) | Estabilidade | Confianca |\n")
+                handle.write("|---|---|---|---:|---:|---:|---:|---:|---|---|\n")
                 for row in scaling:
                     handle.write(
-                        f"| {row['language']} | {row['users']} | {row['runs']} | {row['throughput_rps']} "
+                        f"| {row['campaign_fingerprint']} | {row['load_profile']} | {row['language']} | {row['users']} | {row['runs']} | {row['throughput_rps']} "
                         f"[{row['throughput_min_rps']}-{row['throughput_max_rps']}] | "
                         f"{row['p95_ms']} | {row['test_elapsed_seconds']} | "
                         f"{row['measurement_stability_status']} | {row['result_confidence']} |\n"
@@ -642,6 +656,7 @@ def main() -> None:
     parser.add_argument("--raw", type=Path, default=RAW)
     parser.add_argument("--processed", type=Path, default=PROCESSED)
     parser.add_argument("--summaries", type=Path, default=SUMMARIES)
+    parser.add_argument("--campaign", help="Exact campaign fingerprint; never merges different protocols.")
     parser.add_argument(
         "--classification",
         choices=("official", "non_official", "legacy", "all"),
@@ -649,7 +664,7 @@ def main() -> None:
         help="Classification to publish; final TCC artifacts default to official only.",
     )
     args = parser.parse_args()
-    paths = generate_outputs(args.raw, args.processed, args.summaries, args.classification)
+    paths = generate_outputs(args.raw, args.processed, args.summaries, args.classification, args.campaign)
     for path in paths:
         print(f"Generated {path}")
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import json
 import os
-import random
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +11,7 @@ from locust import HttpUser, constant, constant_pacing, events, task
 from locust.runners import MasterRunner, WorkerRunner
 from locust.stats import PERCENTILES_TO_REPORT, StatsCSV
 from payload_sequences import PayloadCycle, PayloadSequence
+from workload_schedule import DeterministicActionSchedule, initial_user_phase, load_scenario
 from measurement_audit import CooperativeStopMixin, install
 import gevent
 
@@ -24,19 +24,21 @@ LOCUST_PROCESSES = int(os.getenv("LOCUST_PROCESSES", "1"))
 if LOCUST_PROCESSES < 1:
     raise RuntimeError("LOCUST_PROCESSES must be a positive integer")
 SCENARIO_CONFIG_PATH = Path(__file__).resolve().parent / "config" / "scenarios.json"
-
-with SCENARIO_CONFIG_PATH.open("r", encoding="utf-8") as scenario_handle:
-    SCENARIO_CONFIG = json.load(scenario_handle)
-
-WORKLOAD_SCENARIO = SCENARIO_CONFIG.get("aliases", {}).get(SCENARIO, SCENARIO)
-SCENARIO_ACTIONS = SCENARIO_CONFIG.get("scenarios", {}).get(WORKLOAD_SCENARIO)
-if SCENARIO not in {"smoke", "health_only"} and not SCENARIO_ACTIONS:
-    raise RuntimeError(f"Unknown Locust scenario: {SCENARIO}")
+if SCENARIO in {"smoke", "health_only"}:
+    WORKLOAD_SCENARIO = SCENARIO
+    SCENARIO_ACTIONS = None
+    action_schedule = None
+else:
+    WORKLOAD_SCENARIO, SCENARIO_ACTIONS = load_scenario(SCENARIO_CONFIG_PATH, SCENARIO)
+    action_schedule = DeterministicActionSchedule(WORKLOAD_SCENARIO, SCENARIO_ACTIONS)
 
 measurement_started_wall_ns: int | None = None
 measurement_started_monotonic_ns: int | None = None
 measurement_finished = False
 active_environment = None
+worker_slot = 0
+worker_total = 1
+next_user_index = 0
 
 
 def utc_iso_from_ns(value: int) -> str:
@@ -114,6 +116,12 @@ def record_measurement_start(user_count, **_kwargs) -> None:
             "duration_clock": "time.monotonic_ns",
             "boundary_clock": "time.time_ns",
         }, separators=(",", ":")), encoding="utf-8")
+        if action_schedule is not None:
+            prefix = environment.parsed_options.csv_prefix
+            Path(f"{prefix}_workload_schedule.json").write_text(json.dumps({
+                "requested_scenario": SCENARIO,
+                **action_schedule.manifest,
+            }, sort_keys=True, separators=(",", ":")), encoding="utf-8")
     seconds = float(getattr(environment.parsed_options, "benchmark_measurement_seconds", 0) or 0)
     if seconds > 0:
         def finish() -> None:
@@ -161,6 +169,7 @@ order_ids = PayloadCycle(PAYLOAD_DIR / "ids_orders.jsonl", parse_json=False)
 @events.test_start.add_listener
 def configure_payload_streams(environment, **_kwargs) -> None:
     """Distribui payloads unicos e defasa os ciclos deterministas por worker."""
+    global worker_slot, worker_total, next_user_index
     runner = environment.runner
     if isinstance(runner, MasterRunner):
         if runner.worker_count != LOCUST_PROCESSES:
@@ -183,9 +192,12 @@ def configure_payload_streams(environment, **_kwargs) -> None:
         worker_index = 0
         stride = 1
 
+    worker_slot, worker_total, next_user_index = worker_index, stride, 0
     customers_create.configure_shard(worker_index, stride)
     for stream in (customers_update, orders_create, customer_ids, category_ids, order_ids):
         stream.configure_worker_offset(worker_index)
+    if action_schedule is not None:
+        action_schedule.configure_worker_offset(worker_index, stride)
 
 
 @events.init.add_listener
@@ -214,8 +226,19 @@ class BenchmarkUser(CooperativeStopMixin, HttpUser):
     wait_time = WAIT_STRATEGY
 
     def on_start(self):
+        global next_user_index
+        index = next_user_index
+        next_user_index += 1
         audit_client(self.client)
         audit_client.wait_until_measurement()
+        if WAIT_SECONDS > 0:
+            local_users = self.environment.runner.user_count
+            users = int(getattr(self.environment.parsed_options, "num_users", 0) or local_users * worker_total)
+            gevent.sleep(initial_user_phase(index, worker_slot, worker_total, users, WAIT_SECONDS, local_users))
+            # Locust 2.32.6 constant_pacing counts time since User construction.
+            # Exclude spawn/audit/phase waits so the first task does not run twice.
+            self._cp_last_run = time.time()
+            self._cp_last_wait_time = 0
 
     def get_health(self) -> None:
         self.client.get("/health", name="GET /health")
@@ -264,6 +287,6 @@ class BenchmarkUser(CooperativeStopMixin, HttpUser):
                 action()
             return
 
-        actions = [getattr(self, item["action"]) for item in SCENARIO_ACTIONS]
-        weights = [item["weight"] for item in SCENARIO_ACTIONS]
-        random.choices(actions, weights=weights, k=1)[0]()
+        if action_schedule is None:
+            raise RuntimeError(f"No deterministic action schedule is available for {SCENARIO}")
+        getattr(self, action_schedule.next_action())()

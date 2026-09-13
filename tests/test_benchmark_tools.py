@@ -729,7 +729,14 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             match[0]: match[1:] for match in powershell_pattern.findall(powershell)
         }
         self.assertEqual(bash_profiles, powershell_profiles)
-        self.assertEqual(len(bash_profiles), 7)
+        from scripts.benchmark_protocol import PROFILE_OVERRIDES
+        expected = {key: value for key, value in PROFILE_OVERRIDES.items()
+                    if key.startswith(("fixed_", "saturation_"))}
+        self.assertEqual(set(bash_profiles), set(expected))
+        for key, (users, spawn, wait, target) in expected.items():
+            values = bash_profiles[key]
+            self.assertEqual((int(values[0]), int(values[1]), float(values[2])), (users, spawn, wait))
+            self.assertEqual(int(values[3]) if values[3] else None, target)
 
     def test_locust_process_count_matches_the_cpu_quota(self) -> None:
         environment = (ROOT / ".env.example").read_text(encoding="utf-8")

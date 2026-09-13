@@ -4,6 +4,23 @@ Projeto experimental para comparar o desempenho de APIs backend equivalentes em 
 
 Esta base prepara o banco, contratos, payloads, scripts de validacao, warmup documentado, atalhos de execucao facil e as cinco APIs equivalentes.
 
+## Protocolo atual (metodologia 15)
+
+O protocolo e seus limites estao em [Notas metodologicas](docs/methodological-notes.md).
+O desenho usa `fixed_50` como referencia principal e `fixed_100` como nivel
+complementar de maior pressao,
+com 100 usuarios e pacing de 2 s/1 s; cinco rodadas por nivel. E carga **fechada**,
+nao chegadas abertas. A comparacao e de implementacoes/ecossistemas sob a carga
+efetivamente entregue, nao um ranking intrinseco de linguagens.
+
+Os dez pilotos e seus limites estao no [Relatorio de validacao](docs/validation-methodology-15.md).
+Eles nao substituem a campanha oficial. Pool20 e
+cotas CPU permanecem iguais; PostgreSQL agora tem diagnosticos de sessoes ativas
+e esperas. Os perfis antigos e resultados historicos continuam preservados.
+`OFFICIAL_PROFILES` controla os niveis percorridos pelo menu Windows; cada chamada
+executa cinco APIs de um nivel, alternando perfis e rotacionando linguagens.
+Calibracao health-only nao e requisito automatico para cada execucao.
+
 ## Execucao rapida da base
 
 Requisitos para uso local:
@@ -13,7 +30,7 @@ Requisitos para uso local:
 - `curl` para testes manuais
 - Git
 
-Para uma rodada oficial, a versao mais recente do TCC exige Docker Engine `29.5.2` e Docker Compose `5.1.4`. O preflight bloqueia qualquer diferenca; as versoes atualmente detectadas neste host devem ser ajustadas manualmente e a atualizacao automatica deve permanecer desligada durante a bateria.
+O protocolo adotado exige Docker Engine `29.5.2` e Docker Compose `5.1.4`. O preflight bloqueia divergencias; nao altere as versoes exigidas para contornar uma falha. Mantenha o ambiente congelado durante a campanha.
 
 ## Configurar ambiente
 
@@ -47,7 +64,7 @@ Esse script executa:
 
 O seed determinístico contém 200.000 clientes, endereços e pedidos, com 400.000
 itens e registros de auditoria. Esse volume limita a mudança esperada do warmup
-`fixed_200` a 4,5% da escala das tabelas que recebem inserções.
+`fixed_100` a 2,25% da escala das tabelas que recebem inserções.
 
 No Windows, abra `launchers/windows/04_MENU_AVANCADO.bat` e escolha `Preparar banco`.
 
@@ -126,12 +143,13 @@ WARMUP_DURATION_SECONDS=300
 WARMUP_STABILITY_WINDOW_SECONDS=45
 WARMUP_MAX_RPS_DRIFT_PERCENT=10
 BENCHMARK_REPETITIONS=3
-OFFICIAL_PROFILE=fixed_200
+OFFICIAL_PROFILE=fixed_100
+OFFICIAL_PROFILES=fixed_50,fixed_100
 OFFICIAL_ROUNDS=5
 METHODOLOGY_VERSION=12
 ```
 
-`BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O atalho oficial usa `OFFICIAL_ROUNDS` e executa cinco rodadas completas do perfil `fixed_200`. O `campaign_fingerprint` deriva do commit e do hash de um manifesto canonico que congela carga, warmup, pools, cotas, intervalos e calibracao. Agregadores e dashboards carregam tambem `protocol_sha256`, impedindo que configuracoes diferentes do `.env` entrem na mesma coorte.
+`BENCHMARK_REPETITIONS` controla somente a bateria separada de saturacao. O menu oficial percorre `OFFICIAL_PROFILES` com `OFFICIAL_ROUNDS` repeticoes por nivel. O fingerprint combina commit e protocolo (carga, workload, warmup, pools, quotas e intervalos). Calibracao opcional nao altera a identidade da campanha.
 
 O warmup usa o mesmo cenario, usuarios, spawn rate e duracao para todas as linguagens, incluindo as rotas de escrita. As tres janelas finais sao comparadas e, se a variacao de RPS ultrapassar 10%, a rodada e interrompida em vez de alterar apenas uma linguagem. A variacao da latencia media por endpoint e preservada como diagnostico, mas nao bloqueia sozinha o aquecimento: ela e sensivel a variacao normal da carga e nao substitui as metricas de latencia da medicao. O warmup nao entra nos resultados principais e o banco e resetado sem reiniciar a API.
 
@@ -142,11 +160,11 @@ Os scripts no host usam `API_BASE_URL=http://127.0.0.1:8000`. Durante a medicao,
 ## Rodada principal por linguagem
 
 ```bash
-./scripts/run_one_language.sh python mixed 0 fixed_200 pilot
-./scripts/run_one_language.sh node mixed 0 fixed_200 pilot
-./scripts/run_one_language.sh java mixed 0 fixed_200 pilot
-./scripts/run_one_language.sh go mixed 0 fixed_200 pilot
-./scripts/run_one_language.sh dotnet mixed 0 fixed_200 pilot
+./scripts/run_one_language.sh python mixed 0 fixed_100 pilot
+./scripts/run_one_language.sh node mixed 0 fixed_100 pilot
+./scripts/run_one_language.sh java mixed 0 fixed_100 pilot
+./scripts/run_one_language.sh go mixed 0 fixed_100 pilot
+./scripts/run_one_language.sh dotnet mixed 0 fixed_100 pilot
 ```
 
 Cada comando deve:
@@ -166,21 +184,21 @@ Na base atual, os comandos das cinco APIs ja podem ser usados quando o Docker es
 ## Executar todas sequencialmente
 
 ```bash
-./scripts/run_all_languages_sequentially.sh mixed 0 fixed_200 0 manual_pilot pilot
+./scripts/run_all_languages_sequentially.sh mixed 0 fixed_100 0 manual_pilot pilot
 ```
 
 Esse script chama uma linguagem por vez. Ele nunca sobe as cinco APIs simultaneamente.
 
-O perfil `fixed_200` tem alvo de 200 req/s e compara latencia e recursos sob a mesma taxa; nao representa capacidade maxima. A entrega minima e 97,5% do alvo. Os perfis `saturation_25` a `saturation_400` formam uma bateria separada, sem pacing. Perfis `controlled_*` e `capacity_*` existem apenas para releitura do historico e nunca entram na mesma coorte dos perfis de saturacao.
+Os perfis `fixed_50` e `fixed_100` sao cargas fechadas com pacing e taxas nominais de 50/100 req/s. A entrega efetiva e medida; o limite operacional inferior e 97,5% do nominal. Nao representam capacidade maxima. Saturacao e perfis historicos ficam separados.
 
 ```bash
 ./scripts/calibrate_load_generator.sh go
 ./scripts/run_capacity_battery.sh
 ```
 
-A calibracao usa somente `GET /health`, pacing zero e degraus de 25, 50, 100, 200 e 400 usuarios durante 60 s. Ela e `non_official_calibration`, usa CPU do cAdvisor e fica vinculada ao commit, imagens, numero de workers, cota do Locust e alocacao Docker. A escada deve levar a CPU media do Locust na janela a pelo menos 90% da cota para demonstrar seu teto, registrar pico de pelo menos 250 req/s e cobrir 80% da janela curta. Cada rodada oficial permanece limitada a 80% desse pico, CPU media do Locust abaixo de 90% da cota e 90% de cobertura na janela principal. O pico bruto por scrape e preservado apenas para diagnostico, pois atualizacoes irregulares do contador do cAdvisor podem concentra-lo artificialmente em um intervalo.
+A calibracao health-only e opcional para diagnosticar o gerador. Nao e executada nem exigida automaticamente pelo preflight atual. O instrumento continua monitorado durante a rodada por cAdvisor; CPU media abaixo de 90% da quota e um criterio operacional, nao prova de ausencia de gargalo.
 
-No Windows, calibre pelo menu e depois use `02_PROXIMA_RODADA_OFICIAL.bat`. Cada duplo clique executa a proxima rodada `fixed_200` ainda incompleta. O menu avancado preserva pilotos e a bateria de saturacao separadamente.
+No Windows, use `02_PROXIMA_RODADA_OFICIAL.bat` apos revisar os pilotos e versionar o protocolo. Cada chamada executa cinco APIs de um nivel ainda incompleto; perfis e linguagens sao alternados conforme as Notas metodologicas.
 
 ## Monitoramento
 
@@ -377,7 +395,7 @@ No WSL/Linux:
 [ ] Docker Engine e 29.5.2 e Compose e 5.1.4
 [ ] Git esta limpo e o commit foi revisado
 [ ] A verificacao completa gerou project-verification.json para esse mesmo commit limpo
-[ ] A calibracao do Locust corresponde ao mesmo commit e ambiente
+[ ] A entrega de carga e a margem do gerador foram revisadas nos pilotos (calibracao opcional)
 [ ] PostgreSQL subiu corretamente
 [ ] Banco foi criado
 [ ] Seed foi carregado

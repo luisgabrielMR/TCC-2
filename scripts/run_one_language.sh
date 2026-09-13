@@ -21,6 +21,7 @@ fi
 LOAD_TARGET_RPS=""
 case "$LOAD_PROFILE" in
   environment) ;;
+  fixed_50) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20; LOCUST_WAIT_SECONDS=2.0; LOAD_TARGET_RPS=50 ;;
   # fixed_125 excedeu a margem de CPU do PostgreSQL neste workload.
   fixed_100) LOCUST_USERS=100; LOCUST_SPAWN_RATE=20; LOCUST_WAIT_SECONDS=1.0; LOAD_TARGET_RPS=100 ;;
   # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
@@ -294,7 +295,7 @@ print(str(achieved >= target * 0.975).lower())
 ' "$ACHIEVED_RPS" "$LOAD_TARGET_RPS")"
   if [ "$RATE_TARGET_MET" != true ]; then
     echo "AVISO: alvo de $LOAD_TARGET_RPS req/s nao atingido (obtido $ACHIEVED_RPS)." >&2
-    echo "A implementacao saturou antes do alvo; a latencia nao e comparavel neste perfil." >&2
+    echo "Investigar API, banco e gerador; o resultado nao representa a carga-alvo." >&2
   fi
 fi
 
@@ -353,7 +354,7 @@ if [ "$POSTGRES_CPU_QUOTA_AVERAGE_PERCENT" = null ]; then
 elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 90 else 1)' "$POSTGRES_CPU_QUOTA_AVERAGE_PERCENT"; then
   DATABASE_HEADROOM_MET=false
   echo "AVISO: PostgreSQL usou $POSTGRES_CPU_QUOTA_AVERAGE_PERCENT% da propria cota de CPU." >&2
-  echo "O banco compartilhado saturou; a diferenca entre as linguagens nao e comparavel nesta rodada." >&2
+  echo "Margem de CPU insuficiente pelo criterio operacional; analisar tambem sessoes, esperas e vazao." >&2
 fi
 RESULT_CLASSIFICATION=non_official
 if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ] && [ "$DATABASE_HEADROOM_MET" = true ]; then
@@ -494,7 +495,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "database_headroom_cpu_metric": "window_average_normalized_by_cpu_quota",
     "database_headroom_threshold_percent": 90,
     "database_headroom_met": $DATABASE_HEADROOM_MET,
-    "interpretation": "o banco e compartilhado pelas cinco implementacoes; saturacao dele limita todas por igual e invalida a comparacao"
+    "interpretation": "CPU e criterio operacional; interpretar com sessoes, esperas, carga entregue e latencia, sem atribuir causalidade isolada"
   },
   "test_phase": {
     "started_at": "$TEST_STARTED_AT",
@@ -517,7 +518,7 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "measurement_includes_ramp_up": false,
     "measurement_includes_drain_and_coordination": false,
     "drained_requests_scope": "requests started before the stop boundary and completed during bounded shutdown",
-    "prometheus_collector_revision": 2,
+    "prometheus_collector_revision": 3,
     "resource_sample_source": "prometheus_raw_range_vector",
     "resource_peaks_are_sampled": true,
     "postgres_counter_scope": "database_wide_including_drivers_and_monitoring",

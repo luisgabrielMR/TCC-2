@@ -23,6 +23,10 @@ QUERIES = {
     "postgres_blocks_read": 'pg_stat_database_blks_read{datname="benchmark_db"}',
     "postgres_blocks_hit": 'pg_stat_database_blks_hit{datname="benchmark_db"}',
     "postgres_database_size_bytes": 'pg_database_size_bytes{datname="benchmark_db"}',
+    "postgres_active_sessions": 'pg_benchmark_activity_active_sessions{datname="benchmark_db"}',
+    "postgres_waiting_sessions": 'pg_benchmark_activity_waiting_sessions{datname="benchmark_db"}',
+    "postgres_waiting_lock_sessions": 'pg_benchmark_activity_waiting_lock_sessions{datname="benchmark_db"}',
+    "postgres_waiting_io_sessions": 'pg_benchmark_activity_waiting_io_sessions{datname="benchmark_db"}',
     "cadvisor_cpu_usage_seconds_total": 'container_cpu_usage_seconds_total{job="cadvisor",cpu="total"}',
     "cadvisor_memory_working_set_bytes": 'container_memory_working_set_bytes{job="cadvisor"}',
 }
@@ -233,7 +237,7 @@ def query_values(result: dict, key: str) -> list[float]:
 
 
 def query_samples(result: dict, key: str) -> list[tuple[float, float]]:
-    series = result["queries"][key]["response"].get("data", {}).get("result", [])
+    series = result["queries"].get(key, {}).get("response", {}).get("data", {}).get("result", [])
     if len(series) > 1:
         raise RuntimeError(f"Ambiguous metric {key}: {len(series)} series; refusing to select an arbitrary target")
     return clean_samples(series[0]) if series else []
@@ -253,6 +257,13 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         "postgres_up", "postgres_connections", "postgres_commits_total", "postgres_rollbacks_total",
         "postgres_blocks_read", "postgres_blocks_hit", "postgres_database_size_bytes",
     )
+    activity_keys = (
+        "postgres_active_sessions", "postgres_waiting_sessions", "postgres_waiting_lock_sessions",
+        "postgres_waiting_io_sessions",
+    )
+    # Old captures cannot retroactively supply newly introduced diagnostics.
+    if int(result.get("collector_revision", 0)) >= 3:
+        keys += activity_keys
     samples = {key: query_samples(result, key) for key in keys}
     missing = [key for key, series in samples.items() if not series]
     insufficient = [key for key, series in samples.items() if 0 < len(series) < 2]
@@ -288,6 +299,10 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
     connections_average, connections_max, connection_samples, connection_observed = time_weighted_gauge(
         samples["postgres_connections"], start, end
     )
+    activity_summaries = {
+        key: time_weighted_gauge(samples[key], start, end)
+        for key in activity_keys if samples.get(key)
+    }
     size_average, size_max, _, _ = time_weighted_gauge(samples["postgres_database_size_bytes"], start, end)
     commits = counter_window_delta_samples(samples["postgres_commits_total"], start, end)
     rollbacks = counter_window_delta_samples(samples["postgres_rollbacks_total"], start, end)
@@ -320,7 +335,16 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
         "sample_quality": json.dumps(quality, sort_keys=True, separators=(",", ":")),
         "boundary_method": "scrape-padded overlap clipping; time-weighted gauges",
         "metric_source": "postgres_exporter_via_prometheus",
+        "activity_diagnostics_available": elapsed > 0 and all(
+            key in activity_summaries and observed_by_metric[key] >= elapsed * 0.99
+            and key not in invalid_quality for key in activity_keys
+        ),
     }
+    for key in activity_keys:
+        summary = activity_summaries.get(key)
+        name = key.removeprefix("postgres_")
+        row[f"{name}_average"] = f"{summary[0]:.6f}" if summary else ""
+        row[f"{name}_max"] = f"{summary[1]:.6f}" if summary else ""
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(row))
         writer.writeheader()
@@ -438,7 +462,7 @@ def main() -> int:
         "query_start_epoch": query_start,
         "query_end_epoch": query_end,
         "step_seconds": args.step,
-        "collector_revision": 2,
+        "collector_revision": 3,
         "sample_source": "prometheus_raw_range_vector",
         "boundary_method": "two-scrape padding; original scrape timestamps; overlap interpolation at wall-clock boundaries",
         "queries": {},

@@ -5,7 +5,7 @@ param(
     [ValidateSet("smoke", "warmup", "read_heavy", "write_heavy", "mixed")]
     [string]$Scenario = "mixed",
     [int]$RunNumber = 0,
-    [ValidateSet("environment", "fixed_100", "fixed_125", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
+    [ValidateSet("environment", "fixed_50", "fixed_100", "fixed_125", "saturation_25", "saturation_50", "saturation_100", "saturation_200", "saturation_400", "controlled_50", "capacity_100", "capacity_200")]
     [string]$LoadProfile = "environment",
     [ValidateSet("pilot", "official")]
     [string]$RunMode = "pilot"
@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "14")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "15")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -32,6 +32,7 @@ $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTE
 # igual para as cinco, e a comparacao passa a ser de latencia e recursos.
 $loadTargetRps = $null
 switch ($LoadProfile) {
+    "fixed_50" { $users = 100; $spawnRate = 20; $waitSeconds = "2.0"; $loadTargetRps = 50 }
     # fixed_125 excedeu a margem de CPU do PostgreSQL neste workload.
     "fixed_100" { $users = 100; $spawnRate = 20; $waitSeconds = "1.0"; $loadTargetRps = 100 }
     # 100 usuarios com pacing de 0,8 s fornecem teto de 125 req/s, abaixo da
@@ -211,9 +212,8 @@ try {
     $measurementValidation = Get-Content $measurementValidationPath -Raw | ConvertFrom-Json
     $measurementStable = [bool]$measurementValidation.stable
 
-    # Nos perfis de taxa fixa a vazao e imposta, nao medida. Se a implementacao
-    # nao entregou a taxa pedida, ela saturou e a latencia dela nao e comparavel
-    # com a das outras: a rodada deixa de ser elegivel a oficial.
+    # O pacing e fechado: a taxa efetiva e medida e pode ficar abaixo do nominal.
+    # Isso nao identifica sozinho se o limite esta na API, banco ou gerador.
     $rateTargetMet = $true
     $aggregated = Import-Csv (Join-Path $resultDirectory "locust_stats.csv") |
         Where-Object { $_.Name -eq "Aggregated" } | Select-Object -First 1
@@ -224,7 +224,7 @@ try {
     if ($null -ne $loadTargetRps) {
         $rateTargetMet = ($achievedRps -ge ($loadTargetRps * 0.975))
         if (-not $rateTargetMet) {
-            Write-Warning "Alvo de $loadTargetRps req/s nao atingido (obtido $achievedRps). A implementacao saturou antes do alvo; a latencia nao e comparavel neste perfil."
+            Write-Warning "Alvo de $loadTargetRps req/s nao atingido (obtido $achievedRps). Investigar API, banco e gerador; este resultado nao representa a carga-alvo."
         }
     }
     Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
@@ -261,7 +261,7 @@ try {
     $postgresCpuQuotaMaxPercent = if ($null -eq $postgresCpuMaxPercent) { $null } else { [math]::Round($postgresCpuMaxPercent / $postgresCpuQuota, 6) }
     $databaseHeadroomMet = if ($null -eq $postgresCpuQuotaAveragePercent) { $RunMode -ne "official" } else { $postgresCpuQuotaAveragePercent -lt 90 }
     if (-not $databaseHeadroomMet -and $null -ne $postgresCpuQuotaAveragePercent) {
-        Write-Warning "PostgreSQL usou $postgresCpuQuotaAveragePercent% da propria cota de CPU. O banco compartilhado saturou; a diferenca entre as linguagens nao e comparavel nesta rodada."
+        Write-Warning "PostgreSQL usou $postgresCpuQuotaAveragePercent% da propria cota de CPU, acima do criterio de margem. Investigar junto com esperas e vazao; CPU isolada nao identifica a causa."
     }
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
@@ -400,7 +400,7 @@ try {
             database_headroom_cpu_metric = "window_average_normalized_by_cpu_quota"
             database_headroom_threshold_percent = 90
             database_headroom_met = $databaseHeadroomMet
-            interpretation = "o banco e compartilhado pelas cinco implementacoes; saturacao dele limita todas por igual e invalida a comparacao"
+            interpretation = "CPU e criterio operacional; interpretar com sessoes, esperas, carga entregue e latencia, sem atribuir causalidade isolada"
         }
         test_phase = [ordered]@{
             started_at = $testStartedAt.ToString("o")
@@ -423,7 +423,7 @@ try {
             measurement_includes_ramp_up = $false
             measurement_includes_drain_and_coordination = $false
             drained_requests_scope = "requests started before the stop boundary and completed during bounded shutdown"
-            prometheus_collector_revision = 2
+            prometheus_collector_revision = 3
             resource_sample_source = "prometheus_raw_range_vector"
             resource_peaks_are_sampled = $true
             postgres_counter_scope = "database_wide_including_drivers_and_monitoring"

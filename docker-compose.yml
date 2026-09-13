@@ -43,13 +43,20 @@ services:
     image: ${POSTGRES_EXPORTER_IMAGE:-prometheuscommunity/postgres-exporter:v0.15.0@sha256:386b12d19eab2a37d7cd8ca8b4c7491cc7a830d9581f49af6c98a393da9605e6}
     container_name: tcc_benchmark_postgres_exporter
     profiles: ["monitoring"]
+    command:
+      - "--extend.query-path=/etc/postgres-exporter/postgres-benchmark-queries.yaml"
+      # This v0.15 collector uses columns removed from pg_stat_bgwriter in PG17.
+      # Checkpoint/bgwriter statistics are not used by the experiment.
+      - "--no-collector.stat_bgwriter"
     environment:
-      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-benchmark_user}:${POSTGRES_PASSWORD:-benchmark_password}@postgres:5432/${POSTGRES_DB:-benchmark_db}?sslmode=disable
+      DATA_SOURCE_NAME: postgresql://${POSTGRES_USER:-benchmark_user}:${POSTGRES_PASSWORD:-benchmark_password}@postgres:5432/${POSTGRES_DB:-benchmark_db}?sslmode=disable&application_name=benchmark_exporter
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "9187:9187"
+    volumes:
+      - ./monitoring/exporters/postgres-benchmark-queries.yaml:/etc/postgres-exporter/postgres-benchmark-queries.yaml:ro
     networks:
       - benchmark
 

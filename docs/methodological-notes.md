@@ -1,214 +1,182 @@
-# Notas metodologicas
+# Protocolo experimental — metodologia 15
 
-## Paralelismo e escopo dos recursos
+## Objetivo e alcance
 
-As APIs mantem cota de 2 CPUs, sem afinidade exclusiva. Go 1.23 usa
-`GOMAXPROCS=2` explicitamente no Compose, pois seu valor padrao nao acompanha
-a cota do cgroup. O preflight verifica essa configuracao em todos os perfis;
-quando Go esta ativo, executa o mesmo binario com `--runtime-info` dentro do
-container e exige valor efetivo 2. Essa sondagem nao abre conexoes ao banco nem
-adiciona endpoints HTTP. O JSON do preflight, incluido no metadata da rodada,
-registra CPUs visiveis, GOMAXPROCS e origem da sondagem. Nao mede a quantidade
-total de threads do processo, nem garante ausencia de throttling.
+Comparar cinco implementacoes backend (Python, Node.js, Java, Go e C#/.NET)
+com o mesmo PostgreSQL, contrato HTTP, SQL, payloads e dataset. A unidade
+comparada e o conjunto implementacao + runtime + servidor + driver; nao a
+linguagem isolada. O resultado vale para o hardware, quotas e workload registrados.
 
-Os modelos de concorrencia sao distintos: Python tem um processo Uvicorn,
-event loop e limitador AnyIO de 40 tarefas sincronas; Java usa virtual threads;
-Node executa JavaScript no event loop, enquanto Go e .NET possuem seus proprios
-escalonadores. O pool PostgreSQL tem limite comum de 20 conexoes. Comparar
-essas implementacoes nao equivale a isolar o custo da linguagem ou igualar
-todas as filas internas. Causalidade de latencia exige diagnostico, nao apenas
-conhecimento desses limites.
+Este documento descreve a implementacao atual; nao e a redacao academica final.
+A matriz de aderencia referencia o PDF aprovado, que nao esta versionado aqui.
+Conferir o texto final com esse PDF antes de entregar o TCC.
 
-Nao ha teto individual de memoria dos containers. O limite compartilhado e a
-memoria efetivamente alocada ao Docker; consumo observado inclui as politicas
-de heap, GC e alocacao de cada runtime. Backlogs HTTP permanecem os padroes
-dos servidores; uma investigacao de saturacao deve distinguir fila de conexoes,
-pool do banco, throttling e saturacao do gerador.
+## Desenho principal
 
-Em `summary_by_endpoint.csv`, `resource_metric_scope` vale
-`whole_container_whole_run_not_endpoint_attribution`. CPU, memoria e indicadores
-PostgreSQL nessa linha sao repetidos da rodada inteira, NAO atribuicoes ao
-endpoint. Apenas latencia, requisicoes, falhas e vazao HTTP sao por endpoint.
-Medianas de percentis entre rodadas nao representam percentis globais de todas
-as requisicoes. Recursos sao amostrados e bordas temporais interpoladas.
+- Cenario: mixed, oito operacoes. Pesos: health 5%; cliente individual 15%;
+  listagem de clientes 15%; produtos 15%; pedido individual 15%; criar cliente
+  10%; atualizar cliente 10%; criar pedido 15%. Sao 60% leituras com banco,
+  35% escritas e 5% health sem banco.
+- Referencia principal: fixed_50; nivel complementar de maior pressao: fixed_100.
+  Os pilotos de 13/09/2026 fundamentam essa distincao (ver relatorio abaixo).
+  Ambos usam 100 usuarios,
+  spawn rate 20/s, quatro processos Locust. Pacing: 2 s e 1 s respectivamente.
+- Modelo FECHADO com pacing: usuarios aguardam respostas; 50/100 req/s sao
+  taxas nominais, nao chegadas abertas independentes. Publicar a taxa efetiva.
+  Nao usar esse desenho para inferir comportamento sob fila aberta/sobrecarga.
+- A primeira requisicao de cada usuario recebe uma fase distribuida no periodo.
+  O tempo de spawn nao e contado pelo pacing da primeira tarefa.
+- Selecao suave e deterministica das operacoes por worker, com ciclo de 20
+  operacoes no mixed e offsets distintos. Cada ciclo completo respeita os pesos.
+  O prefixo incompleto no encerramento pode diferir; guardar contagens reais.
+  Nao ha promessa de ordem global identica: respostas e escalonamento variam.
+- Payloads de criacao de clientes usam faixas disjuntas por worker; outros
+  payloads percorrem ciclos com offsets. Nao se garante identica intercalacao
+  concorrente de atualizacoes, nem identico instante de acesso a cada registro.
+- Cinco rodadas POR NIVEL, ordem das cinco linguagens rotacionada. O menu Windows
+  percorre OFFICIAL_PROFILES, alternando tambem a ordem dos perfis por rodada.
+  Uma chamada de proxima rodada executa cinco APIs de um nivel; sao dez chamadas
+  para completar os dois niveis com cinco repeticoes.
+- Warmup oficial: 300 s; medicao oficial: 300 s apos spawn completo.
+  Pilotos abreviados sao sempre non_official e nao substituem essas repeticoes.
 
-Alterar GOMAXPROCS exige novo commit, verificacao e calibracao antes de uma
-campanha oficial; nao completar campanhas antigas com essa configuracao nova.
+## Escolha e congelamento da carga
 
-## Justificativa para uso mínimo de frameworks
+A avaliacao local das dez combinacoes esta em
+[Validacao da metodologia 15](validation-methodology-15.md). O nivel50 manteve
+CPU media PostgreSQL de 32,6% a 36,9% da cota, enquanto o nivel100 atingiu
+63,3% a 73,3%, incluindo tres avisos de margem >=70%. Por isso, nivel50 e a
+referencia principal; nivel100 permanece como comparacao complementar de
+sensibilidade a carga. Nao misturar seus resultados nem apresentar o nivel100
+como evidencia de banco sem pressao. Ambos exigem repeticoes oficiais separadas.
+Foram observadas esperas de I/O mesmo no nivel50; a escolha nao elimina nem
+isola o custo do banco e nao demonstra latencias estacionarias.
 
-O experimento busca reduzir interferencias de frameworks completos, ORMs e abstracoes automaticas. Cada API usa apenas o necessario para HTTP, JSON, acesso PostgreSQL, pool de conexoes e execucao das operacoes.
+Antes da campanha, executar ambos os niveis em todas as APIs. Avaliar entrega
+da carga, falhas, latencia por endpoint, CPU media E picos do banco/gerador,
+sessoes ativas e esperas. O criterio operacional existente de CPU media abaixo
+de 90% da cota NAO prova ausencia de gargalo. Preferir margem ampla e examinar
+a mudanca entre os dois niveis. Esperas amostradas iguais a zero tambem nao
+provam ausencia de esperas curtas.
 
-- Python: FastAPI, Uvicorn, psycopg e psycopg_pool.
-- Node.js: Express e pg.
-- Java: JDK HttpServer, Jackson, JDBC e HikariCP.
-- Go: net/http, database/sql e lib/pq.
-- C#/.NET: ASP.NET Core Minimal API e Npgsql.
+O relatorio opcional assess_primary_pilots.py recebe uma sequence_id explicita
+e confere as dez combinacoes, fontes executaveis iguais e um protocolo por
+nivel, snapshots, estabilidade, CPU e cobertura. Para selecao dos pilotos,
+sinaliza entrega fora de +/-2,5% do nominal, CPU media PostgreSQL >=70% como
+aviso de margem, picos >=90% e esperas observadas. Esses avisos nao sao novos
+preflights nem uma prova automatica de ausencia de gargalo. Eles devem ser
+interpretados antes do congelamento, e nao ajustados apos ver um ranking.
 
-Nenhuma implementacao usa ORM, geracao automatica de entidades ou persistencia implicita. FastAPI, Express e ASP.NET Core Minimal API sao usados somente como camada HTTP/JSON; Java e Go usam os servidores HTTP das bibliotecas padrao. O SQL, as transacoes e o mapeamento das respostas permanecem explicitos em todas as linguagens.
+Se um nivel comprometer o banco ou gerador em qualquer implementacao, rever
+o nivel comum ou as quotas para TODAS e repetir os pilotos antes do congelamento.
+Nao escolher parametros para ampliar diferencas entre linguagens. Nao remover
+somente rodadas lentas para favorecer uma implementacao. Registrar falhas,
+exclusoes e justificativas, mantendo os artefatos originais.
 
-## Pool de conexoes
+Aumentar pool para 100 nao equivale a oferecer 100 req/s. Pool20 e quotas
+permanecem inalterados: API2 CPU, PostgreSQL1 CPU, Locust4 CPU. Sao limites,
+nao reservas/afinidades exclusivas. Compartilham host e memoria Docker;
+capturar a alocacao efetiva, nao apenas a memoria fisica do PC.
 
-Configuracao base:
+## Banco e condicoes controladas
 
-```env
-DB_POOL_MIN=1
-DB_POOL_MAX=20
-DB_POOL_ACQUIRE_TIMEOUT_SECONDS=10
-DB_POOL_IDLE_TIMEOUT_SECONDS=60
-DB_POOL_MAX_LIFETIME_SECONDS=1800
-```
+PostgreSQL 17 com imagem por digest; shared_buffers=128MB, work_mem=4MB,
+effective_cache_size=4GB, max_connections=100 e statement_timeout=30000ms.
+effective_cache_size e estimativa do planejador, nao memoria reservada.
 
-Cada ecossistema implementa pooling de modo diferente. A comparacao preserva a mesma intencao e registra estas diferencas em `metadata.json`:
+Seed deterministico: 200.000 clientes, enderecos, pedidos e pagamentos;
+400.000 itens e registros de auditoria; 100 produtos e cinco categorias.
+Reset logico antes do warmup e novamente antes da medicao; o runner tambem
+restaura no final. O reset repoe sequences/dados, executa VACUUM ANALYZE,
+CHECKPOINT e pg_stat_reset. Locust deve estar parado durante o reset.
 
-- Python/psycopg_pool: aplica minimo, maximo, espera de aquisicao, ociosidade e vida maxima.
-- Node.js/pg: aplica maximo, espera, ociosidade e vida maxima; `min` nao preabre conexoes.
-- Java/HikariCP: aplica todos os cinco parametros diretamente.
-- Go/database/sql: aplica o maximo a conexoes abertas e ociosas, preabre o minimo e limita cada operacao de banco por contexto; isso evita churn de conexoes e cobre a espera por aquisicao.
-- .NET/Npgsql: aplica todos os cinco parametros na connection string.
+O reset NAO limpa cache do SO, buffers, planos, JIT ou heap da aplicacao.
+O runtime aquecido continua ativo. Registrar essa limitacao; nao chamar
+o procedimento de cold cache. A rotacao reduz efeitos de ordem, nao os elimina.
+A consulta COUNT(*) da listagem e parte do workload: seu custo comum nao
+pode ser atribuido a linguagem, e seu plano/custo nao deve ser presumido.
 
-## Tipos numericos e formatacao monetaria
+## Aplicacoes e pools
 
-Valores `numeric` chegam como texto nos drivers `lib/pq` (Go) e `pg` (Node.js), e como tipo decimal em psycopg (`Decimal`), JDBC (`BigDecimal`) e Npgsql (`decimal`). Essa diferenca e do driver, nao do SQL: as cinco APIs enviam exatamente o mesmo texto de consulta ao PostgreSQL, sem cast de conversao, e normalizam o valor para string de duas casas na camada de aplicacao antes de serializar o JSON. Nenhuma implementacao delega a formatacao decimal ao banco.
+Nenhum SQL, endpoint, payload ou regra de negocio foi alterado nesta revisao.
+Minimo1, maximo20, aquisicao10s, idle60s, lifetime1800s, conforme suporte do driver.
+Python: FastAPI/Uvicorn, psycopg/psycopg_pool; Node: Express/pg;
+Java: HttpServer, Jackson/JDBC/HikariCP; Go: net/http, database/sql/lib/pq;
+.NET: ASP.NET Core Minimal API/Npgsql. Sem ORM.
 
-## Warmup
+Node nao preabre o minimo; Go nao garante um minimo persistente de conexoes
+ociosas. O escopo do timeout nao e identico entre drivers: registrar as notas
+do metadata. Modelos de concorrencia tambem diferem: Python Uvicorn de processo
+unico com tarefas sincronas, Node event loop, Java virtual threads, Go e .NET
+com seus escalonadores. Go configura GOMAXPROCS=2. Nao igualar esses conceitos
+ao numero de CPUs utilizado ou de conexoes simultaneamente ativas.
 
-O warmup reproduz o mesmo workload e o mesmo nivel de concorrencia da rodada principal. A vazao de cada janela e estimada pela inclinacao de regressao do contador cumulativo sobre todos os pontos da janela; isso preserva a tendencia sem transformar a entrega em lotes dos workers Locust multiprocesso em falsa instabilidade:
+## Coleta e unidades
 
-- duracao fixa: 300 segundos para todas as linguagens
-- usuarios e spawn rate: iguais aos da medicao (50/10, 100/20 ou 200/40)
-- cobertura: mesmas leituras, escritas e pesos do cenario medido
-- estabilidade: variacao maxima de 10% entre cada par das tres ultimas janelas de 45 segundos com a concorrencia completa
-- concorrencia: o pico observado deve ser exatamente o numero de usuarios configurado para o perfil
-- falha de estabilidade de RPS, cobertura, erros HTTP ou concorrencia: interrompe a rodada; nao existe duracao especial ou repeticao automatica por linguagem
-- deriva de latencia media por endpoint: registrada como diagnostico para investigacao posterior; nao bloqueia sozinha a rodada
-- resultado fora da coleta principal
-- API nao reiniciada entre warmup e teste principal
-- banco resetado depois do warmup sem derrubar a API
-- banco resetado novamente depois da coleta principal
-- `VACUUM (ANALYZE)`, `CHECKPOINT` e `pg_stat_reset()` executados em cada reset para iniciar a medicao com planos, tuplas mortas, escrita pendente e contadores cumulativos estabilizados
+Locust 2.32.6 mede contagens, falhas e latencia HTTP. Vazao canonica =
+requisicoes concluidas / segundos monotonicos da janela. P50/P95/P99 sao
+recalculados dos histogramas arredondados dos workers. Janela inicia apos
+spawn; encerra na ultima fronteira de parada dos workers, com drenagem limitada
+a 5 s das requisicoes iniciadas antes da parada. Contagens/histogramas devem
+reconciliar; requests cancelados ou pendentes nao sao promovidos.
 
-Se o RPS final do aquecimento estiver instavel, alguma rota esperada nao for chamada, a concorrencia configurada nao for atingida ou houver falhas HTTP, a medicao principal nao comeca. A deriva de latencia e mantida no artefato para diagnostico posterior e nao impede a primeira rodada. Isso evita que o JIT do Java ou caminhos de escrita ainda frios sejam medidos como estado estacionario sem favorecer uma implementacao com tempo adicional.
+Prometheus coleta a cada 5 s; cAdvisor usa housekeeping de 1 s. Revisao3 do
+coletor exporta timestamps reais, margem de scrape e medias ponderadas pelo
+tempo, rejeitando gaps/reset/ambiguidade quando a evidencia e obrigatoria.
+CPU bruta100% equivale a um core; dividir pela quota para obter percentual
+da cota. Working set de memoria e por container. CPU/memoria NAO sao
+atribuicoes por endpoint. docker stats permanece complementar.
 
-## Payloads e estoque
+postgres-exporter v0.15.0 recebe consulta customizada pg_benchmark_activity:
+sessoes client backend ativas, ativas esperando evento nao Client,
+esperando Lock e esperando IO; todas no banco experimental, excluindo as
+conexoes identificadas do exporter. Sao gauges instantaneos (sessoes),
+nao tempo acumulado de espera nem percentual de queries bloqueadas.
+Postgres_summary.csv fornece media ponderada e maximo de cada gauge; series
+originais ficam em prometheus_series.json. Resultados antigos mostram vazio,
+nao zero, quando essa instrumentacao nao existia.
 
-Os arquivos JSONL em `common/payloads/` sao gerados antes da coleta e lidos sequencialmente, sem gerar, copiar ou alterar JSON durante o teste. `customers_create.jsonl` contem 200.000 clientes unicos e deterministas. Em cinco minutos a 5.000 requisicoes totais por segundo, o peso de 10% do cenario misto produz 150.000 criacoes em expectativa; a massa mantem 50.000 registros adicionais, ou 33,3% de margem, para a variacao da selecao ponderada. Os registros unicos sao repartidos entre os workers do Locust; fluxos ciclicos recebem deslocamentos diferentes para evitar que todos comecem no mesmo registro. A rodada falha de forma explicita se consumir todo o arquivo.
+A consulta estendida e suportada mas deprecated nessa imagem fixada. O coletor
+stat_bgwriter legado foi desabilitado por consultar colunas removidas no PG17;
+estatisticas de checkpoint/bgwriter nao integram as metricas do trabalho.
+Os contadores de commits, rollbacks e blocos sao do BANCO INTEIRO, incluindo
+monitoramento/drivers. Nao sao equivalentes a transacoes HTTP; cache_hit_ratio
+e dos buffers PostgreSQL, nao evidencia de I/O fisico. Grafana visualiza;
+o results-exporter republica resultados, nao e uma medicao independente.
 
-O seed inicial tambem contem 200.000 clientes, enderecos e pedidos. No warmup
-do perfil `fixed_200`, o teto de 200 requisicoes por segundo por 300 segundos,
-com pesos de 10% para criacao de cliente e 15% para criacao de pedido, produz
-no maximo esperado 6.000 e 9.000 insercoes. Portanto, o maior aumento relativo
-das tabelas que crescem durante o warmup e de 4,5%; os payloads de identificador
-e de criacao de pedido percorrem toda a populacao inicial de forma deterministica.
+## Proveniencia, analise e execucao
 
-O seed reserva mais estoque do que uma rodada de cinco minutos consegue consumir. Assim, esgotamento de produto nao favorece APIs mais lentas nem penaliza APIs mais rapidas.
+Metodologia15 e nova coorte. Manifesto registra modelo, ciclo/hash, fases,
+carga, warmup, pool, quotas, seed, Compose e intervalos; fingerprint combina
+protocolo e commit. Hashes dos arquivos executaveis/configuracoes/payloads
+tambem entram no manifesto, inclusive arquivos ainda sem commit; documentos
+e resultados ficam fora desse conjunto. A calibracao health-only e opcional e nao faz mais parte
+do hash de um protocolo que nao a exige. Nao ha nova obrigacao de calibrar
+para cada execucao. Preflight ainda verifica o ambiente/contrato oficial,
+incluindo Docker29.5.2, Compose5.1.4 e Git limpo. Nao contornar esses controles.
 
-O PostgreSQL nao executa autovacuum ou autoanalyze nas tabelas do benchmark durante a carga. Cada reset usa `TRUNCATE`, repoe o seed, executa `VACUUM (ANALYZE)` e `CHECKPOINT` e zera as estatisticas cumulativas do banco. Isso evita que manutencao em segundo plano, a escrita inicial do seed ou contadores herdados ocorram em instantes diferentes para cada linguagem.
+Deriva da latencia no warmup e diagnostica, nao bloqueante isoladamente.
+Erros operacionais/integridade permanecem erros, nao resultados cientificos.
+Falha de criterios de comparabilidade deve permanecer documentada junto
+aos dados non_official; nao presumir que ela identifica a causa do gargalo.
 
-## Banco compartilhado como limite comum
+Os consolidadores separam campanha, protocolo, perfil e classificacao.
+Use --campaign no summarize_results.py para uma coorte explicita. Divulgar
+numero de rodadas, mediana e min-max por linguagem/endpoint/nivel.
+Mediana de P95 entre rodadas nao e P95 global. Nao ha teste de significancia,
+intervalo de confianca ou causalidade isolada implementados. A etiqueta
+adequate do software e verificacao operacional, nao confianca estatistica.
 
-O PostgreSQL e unico e compartilhado pelas cinco implementacoes, com cota de 1,0
-CPU. Se ele saturar a propria cota, as cinco passam a enfileirar atras do mesmo
-limite e a diferenca entre elas deixa de ser observavel: o resultado passa a
-descrever o banco, nao os ecossistemas. E o mesmo raciocinio que ja justificava o
-gate de folga do gerador de carga, aplicado ao outro recurso compartilhado.
+Fluxo: ambiente -> reset -> API -> verificacoes/contrato -> reset -> warmup
+-> reset -> medicao Locust em paralelo a cAdvisor/exporter/Prometheus
+-> reconciliacao dos workers -> exportacao da janela -> metadata -> reset
+-> parada da API -> consolidacao/visualizacao. So uma API e medida por vez.
 
-A metodologia 10 acrescenta `database_headroom_met`: a CPU media do container
-`postgres` na janela de medicao, normalizada pela cota, deve ficar abaixo de 90%.
-Ausencia da serie do cAdvisor tambem reprova em modo oficial. O valor bruto e o
-maximo por intervalo continuam registrados em `shared_database` no `metadata.json`.
+Para reproduzir a validacao funcional no Windows:
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/verificar-projeto.ps1
 
-Com o seed de 200.000 registros isso deixou de ser hipotetico. `GET /customers`
-emite `SELECT count(*)::int AS total FROM customers` sem filtro e responde por 15%
-do cenario misto; a contagem percorre a tabela inteira a cada requisicao. O custo e
-identico para as cinco e nao enviesa a comparacao, mas comprime a diferenca entre
-elas, do mesmo modo que o caminho de escrita. O gate nao corrige isso: ele impede
-que uma rodada em que o banco saturou seja classificada como oficial.
+Para um piloto:
+powershell -NoProfile -ExecutionPolicy Bypass -File launchers/windows/powershell/rodar-linguagem.ps1 -Language python -Scenario mixed -LoadProfile fixed_50 -RunMode pilot
 
-Os parametros de memoria do PostgreSQL passam a ser declarados no Compose nos
-valores padrao da versao 17 - `shared_buffers=128MB`, `effective_cache_size=4GB`,
-`work_mem=4MB` e `max_connections=100`. O comportamento nao muda; o que muda e que
-o tamanho do cache deixa de ser um default implicito da imagem. Com o seed atual o
-conjunto de trabalho excede `shared_buffers`, entao quanto do banco fica residente
-determina o resultado e precisa ser reproduzivel. O preflight le os valores
-efetivos em `pg_settings`, normaliza as unidades internas e bloqueia rodada oficial
-em caso de divergencia.
-
-## Metricas comparaveis
-
-O protocolo de encerramento revisao 3 fecha a janela agregada quando o ultimo
-worker recebe o comando de parada. Cada worker bloqueia imediatamente novas
-requisicoes, envia seus ultimos deltas antes da confirmacao e
-grava um relatorio independente; o CSV final so e aceito se contagens, falhas e
-somas de latencia por endpoint coincidirem. Cancelamentos e pendencias rejeitam
-a execucao. Drenagem de ate 5 s e coordenacao ficam fora da duracao medida; 10 s de
-preparacao do monitoramento ficam fora. cAdvisor usa housekeeping fixo de 1 s,
-verificado no container. Essas alteracoes exigem nova calibracao e campanha.
-
-O coletor Prometheus revisao 2 preserva timestamps originais de scrape, usa padding
-de dois scrapes e rejeita lacunas/reinicios e identidades ambiguas. As fronteiras
-interpoladas e picos de recursos continuam sendo estimativas amostradas. O CSV
-HTTP final passa por checagem de consistencia; percentis usam o histograma
-arredondado do Locust. A deriva UTC/monotonico e limitada a 50 ms. Detalhes,
-evidencias e limites: [auditoria de precisao](measurement-precision-audit.md).
-
-Latencia e falhas HTTP sao medidas pelo Locust. No encerramento, o `locustfile.py` grava uma fotografia final e o runner a promove para `locust_stats.csv`; isso impede que o consolidado use apenas a ultima fotografia periodica anterior ao shutdown. Os limites UTC usam `time.time_ns`, enquanto a duracao usa `time.monotonic_ns` e passa por validacao de deriva. A vazao canonica e `Request Count / elapsed_seconds`; `Requests/s` do Locust permanece armazenado como valor informado pelo instrumento. Prometheus coleta series do PostgreSQL pelo `postgres-exporter`; disponibilidade, conexoes, transacoes, blocos, cache hit ratio e tamanho do banco sao reduzidos para `postgres_summary.csv` na mesma janela. Pela especificacao do TCC, cAdvisor e a fonte primaria de CPU e memoria da API, PostgreSQL e Locust. `docker stats` e coletado na mesma janela apenas como evidencia complementar ou contingencial.
-
-Para CPU oficial, o exportador consulta o contador bruto `container_cpu_usage_seconds_total` com a margem de um scrape antes e depois. Cada delta e ponderado somente pela parte que intercepta `spawning_complete` e o recebimento da parada pelo ultimo worker; gauges usam media trapezoidal ponderada pelo tempo. Isso reduz a perda nas bordas sem incorporar ramp-up, drain ou aquecimento. Como o cAdvisor pode manter um valor em um scrape e publicar o incremento acumulado no seguinte, o maximo bruto por intervalo e preservado para diagnostico, mas o gate do gerador usa a media ponderada da janela normalizada pela cota. A cobertura e registrada e deve ser de pelo menos 90% para cAdvisor; PostgreSQL exige cobertura integral interpolavel. IDs observados pelo coletor continuo identificam inclusive o container Locust transitorio; labels/nome sao apenas fallback.
-
-O `benchmark-results-exporter` e um componente proprio em Python, sem framework web ou dependencias externas. Ele le os CSVs e JSONs ja produzidos por Locust, cAdvisor/Prometheus, postgres-exporter e `docker stats` e os publica em `/metrics` para os dashboards do Grafana. Em resultados oficiais atuais, CPU e memoria sao aceitas somente de `cadvisor_summary.csv`, e recursos so ficam disponiveis quando `postgres_summary.csv` tambem existe; `docker_stats_summary.csv` permanece diagnostico de pilotos e legado. Ele nao instrumenta as APIs, nao substitui os arquivos oficiais e permanece ativo sob a mesma configuracao em todas as linguagens.
-
-`test_phase.elapsed_seconds` e calculado entre `spawning_complete`, depois do reset das estatisticas, e o instante monotônico em que o ultimo worker recebe a parada. Os usuarios ficam bloqueados durante o ramp-up e cada worker impede novas chamadas ao receber esse comando. Requisicoes iniciadas antes da fronteira local podem terminar no drain cooperativo, limitado a 5 segundos, mas o drain fica fora da duracao e das metricas. A propagacao master-worker e registrada explicitamente e limitada a 0,25 segundo; a duracao configurada usa a mesma tolerancia. O tempo total do processo Locust permanece em `runner_elapsed_seconds`.
-
-Cada rodada tambem registra `measurement_stability`: RPS da primeira e da ultima janela, mudanca percentual assinada e variacao entre as tres janelas finais. Na medicao principal, tanto a variacao entre janelas finais quanto a variacao absoluta entre a primeira e a ultima janela devem permanecer em ate 10%; ultrapassar qualquer limite torna a rodada `non_official`. No aquecimento, somente as tres janelas finais precisam estabilizar, permitindo que a transicao inicial aconteca antes da medicao. Assim, uma melhoria tardia como a observada anteriormente no Java nao pode ser aceita como estado estacionario.
-
-Se o target cAdvisor responder sem publicar series identificaveis por container, a limitacao nao e mascarada: `scripts/validate_monitoring.py` bloqueia `official` e registra separadamente API, PostgreSQL e Locust ausentes. O resultado de `docker stats` pode ser analisado em pilotos, mas nao recebe classificacao oficial enquanto o TCC mantiver cAdvisor como requisito. As APIs nao expoem `/metrics`, evitando instrumentacao e custo diferentes entre linguagens.
-
-O percentual de CPU do `docker stats` e expresso por nucleo logico: aproximadamente 100% representa um nucleo totalmente utilizado. Em uma maquina com varios nucleos, um container multithread pode ultrapassar 100% sem exceder a capacidade total disponivel.
-
-## Execucao separada
-
-A coleta principal executa apenas uma API por vez. O fluxo sequencial sobe uma linguagem, aquece, coleta, encerra e somente entao inicia a proxima.
-
-O perfil oficial `fixed_200` executa cinco rodadas completas. A ordem das linguagens e rotacionada entre rodadas para distribuir efeitos de temperatura, cache e atividade residual do host. O relatorio apresenta mediana e intervalo minimo-maximo; a partir da metodologia 7, uma combinacao `fixed_200` com menos de cinco rodadas continua marcada como preliminar. Falhas HTTP, metricas ausentes, janela inexata, entrega abaixo de 97,5% do alvo, ordem nao rotacionada nas cinco posicoes, variacao de RPS acima de 10%, instabilidade interna, falta de folga do gerador ou saturacao do banco compartilhado invalidam a combinacao. Metodologias historicas e a bateria separada de saturacao preservam o criterio de repeticoes configurado para elas.
-
-O `campaign_fingerprint` vincula o commit ao `protocol_sha256`. O manifesto canonico inclui carga, pacing, duracao, warmup, processos Locust, pool, cotas, intervalos, perfil, Compose e calibracao. CSVs, exportador Prometheus e dashboards carregam essas dimensoes; rodadas de protocolos diferentes permanecem visiveis, mas nunca compoem a mesma mediana ou classificacao de confianca.
-
-## Proveniencia e classificacao
-
-A metodologia atual e `11`: preserva os controles da revisao 10 e passa a registrar a deriva da latencia media por endpoint como diagnostico, sem usá-la como bloqueio de warmup ou elegibilidade da medicao. Cada `metadata.json` registra o manifesto e seu hash, alem de commit, ambiente, pool, carga, rodada e origem das metricas. `official` exige Docker 29.5.2, Compose 5.1.4, Git limpo, cAdvisor validado, verificacao atual, parametros do PostgreSQL conforme declarados e calibracao quando aplicavel. `pilot` permanece executavel, mas e sempre `non_official`.
-
-## Carga controlada e capacidade
-
-- Quando houver rodadas antigas e atuais para o mesmo nivel de carga, os relatorios usam apenas o maior `methodology_version` dentro da mesma familia, linguagem e classificacao. `legacy_capacity` e `saturation` nunca compartilham baseline.
-
-O perfil `fixed_200` compara latencia e recursos com alvo de 200 req/s; ele nao representa capacidade maxima. Os perfis `saturation_25` a `saturation_400` usam malha fechada e formam uma bateria separada. Antes deles, a calibracao health-only demonstra a capacidade do instrumento; durante cada rodada, a CPU media do Locust na janela, normalizada pela cota, deve ficar abaixo de 90% e a vazao deve permanecer no maximo em 80% da capacidade calibrada. A media e o maximo brutos do cAdvisor tambem sao preservados. Saturacao significa apenas o limite pratico observado neste workload e ambiente.
-# Measurement revision 12
-
-New runs use methodology 12. Do not combine them with revision 11: the `fixed_200`
-concurrency and pacing changed to keep the required 200 req/s rate achievable for
-the mixed workload. Historical results remain untouched.
-Regenerate verification and load-generator calibration for the new clean commit.
-
-The protocol fingerprint also records the network path, the base language order
-and its rotation rule. `LOCUST_HOST_OVERRIDE` changes the fingerprint and is
-rejected for official runs; it remains available only for explicitly non-official
-network-path pilots.
-
-In addition to throughput stability, each worker accumulates per-endpoint
-response-time sums and request counts in completion-second buckets, entirely in
-memory. Final reports reconcile these buckets with endpoint totals. Warmup checks
-the last three windows; measurement also compares the first and last steady-user
-windows. Per-endpoint means are retained in the validation artifact whenever at
-least 30 requests fall in each window. Their drift is diagnostic only: it does
-not decide warmup or measurement eligibility, because a relative change in a
-mean latency is sensitive to ordinary variation in request mix and concurrent
-work. Eligibility remains based on coverage, zero failures, configured users and
-RPS stability. P50/P95/P99 remain Locust rounded-histogram estimates, but each
-worker histogram is persisted and independently reconciled before publication.
-
-CSV publication retains original final files, stages a host-owned copy, retries
-transient permission failures at most six times, then fails closed. A final hash
-manifest covers stats, failures and exceptions. Revision-9 summaries and completed
-Grafana results accept only the validated snapshot. Missing worker reports,
-nonfinite timestamps and mismatched weighted aggregate latency are rejected.
+Para uma rodada oficial usar o menu existente, apos finalizar/versionar o
+protocolo e revisar os pilotos. Nao transformar execucoes abreviadas em oficiais.
