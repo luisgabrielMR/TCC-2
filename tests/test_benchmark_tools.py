@@ -662,7 +662,7 @@ class LoadGeneratorCalibrationTests(unittest.TestCase):
             "throughput_rps_exact": 300,
             "locust_cpu_raw_average_percent": 200, "locust_cpu_raw_max_percent": 300,
             "locust_cpu_quota_average_percent": 50, "locust_cpu_quota_max_percent": 75,
-            "cadvisor_coverage_percent": 95, "cpu_metric_source": "cadvisor_via_prometheus",
+            "cadvisor_coverage_percent": 80, "cpu_metric_source": "cadvisor_via_prometheus",
             "bounds_valid": True,
         } for users in (25, 50, 100, 200, 400)]
         samples[-1]["locust_cpu_raw_average_percent"] = 380

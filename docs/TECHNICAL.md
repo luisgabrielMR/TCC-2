@@ -4,7 +4,8 @@
 
 | Fonte | Papel |
 | --- | --- |
-| `methodological-notes.md` | protocolo implementado da metodologia 16 |
+| `methodological-notes.md` | protocolo implementado da metodologia 17 |
+| `methodology-16-history.md` | registro do protocolo imediatamente anterior, sem promoção de resultados |
 | `validation-methodology-15.md` | evidência dos dez pilotos e seus limites |
 | `tcc-compliance-matrix.md` | relação entre implementação e exigências acadêmicas |
 | `api-contract.md` e `sql-contract.md` | equivalência HTTP e SQL |
@@ -15,7 +16,7 @@
 
 `experiment-plan.md`, `easy-execution-guide.md`, `runbook.md` e
 `measurement-precision-audit.md` contêm contexto de revisões anteriores e podem
-citar `fixed_200`, metodologia 8, 9 ou 12. Eles não definem o protocolo atual.
+citar `fixed_200`, metodologia 8, 9, 12, 15 ou 16. Eles não definem o protocolo atual.
 Preservá-los evita apagar o histórico de decisões, mas novos comandos e texto
 acadêmico devem usar as fontes atuais, `scripts/benchmark_protocol.py` e
 `.env.example`.

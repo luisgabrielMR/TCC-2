@@ -15,7 +15,7 @@ está em `menu-testes.ps1`; utilitários comuns ficam em `benchmark-common.ps1`.
 | `testar-payloads.ps1` | chamadas manuais simples à API ativa |
 
 `Get-NextOfficialRoundPlan` usa `OFFICIAL_PROFILES` e `OFFICIAL_ROUNDS`. Para
-metodologia 16, são duas campanhas de cinco repetições: `fixed_50` e
+metodologia 17, são duas campanhas de cinco repetições: `fixed_50` e
 `fixed_100`. Cada acionamento mede as cinco APIs de um perfil, com ordem de
 linguagens rotacionada; os perfis também alternam a cada rodada.
 

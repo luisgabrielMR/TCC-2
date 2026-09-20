@@ -6,7 +6,8 @@ leitura mais simples.
 
 | Documento atual | Quando usar |
 | --- | --- |
-| [Notas metodológicas](methodological-notes.md) | descrever ou revisar o método da metodologia 16 |
+| [Notas metodológicas](methodological-notes.md) | descrever ou revisar o método da metodologia 17 |
+| [Metodologia 16 — histórico](methodology-16-history.md) | distinguir o protocolo anterior da campanha atual |
 | [Validação local histórica](validation-methodology-15.md) | entender os pilotos anteriores e seus limites |
 | [Contrato das APIs](api-contract.md) | conferir rotas, entradas e saídas |
 | [Contrato SQL](sql-contract.md) | conferir operações que precisam ser equivalentes |

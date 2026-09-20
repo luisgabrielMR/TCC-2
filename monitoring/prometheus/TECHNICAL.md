@@ -22,3 +22,16 @@ O Prometheus não acessa as APIs comparadas. O script
 salva resumos por rodada. Lacunas, resets e séries ambíguas podem invalidar
 evidências obrigatórias; o limite de lacuna é calculado como 1,5 vezes o
 `step_seconds` registrado na exportação, portanto 1,5 s nas novas rodadas.
+Nas rodadas oficiais, o exportador exige cobertura mínima de 95% das séries de
+CPU e memória do cAdvisor para API, PostgreSQL e Locust. O limite é de
+completude, não de vazão: uma série com lacuna superior a 1,5 s é rejeitada
+mesmo que a cobertura total ultrapasse 95%.
+
+`OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT` é lido pelos runners e registrado
+como `metrics.minimum_cadvisor_coverage_percent` no manifesto e no
+`metadata.json`. O valor participa de `protocol_sha256`. A exportação também
+registra o limite aplicado em `maximum_cadvisor_scrape_gap_seconds`; no CSV,
+`maximum_scrape_gap_seconds` é a lacuna observada, enquanto
+`maximum_allowed_scrape_gap_seconds` é o limite aceito (`1,5 × step_seconds`).
+A calibração curta passa 80% explicitamente; seus critérios não são herdados
+do limite oficial de 95%.

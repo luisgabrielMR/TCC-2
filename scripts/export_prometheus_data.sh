@@ -10,7 +10,9 @@ START_EPOCH="${2:?Inicio epoch obrigatorio}"
 END_EPOCH="${3:?Fim epoch obrigatorio}"
 API_SERVICE="${4:?Servico da API obrigatorio}"
 RUN_MODE="${5:-pilot}"
-MINIMUM_CADVISOR_COVERAGE_PERCENT="${6:-90}"
+# O valor fica registrado em toda exportacao; --require-cadvisor o aplica como
+# criterio somente nas rodadas oficiais, preservando pilotos nao bloqueantes.
+MINIMUM_CADVISOR_COVERAGE_PERCENT="${6:-$OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://localhost:9090}"
 PYTHON_BIN="$(python_bin)"
 mkdir -p "$RESULT_DIR"

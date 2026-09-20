@@ -36,6 +36,7 @@ class ProtocolTests(unittest.TestCase):
             "WARMUP_DURATION_SECONDS": "300", "DB_POOL_MIN": "1", "DB_POOL_MAX": "20",
             "DB_POOL_ACQUIRE_TIMEOUT_SECONDS": "10", "DB_POOL_IDLE_TIMEOUT_SECONDS": "60",
             "DB_POOL_MAX_LIFETIME_SECONDS": "1800", "METRICS_SAMPLE_INTERVAL_SECONDS": "2",
+            "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT": "95",
             "OFFICIAL_ROUNDS": "5", "LOAD_GENERATOR_CALIBRATION_FILE": "missing.json",
         }
         completed = subprocess.CompletedProcess([], 0, stdout="a" * 40 + "\n", stderr="")
@@ -46,9 +47,15 @@ class ProtocolTests(unittest.TestCase):
             proxied = build_protocol("fixed_125", "mixed", {
                 **base, "LOCUST_HOST_OVERRIDE": "http://host.docker.internal:8000",
             })
+            different_coverage = build_protocol("fixed_125", "mixed", {
+                **base, "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT": "96",
+            })
         self.assertNotEqual(first["protocol_sha256"], second["protocol_sha256"])
         self.assertNotEqual(first["campaign_fingerprint"], second["campaign_fingerprint"])
         self.assertNotEqual(first["protocol_sha256"], proxied["protocol_sha256"])
+        self.assertNotEqual(first["protocol_sha256"], different_coverage["protocol_sha256"])
+        self.assertEqual(first["protocol"]["metrics"]["minimum_cadvisor_coverage_percent"], 95)
+        self.assertEqual(first["protocol"]["metrics"]["maximum_cadvisor_scrape_gap_seconds"], 1.5)
         self.assertEqual(
             first["protocol"]["load"]["target"]["network_mode"],
             "docker_internal_compose_service",

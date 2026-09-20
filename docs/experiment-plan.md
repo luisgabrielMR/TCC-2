@@ -5,6 +5,12 @@
 > protocolo atual. Para o workload atual, use `methodological-notes.md` e
 > `load-tests/locust/config/scenarios.json`.
 
+> Atualização para a metodologia 17: nas rodadas oficiais, CPU e memória do
+> cAdvisor de API, PostgreSQL e Locust exigem cobertura mínima de 95% e
+> ausência de lacunas superiores a 1,5 s. O requisito é de completude dos
+> dados, independente da entrega de carga. Os 90% descritos no registro
+> histórico abaixo pertencem ao protocolo anterior e foram preservados.
+
 ## Escopo
 
 O estudo compara Python, Node.js, Java, Go e C#/.NET no mesmo PostgreSQL, com SQL direto, sem ORM e com os oito endpoints de `docs/api-contract.md`. A interpretacao vale somente para o workload, hardware, alocacao Docker, versoes e configuracao registrados.

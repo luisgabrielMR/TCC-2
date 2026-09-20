@@ -20,6 +20,7 @@ from scripts.benchmark_protocol import (
     meets_minimum_delivery,
     workload_manifest,
 )
+from scripts.load_generator_calibration import MINIMUM_CADVISOR_COVERAGE_PERCENT
 from scripts.record_workload_mix import build_workload_mix
 from scripts.summarize_results import generate_outputs
 from scripts.assess_primary_pilots import assess, LANGUAGES, PROFILES
@@ -217,6 +218,8 @@ class CohortTests(unittest.TestCase):
         with patch("scripts.benchmark_protocol._compose_digest", return_value="test-compose"):
             manifest = build_protocol("fixed_50", "mixed", {})
         self.assertEqual(manifest["protocol"]["metrics"]["prometheus_scrape_interval_seconds"], 1)
+        self.assertEqual(manifest["protocol"]["metrics"]["minimum_cadvisor_coverage_percent"], 95)
+        self.assertEqual(manifest["protocol"]["metrics"]["maximum_cadvisor_scrape_gap_seconds"], 1.5)
         configuration = (ROOT / "monitoring/prometheus/prometheus.yml").read_text(encoding="utf-8")
         self.assertIn("scrape_interval: 1s", configuration)
         self.assertIn("evaluation_interval: 1s", configuration)
@@ -224,6 +227,31 @@ class CohortTests(unittest.TestCase):
         self.assertIn("--step 1", (ROOT / "scripts/export_prometheus_data.sh").read_text(encoding="utf-8"))
         self.assertIn('"--force-recreate", "prometheus"', (ROOT / "launchers/windows/powershell/rodar-linguagem.ps1").read_text(encoding="utf-8"))
         self.assertIn("--force-recreate prometheus", (ROOT / "scripts/run_one_language.sh").read_text(encoding="utf-8"))
+
+    def test_official_cadvisor_coverage_is_canonical_and_calibration_stays_at_80(self):
+        powershell_runner = (ROOT / "launchers/windows/powershell/rodar-linguagem.ps1").read_text(
+            encoding="utf-8"
+        )
+        powershell_common = (ROOT / "launchers/windows/powershell/benchmark-common.ps1").read_text(
+            encoding="utf-8"
+        )
+        bash_runner = (ROOT / "scripts/run_one_language.sh").read_text(encoding="utf-8")
+        bash_exporter = (ROOT / "scripts/export_prometheus_data.sh").read_text(encoding="utf-8")
+        protocol_source = (ROOT / "scripts/benchmark_protocol.py").read_text(encoding="utf-8")
+        self.assertIn("OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", powershell_runner)
+        self.assertIn("$MinimumCadvisorCoveragePercent", powershell_common)
+        self.assertIn("OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", bash_runner)
+        self.assertIn(
+            "Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode $minimumCadvisorCoveragePercent",
+            powershell_runner,
+        )
+        self.assertIn(
+            '"$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE" "$OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT"',
+            bash_runner,
+        )
+        self.assertIn("${6:-$OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT}", bash_exporter)
+        self.assertIn("OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", protocol_source)
+        self.assertEqual(MINIMUM_CADVISOR_COVERAGE_PERCENT, 80.0)
 
     def test_optional_calibration_never_changes_identity(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -254,6 +282,81 @@ class CohortTests(unittest.TestCase):
 
 class LauncherTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell launcher")
+    def test_powershell_exporter_forwards_official_config_and_calibration_override(self):
+        # Extract functions only; replace network and Python execution with captures.
+        code = r'''
+$ErrorActionPreference = 'Stop'
+$env:OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT = $null
+$script:BenchmarkRoot = Get-Location
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path (Get-Location) 'launchers/windows/powershell/benchmark-common.ps1'), [ref]$null, [ref]$null)
+foreach ($name in @('Get-BenchmarkValue', 'Export-BenchmarkPrometheus')) {
+    $definition = $ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq $name}, $true)
+    Invoke-Expression $definition.Extent.Text
+}
+function Invoke-WebRequest { }
+function Invoke-BenchmarkPython([string[]]$Arguments) { $script:captured = $Arguments }
+$cases = @(
+    @{ value='95'; mode='official'; expected='95'; override=$null },
+    @{ value='96'; mode='official'; expected='96'; override=$null },
+    @{ value='95'; mode='official'; expected='80'; override=80 },
+    @{ value='95'; mode='pilot'; expected='95'; override=$null }
+)
+foreach ($case in $cases) {
+    $parameters = @{ ResultDirectory='unused'; Environment=@{ OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT=$case.value };
+        StartEpoch=0; EndEpoch=100; ApiService='python-api'; RunMode=$case.mode }
+    if ($null -ne $case.override) { $parameters.MinimumCadvisorCoveragePercent = $case.override }
+    Export-BenchmarkPrometheus @parameters
+    $index = [Array]::IndexOf($script:captured, '--minimum-cadvisor-coverage-percent')
+    if ($index -lt 0 -or $script:captured[$index+1] -ne $case.expected) { throw 'Wrong coverage forwarded' }
+    if (($script:captured -contains '--require-cadvisor') -ne ($case.mode -eq 'official')) { throw 'Wrong enforcement mode' }
+    if (($script:captured | Where-Object { $_ -match '^(api|postgresql|locust)=' }).Count -ne 3) { throw 'Missing component' }
+}
+Write-Output 'coverage forwarding ok'
+'''
+        result = subprocess.run(["powershell", "-NoProfile", "-Command", code], cwd=ROOT,
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("coverage forwarding ok", result.stdout)
+
+    @unittest.skipUnless(Path(r"C:\Program Files\Git\bin\bash.exe").exists(), "Git Bash required")
+    def test_bash_exporter_forwards_official_config_and_calibration_override(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "scripts").mkdir()
+            # Exercise the real .env reader and wrapper with no network or Python exporter.
+            (root / "scripts/_lib.sh").write_text(
+                (ROOT / "scripts/_lib.sh").read_text(encoding="utf-8") + r'''
+python_bin() { printf '%s' capture_exporter; }
+curl() { :; }
+capture_exporter() { printf '%s\n' "$@"; }
+''', encoding="utf-8", newline="\n")
+            (root / "scripts/export_prometheus_data.sh").write_text(
+                (ROOT / "scripts/export_prometheus_data.sh").read_text(encoding="utf-8"),
+                encoding="utf-8", newline="\n",
+            )
+            environment = {key: value for key, value in os.environ.items()
+                           if key != "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT"}
+            cases = [("95", "official", [], "95"), ("96", "official", [], "96"),
+                     ("95", "official", ["80"], "80"), ("95", "pilot", [], "95")]
+            for configured, mode, override, expected in cases:
+                with self.subTest(configured=configured, mode=mode, override=override):
+                    (root / ".env").write_text(
+                        f"OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT={configured}\n", encoding="utf-8"
+                    )
+                    result = subprocess.run(
+                        [r"C:\Program Files\Git\bin\bash.exe", "scripts/export_prometheus_data.sh",
+                         "output", "0", "100", "python-api", mode, *override],
+                        cwd=root, env=environment, capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    arguments = result.stdout.splitlines()
+                    index = arguments.index("--minimum-cadvisor-coverage-percent")
+                    self.assertEqual(arguments[index + 1], expected)
+                    self.assertEqual("--require-cadvisor" in arguments, mode == "official")
+                    self.assertEqual(arguments.count("--component"), 3)
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell launcher")
     def test_menu_rotates_both_profiles_and_all_five_languages(self):
         # Load only the planning function AST, never the interactive entrypoint.
         code = r'''
@@ -270,7 +373,7 @@ function Get-BenchmarkValue($Environment, $Name, $Default) {
     }
 }
 function Get-OfficialCampaignIdentity($Environment, $Profile) {
-    return [pscustomobject]@{ fingerprint=$Profile; methodology_version=16; commit_sha='test' }
+    return [pscustomobject]@{ fingerprint=$Profile; methodology_version=17; commit_sha='test' }
 }
 $global:completed = @{}
 function Get-OfficialLanguagesForSequence($SequenceId, $Profile, $MethodologyVersion, $CommitSha) {
@@ -335,7 +438,7 @@ class PilotAssessmentTests(unittest.TestCase):
             self.assertFalse(report["complete_two_levels_five_languages"])
             self.assertFalse(report["all_evidence_checks_passed"])
 
-    def test_full_cohort_requires_consistent_sources_and_delivery(self):
+    def test_historical_pilot_cohort_retains_90_percent_coverage_criterion(self):
         aggregate = {"Name": "Aggregated", "Failure Count": "0", "Request Count": "4500",
                      "Average Response Time": "5", "95%": "7"}
         with tempfile.TemporaryDirectory() as directory, patch(
@@ -362,13 +465,13 @@ class PilotAssessmentTests(unittest.TestCase):
                     (path / "postgres_summary.csv").write_text("activity_diagnostics_available\nTrue\n")
                     (path / "cadvisor_summary.csv").write_text(
                         "component,coverage_percent,cpu_counter_resets,maximum_scrape_gap_seconds\n"
-                        "api,100,0,1\npostgresql,100,0,1\nlocust,100,0,1\n")
+                        "api,90,0,1\npostgresql,90,0,1\nlocust,90,0,1\n")
             self.assertTrue(assess(root, "selected")["all_evidence_checks_passed"])
             metadata["metrics"]["prometheus_scrape_interval_seconds"] = 5
             (path / "metadata.json").write_text(json.dumps(metadata))
             (path / "cadvisor_summary.csv").write_text(
                 "component,coverage_percent,cpu_counter_resets,maximum_scrape_gap_seconds\n"
-                "api,100,0,5\npostgresql,100,0,5\nlocust,100,0,5\n")
+                "api,90,0,5\npostgresql,90,0,5\nlocust,90,0,5\n")
             self.assertTrue(assess(root, "selected")["all_evidence_checks_passed"])
             (path / "protocol-manifest.json").write_text(json.dumps({**manifest,
                 "protocol": {"experimental_source_sha256": {"code": "changed"}}}))

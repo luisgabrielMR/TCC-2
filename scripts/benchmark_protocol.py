@@ -26,7 +26,7 @@ from workload_schedule import (
     static_workload_manifest,
 )
 
-CURRENT_METHODOLOGY = 16
+CURRENT_METHODOLOGY = 17
 FIXED_LOAD_MINIMUM_DELIVERY_PERCENT = 95
 CPU_QUOTAS = {
     "postgres": 1.0,
@@ -223,6 +223,10 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "collector_interval_seconds": _number(environment, "METRICS_SAMPLE_INTERVAL_SECONDS", "2"),
             "prometheus_scrape_interval_seconds": 1,
             "cadvisor_housekeeping_interval_seconds": 1,
+            "minimum_cadvisor_coverage_percent": _number(
+                environment, "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", "95"
+            ),
+            "maximum_cadvisor_scrape_gap_seconds": 1.5,
         },
         "execution": {
             "official_rounds": _number(environment, "OFFICIAL_ROUNDS", "5", int),

@@ -347,8 +347,14 @@ function Export-BenchmarkPrometheus {
         [string]$ApiService,
         [ValidateSet("pilot", "official")]
         [string]$RunMode = "pilot",
-        [double]$MinimumCadvisorCoveragePercent = 90
+        [double]$MinimumCadvisorCoveragePercent = 0
     )
+    if ($MinimumCadvisorCoveragePercent -le 0) {
+        $MinimumCadvisorCoveragePercent = [double](Get-BenchmarkValue $Environment "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT" "95")
+    }
+    if ($MinimumCadvisorCoveragePercent -gt 100) {
+        throw "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT deve estar entre 0 e 100."
+    }
     $prometheusPort = Get-BenchmarkValue $Environment "PROMETHEUS_PORT" "9090"
     $prometheusUrl = "http://127.0.0.1:$prometheusPort"
     $startArgument = $StartEpoch.ToString("R", [Globalization.CultureInfo]::InvariantCulture)

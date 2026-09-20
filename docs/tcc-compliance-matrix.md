@@ -1,4 +1,4 @@
-# Matriz de aderencia ao TCC — metodologia 16
+# Matriz de aderencia ao TCC — metodologia 17
 
 Esta matriz registra o protocolo implementado, nao declara uma campanha concluida.
 A referencia documental anterior foi o PDF TCC_Luis_Gabriel_Mendonca_Reos (27),
@@ -16,7 +16,7 @@ a revisao academica aprovada deve ser conferida antes da entrega.
 | Software | Imagens por digest e inventario preflight; Docker29.5.2 / Compose5.1.4 exigidos | Nao substituir versoes aprovadas pelo PDF para contornar divergencias |
 | Preparacao | Reset logico, seed200k, VACUUM ANALYZE, CHECKPOINT; warmup300s | Nao limpa cache do SO ou do runtime |
 | Janela de medicao | 300s apos spawn; reconciliacao dos workers, drenagem5s | Percentis em histogramas arredondados; duracao de pilotos e distinta |
-| Recursos por container | cAdvisor -> Prometheus; recorte temporal e cobertura | Nao atribuir CPU/memoria a endpoints |
+| Recursos por container | cAdvisor -> Prometheus; recorte temporal, cobertura minima95% e lacuna maxima1,5s | Nao atribuir CPU/memoria a endpoints; cobertura nao equivale a entrega de carga |
 | Diagnostico do banco | postgres-exporter: sessoes ativas/esperas nao Client, Lock, IO | Snapshots1s nao medem tempo total de espera nem provam ausencia de gargalo |
 | Compatibilidade PG17 | Coletor legado stat_bgwriter desativado; query estendida no exporter0.15 | Query estendida e deprecated nessa versao fixada; nao atualizada implicitamente |
 | Gerador | CPU cAdvisor e entrega efetiva; calibracao health-only opcional | CPU media abaixo do limite nao prova capacidade sob toda carga |

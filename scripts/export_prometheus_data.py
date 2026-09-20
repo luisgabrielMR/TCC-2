@@ -7,6 +7,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import subprocess
 import time
 import urllib.parse
@@ -31,6 +32,9 @@ QUERIES = {
     "cadvisor_memory_working_set_bytes": 'container_memory_working_set_bytes{job="cadvisor"}',
 }
 DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS = 1
+DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT = float(
+    os.environ.get("OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", "95")
+)
 
 
 def query_range(base_url: str, query: str, start: float, end: float, step: int) -> dict:
@@ -353,7 +357,8 @@ def write_postgres_summary(path: Path, result: dict, require: bool) -> None:
 
 
 def write_cadvisor_summary(
-    path: Path, result: dict, components: list[str], require: bool, minimum_coverage_percent: float = 90
+    path: Path, result: dict, components: list[str], require: bool,
+    minimum_coverage_percent: float = DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT,
 ) -> None:
     cpu = result["queries"]["cadvisor_cpu_usage_seconds_total"]["response"].get("data", {}).get("result", [])
     memory = result["queries"]["cadvisor_memory_working_set_bytes"]["response"].get("data", {}).get("result", [])
@@ -417,6 +422,8 @@ def write_cadvisor_summary(
             "memory_max_bytes": round(memory_max),
             "sample_source": result.get("sample_source", "legacy_resampled_or_unspecified"),
             "maximum_scrape_gap_seconds": max(cpu_quality["maximum_gap_seconds"], memory_quality["maximum_gap_seconds"]),
+            "maximum_allowed_scrape_gap_seconds": maximum_gap,
+            "minimum_required_coverage_percent": minimum_coverage_percent,
             "cpu_counter_resets": cpu_quality["counter_resets"],
             "peak_scope": "maximum_scrape_interval_average_cpu_and_sampled_memory",
             "boundary_method": "scrape-padded overlap clipping; time-weighted samples",
@@ -426,7 +433,8 @@ def write_cadvisor_summary(
         "component", "container_name", "samples", "observed_seconds", "coverage_percent",
         "cpu_average_percent", "cpu_max_percent", "memory_average_bytes", "memory_max_bytes",
         "boundary_method", "metric_source",
-        "sample_source", "maximum_scrape_gap_seconds", "cpu_counter_resets", "peak_scope",
+        "sample_source", "maximum_scrape_gap_seconds", "maximum_allowed_scrape_gap_seconds",
+        "minimum_required_coverage_percent", "cpu_counter_resets", "peak_scope",
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
@@ -446,10 +454,16 @@ def main() -> int:
     parser.add_argument("--component", action="append", default=[])
     parser.add_argument("--require-cadvisor", action="store_true")
     parser.add_argument("--require-postgres", action="store_true")
-    parser.add_argument("--minimum-cadvisor-coverage-percent", type=float, default=90)
+    parser.add_argument(
+        "--minimum-cadvisor-coverage-percent", type=float,
+        default=DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT,
+    )
     args = parser.parse_args()
     if not all(math.isfinite(value) for value in (args.start, args.end)) or args.end <= args.start or args.step <= 0:
         parser.error("Require finite start < end and a positive scrape interval")
+    if (not math.isfinite(args.minimum_cadvisor_coverage_percent) or
+            not 0 < args.minimum_cadvisor_coverage_percent <= 100):
+        parser.error("cAdvisor minimum coverage must be finite and between 0 and 100")
     query_start = args.start - 2 * args.step
     query_end = args.end + 2 * args.step
     remaining = query_end - time.time()
@@ -463,6 +477,8 @@ def main() -> int:
         "query_start_epoch": query_start,
         "query_end_epoch": query_end,
         "step_seconds": args.step,
+        "minimum_cadvisor_coverage_percent": args.minimum_cadvisor_coverage_percent,
+        "maximum_cadvisor_scrape_gap_seconds": args.step * 1.5,
         "collector_revision": 3,
         "sample_source": "prometheus_raw_range_vector",
         "boundary_method": "two-scrape padding; original scrape timestamps; overlap interpolation at wall-clock boundaries",

@@ -11,13 +11,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.export_prometheus_data import (
     clean_samples, matching_series, metric_matches, query_range, query_samples,
-    sample_quality, write_postgres_summary,
+    sample_quality, write_cadvisor_summary, write_postgres_summary,
 )
 from scripts.finalize_locust_csv import validate_stats, promote, restrict_history_to_measurement
 from scripts.validate_measurement_bounds import validate_bounds
 
 
 class MeasurementPrecisionTests(unittest.TestCase):
+    @staticmethod
+    def cadvisor_result(timestamps):
+        cpu = {
+            "metric": {"container_label_com_docker_compose_service": "api-service"},
+            "values": [[timestamp, str(timestamp)] for timestamp in timestamps],
+        }
+        memory = {
+            "metric": {"container_label_com_docker_compose_service": "api-service"},
+            "values": [[timestamp, "1024"] for timestamp in timestamps],
+        }
+        return {
+            "start_epoch": 0,
+            "end_epoch": 100,
+            "step_seconds": 1,
+            "queries": {
+                "cadvisor_cpu_usage_seconds_total": {"response": {"data": {"result": [cpu]}}},
+                "cadvisor_memory_working_set_bytes": {"response": {"data": {"result": [memory]}}},
+            },
+        }
+
     def test_history_publishes_only_full_load_samples_inside_measurement(self):
         with tempfile.TemporaryDirectory() as temp:
             prefix = Path(temp) / "locust"
@@ -127,6 +147,44 @@ class MeasurementPrecisionTests(unittest.TestCase):
                     key: {"response": {"data": {"result": [{"values": values}]}}} for key in keys}}
                 with self.assertRaisesRegex(RuntimeError, "reset or scrape gap"):
                     write_postgres_summary(Path(temp) / "out.csv", result, require=True)
+
+    def test_official_cadvisor_requires_95_percent_coverage_and_continuity(self):
+        component = ["api=api-service,tcc_benchmark_api_service"]
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "scripts.export_prometheus_data.container_id", return_value=None
+        ):
+            output = Path(temp) / "cadvisor_summary.csv"
+            write_cadvisor_summary(
+                output, self.cadvisor_result(range(96)), component, require=True,
+                minimum_coverage_percent=95,
+            )
+            with output.open(newline="") as handle:
+                row = next(csv.DictReader(handle))
+            self.assertEqual(row["coverage_percent"], "95.000000")
+            self.assertEqual(row["minimum_required_coverage_percent"], "95")
+            self.assertEqual(row["maximum_allowed_scrape_gap_seconds"], "1.5")
+
+            with self.assertRaisesRegex(RuntimeError, "coverage_.*_percent"):
+                write_cadvisor_summary(
+                    output, self.cadvisor_result([*range(95), 94.999]), component, require=True,
+                    minimum_coverage_percent=95,
+                )
+
+            timestamps = [0, 1, *range(3, 101)]
+            quality = sample_quality([(t, t) for t in timestamps], 0, 100, 1.5, True)
+            self.assertGreater(quality["covered_seconds"], 95)
+            with self.assertRaisesRegex(RuntimeError, "counter_reset_or_scrape_gap"):
+                write_cadvisor_summary(
+                    output, self.cadvisor_result(timestamps), component, require=True,
+                    minimum_coverage_percent=95,
+                )
+
+            # Historical/coarser data derives the independent gap bound from its step.
+            result = self.cadvisor_result(range(0, 101, 5))
+            result["step_seconds"] = 5
+            write_cadvisor_summary(output, result, component, require=True, minimum_coverage_percent=95)
+            with output.open(newline="") as handle:
+                self.assertEqual(next(csv.DictReader(handle))["maximum_allowed_scrape_gap_seconds"], "7.5")
 
 
 if __name__ == "__main__":

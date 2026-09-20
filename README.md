@@ -41,11 +41,16 @@ Cada área tem dois arquivos:
 
 ## Estado do experimento
 
-O protocolo atual é a metodologia 16. A campanha oficial inclui `fixed_50` e
+O protocolo atual é a metodologia 17. A campanha oficial inclui `fixed_50` e
 `fixed_100`: ambos usam 100 usuários, mas com pacing de 2 s e 1 s,
 respectivamente. A carga é fechada; 50 e 100 req/s são tetos nominais e a taxa
 efetivamente entregue é sempre registrada. Nenhum dos dois perfis está definido
 como referência principal na configuração atual.
+
+Nas rodadas oficiais, a CPU e a memória do cAdvisor para API, PostgreSQL e
+Locust devem cobrir ao menos 95% da janela medida. Essa completude é independente
+da entrega mínima de carga; lacunas temporais acima de 1,5 s também invalidam a
+evidência de monitoramento.
 
 Foram executados pilotos técnicos dos dois níveis, mas eles continuam
 `non_official`. A campanha científica ainda exige cinco repetições oficiais por

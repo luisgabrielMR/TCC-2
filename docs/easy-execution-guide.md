@@ -1,5 +1,15 @@
 # Guia de execucao facil
 
+Na metodologia 17, `OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT=95` define a
+cobertura mínima de CPU e memória do cAdvisor para API, PostgreSQL e Locust.
+Séries com lacunas maiores que 1,5 s são rejeitadas mesmo com cobertura
+suficiente. A coleta e o housekeeping permanecem em 1 s.
+
+Use verificação e preflight do novo protocolo/commit. A calibração health-only
+permanece opcional no preflight atual; se usada, deve corresponder à metodologia
+17 e ao mesmo commit. Referências à calibração obrigatória abaixo descrevem o
+fluxo histórico; consulte [as notas atuais](methodological-notes.md).
+
 ## Windows
 
 Abra o Docker Desktop manualmente e aguarde `Docker Engine running`. Depois use somente um destes atalhos em `launchers/windows/`:

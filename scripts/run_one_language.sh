@@ -297,7 +297,7 @@ print(str(achieved >= minimum).lower())
   fi
 fi
 
-"$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE"
+"$SCRIPT_DIR/export_prometheus_data.sh" "$RESULT_DIR" "$METRICS_START_EPOCH" "$METRICS_END_EPOCH" "$API_SERVICE" "$RUN_MODE" "$OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT"
 read -r LOCUST_CPU_AVERAGE_PERCENT LOCUST_CPU_MAX_PERCENT <<EOF
 $($PYTHON_BIN -c '
 import csv, sys
@@ -532,11 +532,12 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "duration_clock": "time.monotonic_ns",
     "boundary_clock": "time.time_ns",
     "prometheus_boundary_method": "two-scrape padding; raw timestamps; boundary interpolation",
-    "minimum_cadvisor_coverage_percent": 90,
+    "minimum_cadvisor_coverage_percent": $OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT,
     "sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "docker_stats_sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "prometheus_scrape_interval_seconds": 1,
     "cadvisor_housekeeping_interval_seconds": 1,
+    "maximum_cadvisor_scrape_gap_seconds": 1.5,
     "container_primary_source": "cAdvisor via Prometheus",
     "container_cpu_source": "cAdvisor via Prometheus",
     "container_memory_source": "cAdvisor via Prometheus",

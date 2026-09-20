@@ -16,7 +16,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "16")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "17")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
@@ -26,6 +26,10 @@ $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
 $locustProcesses = [int](Get-BenchmarkValue $environment "LOCUST_PROCESSES" "4")
 if ($locustProcesses -lt 1) { throw "LOCUST_PROCESSES deve ser um inteiro positivo." }
 $metricsInterval = [double](Get-BenchmarkValue $environment "METRICS_SAMPLE_INTERVAL_SECONDS" "2")
+$minimumCadvisorCoveragePercent = [double](Get-BenchmarkValue $environment "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT" "95")
+if ($minimumCadvisorCoveragePercent -le 0 -or $minimumCadvisorCoveragePercent -gt 100) {
+    throw "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT deve estar entre 0 e 100."
+}
 $workloadScheduleSeed = [int](Get-BenchmarkValue $environment "WORKLOAD_SCHEDULE_SEED" "20260913")
 if ($workloadScheduleSeed -le 0) { throw "WORKLOAD_SCHEDULE_SEED deve ser um inteiro positivo." }
 # $loadTargetRps marca os perfis de taxa fixa: a vazao vira variavel controlada,
@@ -218,7 +222,7 @@ try {
             Write-Warning "Entrega minima de $minimumDeliveryPercent% ($minimumDeliveryRps req/s) para o alvo de $loadTargetRps req/s nao atingida (obtido $achievedRps). Investigar API, banco e gerador; este resultado nao representa a carga-alvo."
         }
     }
-    Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode
+    Export-BenchmarkPrometheus $resultDirectory $environment $metricsStartEpoch $metricsEndEpoch $service $RunMode $minimumCadvisorCoveragePercent
     $locustResource = Import-Csv (Join-Path $resultDirectory "cadvisor_summary.csv") |
         Where-Object { $_.component -eq "locust" } | Select-Object -First 1
     $locustCpuAveragePercent = if ($locustResource) { [double]$locustResource.cpu_average_percent } else { $null }
@@ -430,11 +434,12 @@ try {
             duration_clock = "time.monotonic_ns"
             boundary_clock = "time.time_ns"
             prometheus_boundary_method = "two-scrape padding; raw timestamps; boundary interpolation"
-            minimum_cadvisor_coverage_percent = 90
+            minimum_cadvisor_coverage_percent = $minimumCadvisorCoveragePercent
             sample_interval_seconds = $metricsInterval
             docker_stats_sample_interval_seconds = $metricsInterval
             prometheus_scrape_interval_seconds = 1
             cadvisor_housekeeping_interval_seconds = 1
+            maximum_cadvisor_scrape_gap_seconds = 1.5
             container_primary_source = "cAdvisor via Prometheus"
             container_cpu_source = "cAdvisor via Prometheus"
             container_memory_source = "cAdvisor via Prometheus"

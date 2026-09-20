@@ -1,4 +1,4 @@
-# Protocolo experimental — metodologia 16
+# Protocolo experimental — metodologia 17
 
 ## Objetivo e alcance
 
@@ -10,6 +10,10 @@ linguagem isolada. O resultado vale para o hardware, quotas e workload registrad
 Este documento descreve a implementacao atual; nao e a redacao academica final.
 A matriz de aderencia referencia o PDF aprovado, que nao esta versionado aqui.
 Conferir o texto final com esse PDF antes de entregar o TCC.
+
+A metodologia 16 e os pilotos por ela produzidos sao historicos. Eles nao
+atendem automaticamente aos criterios da metodologia 17 e nao podem ser
+promovidos ou combinados com a nova campanha.
 
 ## Desenho principal
 
@@ -145,6 +149,10 @@ Prometheus coleta a cada 1 s, incluindo cAdvisor e PostgreSQL exporter;
 cAdvisor usa housekeeping de 1 s. Revisao3 do coletor exporta timestamps reais,
 margem de scrape e medias ponderadas pelo tempo, rejeitando
 gaps/reset/ambiguidade quando a evidencia e obrigatoria.
+As métricas de CPU e memória coletadas pelo cAdvisor devem apresentar cobertura
+mínima de 95% da janela de medição. Além desse requisito de completude, séries
+com lacunas superiores a 1,5 segundo são rejeitadas, preservando a continuidade
+temporal das medidas. Esse limiar não equivale à taxa mínima de entrega da carga.
 CPU bruta100% equivale a um core; dividir pela quota para obter percentual
 da cota. Working set de memoria e por container. CPU/memoria NAO sao
 atribuicoes por endpoint. docker stats permanece complementar.
@@ -168,7 +176,7 @@ o results-exporter republica resultados, nao e uma medicao independente.
 
 ## Proveniencia, analise e execucao
 
-Metodologia16 e nova coorte. Manifesto registra modelo, ciclo/hash, fases,
+Metodologia17 e nova coorte. Manifesto registra modelo, ciclo/hash, fases,
 carga, warmup, pool, quotas, seed, Compose e intervalos; fingerprint combina
 protocolo e commit. Hashes dos arquivos executaveis/configuracoes/payloads
 tambem entram no manifesto, inclusive arquivos ainda sem commit; documentos
@@ -176,6 +184,14 @@ e resultados ficam fora desse conjunto. A calibracao health-only e opcional e na
 do hash de um protocolo que nao a exige. Nao ha nova obrigacao de calibrar
 para cada execucao. Preflight ainda verifica o ambiente/contrato oficial,
 incluindo Docker29.5.2, Compose5.1.4 e Git limpo. Nao contornar esses controles.
+
+O limite `OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT=95` consta em
+`.env.example`, no manifesto e nos metadados de cada rodada. Alterar esse
+valor muda `protocol_sha256` e o fingerprint da campanha. A cobertura curta
+da calibracao continua em 80%, e a releitura dos pilotos historicos em 90%.
+Novas rodadas precisam de verificacao e preflight no protocolo 17. Se usada,
+a calibracao deve ser refeita no mesmo commit/metodologia; ela permanece
+opcional no preflight atual.
 
 Erros operacionais/integridade permanecem erros, nao resultados cientificos.
 Falha de criterios de comparabilidade deve permanecer documentada junto
