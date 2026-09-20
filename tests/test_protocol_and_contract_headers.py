@@ -33,8 +33,7 @@ class ProtocolTests(unittest.TestCase):
     def test_protocol_hash_changes_with_ignored_environment_values(self):
         base = {
             "METHODOLOGY_VERSION": "9", "LOCUST_DURATION": "5m", "LOCUST_PROCESSES": "4",
-            "WARMUP_DURATION_SECONDS": "300", "WARMUP_STABILITY_WINDOW_SECONDS": "45",
-            "WARMUP_MAX_RPS_DRIFT_PERCENT": "10", "DB_POOL_MIN": "1", "DB_POOL_MAX": "20",
+            "WARMUP_DURATION_SECONDS": "300", "DB_POOL_MIN": "1", "DB_POOL_MAX": "20",
             "DB_POOL_ACQUIRE_TIMEOUT_SECONDS": "10", "DB_POOL_IDLE_TIMEOUT_SECONDS": "60",
             "DB_POOL_MAX_LIFETIME_SECONDS": "1800", "METRICS_SAMPLE_INTERVAL_SECONDS": "2",
             "OFFICIAL_ROUNDS": "5", "LOAD_GENERATOR_CALIBRATION_FILE": "missing.json",
@@ -55,10 +54,9 @@ class ProtocolTests(unittest.TestCase):
             "docker_internal_compose_service",
         )
         self.assertEqual(proxied["protocol"]["load"]["target"]["network_mode"], "host_override")
-        self.assertEqual(
-            first["protocol"]["warmup"]["latency_drift_mode"],
-            "diagnostic_per_endpoint_mean",
-        )
+        self.assertTrue(first["protocol"]["warmup"]["fixed_duration"])
+        self.assertEqual(first["protocol"]["warmup"]["stability_gate"], "not_applied")
+        self.assertNotIn("max_rps_drift_percent", first["protocol"]["warmup"])
 
     def test_official_bounds_require_post_spawn_event_and_configured_duration(self):
         bounds = {

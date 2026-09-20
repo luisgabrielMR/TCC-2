@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.finalize_locust_csv import publish, validate_stats
-from scripts.validate_warmup_stability import latency_windows
 from scripts.snapshot_integrity import verified_stats
 
 
@@ -110,25 +109,6 @@ class TimingRegressionTests(unittest.TestCase):
                 writer.writerows([row, {**row, "Name": "Aggregated", "Average Response Time": 999}])
             with self.assertRaisesRegex(RuntimeError, "weighted mean"):
                 validate_stats(path)
-
-    def test_latency_drift_cannot_hide_behind_constant_throughput(self):
-        with tempfile.TemporaryDirectory() as directory:
-            prefix = Path(directory) / "locust"
-            Path(f"{prefix}_expected_workers.json").write_text(json.dumps({"workers": {"local": 0}}))
-            history = [(second, second * 100, 50) for second in range(100, 401)]
-            for varying, low_count in ((False, False), (True, False), (False, True)):
-                buckets = [{"second": second, "method": "GET", "name": "GET /health", "requests": 1 if low_count else 100,
-                            "total_response_time": (1 if low_count else 100) * (20 if varying and second < 200 else 10)}
-                           for second in range(100, 400) if not low_count or second % 30 == 0]
-                report = {"started_epoch": 100, "finished_epoch": 400, "latency_buckets": buckets,
-                          "endpoints": [{"method": "GET", "name": "GET /health",
-                                         "requests": sum(row["requests"] for row in buckets),
-                                         "total_response_time": sum(row["total_response_time"] for row in buckets)}]}
-                Path(f"{prefix}_worker_0_final.json").write_text(json.dumps(report))
-                with patch("measurement_audit.validate_worker_reports"):
-                    result = latency_windows(Path(f"{prefix}_stats.csv"), history, 60, 10, True)
-                self.assertEqual(bool(result["reasons"]), varying or low_count)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-# Protocolo experimental — metodologia 15
+# Protocolo experimental — metodologia 16
 
 ## Objetivo e alcance
 
@@ -53,13 +53,16 @@ O cenário de carga foi definido atribuindo a mesma probabilidade às sete opera
   percorre OFFICIAL_PROFILES, alternando tambem a ordem dos perfis por rodada.
   Uma chamada de proxima rodada executa cinco APIs de um nivel; sao dez chamadas
   para completar os dois niveis com cinco repeticoes.
-- Warmup oficial: 300 s; medicao oficial: 300 s apos spawn completo.
+- Warmup oficial: 300 s; medicao oficial: 300 s apos spawn completo. O warmup
+  e uma etapa de duracao fixa, comum a todas as implementacoes, sem criterio de
+  estabilidade de RPS ou latencia. O banco e restaurado antes da medicao.
   Pilotos abreviados sao sempre non_official e nao substituem essas repeticoes.
 
 ## Escolha e congelamento da carga
 
 A avaliacao local das dez combinacoes esta em
-[Validacao da metodologia 15](validation-methodology-15.md). O nivel50 manteve
+[Validacao da metodologia 15](validation-methodology-15.md), historica e anterior
+ao protocolo atual. O nivel50 manteve
 CPU media PostgreSQL de 32,6% a 36,9% da cota, enquanto o nivel100 atingiu
 63,3% a 73,3%, incluindo tres avisos de margem >=70%. A configuracao atual
 mantem ambos na campanha oficial e nao designa um perfil como referencia
@@ -79,7 +82,7 @@ Nos perfis de taxa fixa, a execução somente é aceita quando a taxa efetivamen
 
 O relatorio opcional assess_primary_pilots.py recebe uma sequence_id explicita
 e confere as dez combinacoes, fontes executaveis iguais e um protocolo por
-nivel, snapshots, estabilidade, CPU e cobertura. Para selecao dos pilotos,
+nivel, snapshots, CPU e cobertura. Para selecao dos pilotos,
 sinaliza entrega abaixo do mínimo fixo registrado no protocolo, CPU media PostgreSQL >=70% como
 aviso de margem, picos >=90% e esperas observadas. Esses avisos nao sao novos
 preflights nem uma prova automatica de ausencia de gargalo. Eles devem ser
@@ -165,7 +168,7 @@ o results-exporter republica resultados, nao e uma medicao independente.
 
 ## Proveniencia, analise e execucao
 
-Metodologia15 e nova coorte. Manifesto registra modelo, ciclo/hash, fases,
+Metodologia16 e nova coorte. Manifesto registra modelo, ciclo/hash, fases,
 carga, warmup, pool, quotas, seed, Compose e intervalos; fingerprint combina
 protocolo e commit. Hashes dos arquivos executaveis/configuracoes/payloads
 tambem entram no manifesto, inclusive arquivos ainda sem commit; documentos
@@ -174,7 +177,6 @@ do hash de um protocolo que nao a exige. Nao ha nova obrigacao de calibrar
 para cada execucao. Preflight ainda verifica o ambiente/contrato oficial,
 incluindo Docker29.5.2, Compose5.1.4 e Git limpo. Nao contornar esses controles.
 
-Deriva da latencia no warmup e diagnostica, nao bloqueante isoladamente.
 Erros operacionais/integridade permanecem erros, nao resultados cientificos.
 Falha de criterios de comparabilidade deve permanecer documentada junto
 aos dados non_official; nao presumir que ela identifica a causa do gargalo.

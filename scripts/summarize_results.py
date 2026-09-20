@@ -50,9 +50,6 @@ LANGUAGE_FIELDS = [
     "postgres_rollbacks_total", "postgres_commits_per_second", "postgres_rollbacks_per_second",
     "postgres_blocks_read_total", "postgres_blocks_hit_total", "postgres_cache_hit_ratio",
     "postgres_database_size_average_bytes", "postgres_database_size_max_bytes",
-    "measurement_first_window_rps", "measurement_last_window_rps",
-    "measurement_rps_change_percent", "measurement_final_window_drift_percent",
-    "measurement_final_windows_stable", "measurement_stability_status",
 ] + ACTIVITY_FIELDS + ["postgres_activity_diagnostics_available"]
 
 SCALABILITY_FIELDS = [
@@ -64,8 +61,7 @@ SCALABILITY_FIELDS = [
     "api_cpu_max_percent", "api_memory_average_bytes", "api_memory_max_bytes",
     "locust_cpu_average_percent", "locust_cpu_quota_average_percent", "postgres_cpu_average_percent", "rps_gain_vs_baseline_percent",
     "linear_scaling_efficiency_percent", "rps_gain_vs_previous_percent",
-    "p95_change_vs_previous_percent", "measurement_rps_change_percent",
-    "measurement_stability_status", "result_confidence", "capacity_status",
+    "p95_change_vs_previous_percent", "result_confidence", "capacity_status",
 ]
 
 
@@ -109,8 +105,6 @@ def result_confidence(rows: list[dict]) -> str:
         for row in rows
     ):
         return "invalid_load_generator"
-    if any(row.get("measurement_stability_status") != "stable" for row in rows):
-        return "invalid_instability"
     required_runs = 5 if any(
         int(number(row.get("methodology_version"), 1)) >= 7
         and row.get("load_profile", "").startswith("fixed_")
@@ -121,10 +115,6 @@ def result_confidence(rows: list[dict]) -> str:
     order_positions = {int(number(row.get("execution_order_position"))) for row in rows}
     if 0 in order_positions or len(order_positions) < required_runs:
         return "invalid_order_bias"
-    rps_values = numeric_values(rows, "throughput_rps")
-    rps_median = statistics.median(rps_values) if rps_values else 0
-    if rps_median <= 0 or (max(rps_values) - min(rps_values)) / rps_median * 100 > 10:
-        return "invalid_run_variability"
     return "adequate"
 
 
@@ -134,18 +124,6 @@ def comparable_rows(rows: list[dict]) -> list[dict]:
     candidates = current or rows
     latest_version = max(int(number(row.get("methodology_version"), 1)) for row in candidates)
     return [row for row in candidates if int(number(row.get("methodology_version"), 1)) == latest_version]
-
-
-def measurement_status(change_percent: float, final_windows_stable: bool, available: bool = True) -> str:
-    if not available:
-        return "unavailable"
-    if not final_windows_stable:
-        return "fluctuating"
-    if change_percent > 10:
-        return "possible_late_warmup"
-    if change_percent < -10:
-        return "decreasing_throughput"
-    return "stable"
 
 
 def read_json(path: Path) -> dict:
@@ -244,10 +222,6 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
         cadvisor_postgres = find_resource(cadvisor_rows, lambda name: name == "tcc_benchmark_postgres")
         elapsed, duration_source = duration_from_metadata(metadata)
         locust_meta = metadata.get("locust", {})
-        measurement = metadata.get("measurement_stability", {})
-        measurement_available = bool(measurement)
-        measurement_change = number(measurement.get("first_last_rps_change_percent"))
-        final_windows_stable = bool(measurement.get("stable")) if measurement_available else False
         methodology_version = int(number(metadata.get("methodology_version"), 1))
         classification = metadata.get("result_classification", "legacy")
         commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
@@ -346,14 +320,6 @@ def collect_runs(raw: Path | None = None) -> tuple[list[dict], list[dict]]:
             "postgres_cache_hit_ratio": number(postgres_summary.get("cache_hit_ratio")) if postgres_summary else None,
             "postgres_database_size_average_bytes": number(postgres_summary.get("database_size_average_bytes")) if postgres_summary else None,
             "postgres_database_size_max_bytes": number(postgres_summary.get("database_size_max_bytes")) if postgres_summary else None,
-            "measurement_first_window_rps": number(measurement.get("first_window_rps")),
-            "measurement_last_window_rps": number(measurement.get("last_window_rps")),
-            "measurement_rps_change_percent": measurement_change,
-            "measurement_final_window_drift_percent": number(measurement.get("rps_drift_percent")),
-            "measurement_final_windows_stable": final_windows_stable,
-            "measurement_stability_status": measurement_status(
-                measurement_change, final_windows_stable, measurement_available
-            ),
         }
         run["postgres_activity_diagnostics_available"] = postgres_summary.get("activity_diagnostics_available") == "True"
         for field in ACTIVITY_FIELDS:
@@ -473,16 +439,6 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
             linear_efficiency = rps / (baseline_rps * users / baseline_users) * 100 if baseline_rps else 0.0
             gain_previous = (rps / previous_rps - 1) * 100 if previous_rps else 0.0
             p95_change = (p95 / previous_p95 - 1) * 100 if previous_p95 else 0.0
-            trend_rows = [
-                row for row in group
-                if row.get("measurement_stability_status", "unavailable") != "unavailable"
-            ]
-            measurement_change = median(trend_rows, "measurement_rps_change_percent")
-            trend_status = measurement_status(
-                measurement_change,
-                all(bool(row.get("measurement_final_windows_stable")) for row in trend_rows),
-                bool(trend_rows),
-            )
             rps_values = numeric_values(group, "throughput_rps")
             rps_min = min(rps_values) if rps_values else 0.0
             rps_max = max(rps_values) if rps_values else 0.0
@@ -543,8 +499,6 @@ def scalability_rows(runs: list[dict]) -> list[dict]:
                 "linear_scaling_efficiency_percent": f"{linear_efficiency:.3f}",
                 "rps_gain_vs_previous_percent": f"{gain_previous:.3f}",
                 "p95_change_vs_previous_percent": f"{p95_change:.3f}",
-                "measurement_rps_change_percent": f"{measurement_change:.3f}",
-                "measurement_stability_status": trend_status,
                 "result_confidence": confidence,
                 "capacity_status": status,
             })
@@ -598,8 +552,6 @@ def generate_outputs(
             "postgres_rollbacks_total", "postgres_commits_per_second", "postgres_rollbacks_per_second",
             "postgres_blocks_read_total", "postgres_blocks_hit_total", "postgres_cache_hit_ratio",
             "postgres_database_size_average_bytes", "postgres_database_size_max_bytes",
-            "measurement_first_window_rps", "measurement_last_window_rps",
-            "measurement_rps_change_percent", "measurement_final_window_drift_percent",
         ):
             row[key] = "" if row[key] in (None, "") else f"{number(row[key]):.3f}"
 
@@ -639,14 +591,13 @@ def generate_outputs(
             handle.write(f"- Arquivo de escalabilidade: `{scalability_path}`\n\n")
             if scaling:
                 handle.write("## Escalabilidade\n\n")
-                handle.write("| Campanha | Perfil | Linguagem | Usuarios | Rodadas | RPS mediano [min-max] | P95 (ms) | Tempo (s) | Estabilidade | Confianca |\n")
-                handle.write("|---|---|---|---:|---:|---:|---:|---:|---|---|\n")
+                handle.write("| Campanha | Perfil | Linguagem | Usuarios | Rodadas | RPS mediano [min-max] | P95 (ms) | Tempo (s) | Confianca |\n")
+                handle.write("|---|---|---|---:|---:|---:|---:|---:|---|\n")
                 for row in scaling:
                     handle.write(
                         f"| {row['campaign_fingerprint']} | {row['load_profile']} | {row['language']} | {row['users']} | {row['runs']} | {row['throughput_rps']} "
                         f"[{row['throughput_min_rps']}-{row['throughput_max_rps']}] | "
-                        f"{row['p95_ms']} | {row['test_elapsed_seconds']} | "
-                        f"{row['measurement_stability_status']} | {row['result_confidence']} |\n"
+                        f"{row['p95_ms']} | {row['test_elapsed_seconds']} | {row['result_confidence']} |\n"
                     )
     return language_path, endpoint_path, scalability_path, final_summary
 

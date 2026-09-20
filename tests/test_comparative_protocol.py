@@ -270,7 +270,7 @@ function Get-BenchmarkValue($Environment, $Name, $Default) {
     }
 }
 function Get-OfficialCampaignIdentity($Environment, $Profile) {
-    return [pscustomobject]@{ fingerprint=$Profile; methodology_version=15; commit_sha='test' }
+    return [pscustomobject]@{ fingerprint=$Profile; methodology_version=16; commit_sha='test' }
 }
 $global:completed = @{}
 function Get-OfficialLanguagesForSequence($SequenceId, $Profile, $MethodologyVersion, $CommitSha) {
@@ -349,7 +349,7 @@ class PilotAssessmentTests(unittest.TestCase):
                     nominal = int(profile.split("_")[1])
                     metadata = {"execution_order": {"sequence_id": "selected"},
                         "load_profile": profile, "language": language, "result_classification": "non_official",
-                        "warmup": {"stable": True}, "measurement_stability": {"stable": True},
+                        "warmup": {"fixed_duration": True, "stability_gate": "not_applied"},
                         "metrics": {"prometheus_scrape_interval_seconds": 1},
                         "locust": {"target_rps": nominal, "minimum_delivery_rps": nominal * 0.95, "achieved_rps": nominal, "generator_headroom_met": True, "locust_cpu_quota_average_percent": 5},
                         "shared_database": {"database_headroom_met": True, "postgres_cpu_quota_average_percent": 20, "postgres_cpu_quota_max_percent": 40}}

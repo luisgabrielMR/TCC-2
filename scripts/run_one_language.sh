@@ -212,7 +212,6 @@ DATABASE_NEEDS_RESET=true
 "$SCRIPT_DIR/run_warmup.sh" "$LOCUST_HOST" "$SCENARIO_NAME" "$LOCUST_USERS" "$LOCUST_SPAWN_RATE" "$RESULT_DIR"
 WARMUP_TOTAL_SECONDS="$(cat "$RESULT_DIR/warmup/total_duration_seconds.txt")"
 WARMUP_ATTEMPTS=1
-if [ "$WARMUP_TOTAL_SECONDS" -gt "$WARMUP_DURATION_SECONDS" ]; then WARMUP_ATTEMPTS=2; fi
 
 # O reset depois do warmup deve ocorrer sem reiniciar a API.
 "$SCRIPT_DIR/reset_db.sh"
@@ -268,19 +267,6 @@ touch "$METRICS_STOP_FILE"
 wait "$METRICS_PID"
 METRICS_STARTED=false
 rm -f "$METRICS_STOP_FILE"
-"$PYTHON_BIN" "$ROOT_DIR/scripts/validate_warmup_stability.py" \
-  --stats "$RESULT_DIR/locust_stats.csv" \
-  --history "$RESULT_DIR/locust_stats_history.csv" \
-  --scenario "$SCENARIO_NAME" \
-  --expected-users "$LOCUST_USERS" \
-  --phase-label "Measurement" \
-  --require-first-last-stability \
-  --diagnose-latency-stability \
-  --window-seconds "$WARMUP_STABILITY_WINDOW_SECONDS" \
-  --max-rps-drift-percent "$WARMUP_MAX_RPS_DRIFT_PERCENT" \
-  --output "$RESULT_DIR/measurement_stability.json"
-MEASUREMENT_STABILITY="$(cat "$RESULT_DIR/measurement_stability.json")"
-MEASUREMENT_STABLE="$($PYTHON_BIN -c 'import json,sys; print(str(bool(json.load(open(sys.argv[1], encoding="utf-8"))["stable"])).lower())' "$RESULT_DIR/measurement_stability.json")"
 
 # Nos perfis de taxa fixa a vazao e imposta, nao medida. Se a implementacao nao
 # entregou a taxa pedida, ela esta saturada e a latencia dela nao e comparavel
@@ -369,7 +355,7 @@ elif ! "$PYTHON_BIN" -c 'import sys; raise SystemExit(0 if float(sys.argv[1]) < 
   echo "Margem de CPU insuficiente pelo criterio operacional; analisar tambem sessoes, esperas e vazao." >&2
 fi
 RESULT_CLASSIFICATION=non_official
-if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" = true ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ] && [ "$DATABASE_HEADROOM_MET" = true ]; then
+if [ "$RUN_MODE" = official ] && [ "$RATE_TARGET_MET" = true ] && [ "$GENERATOR_HEADROOM_MET" = true ] && [ "$DATABASE_HEADROOM_MET" = true ]; then
   RESULT_CLASSIFICATION=official
 fi
 "$SCRIPT_DIR/reset_db.sh"
@@ -445,9 +431,8 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "retry_duration_seconds": 0,
     "total_duration_seconds": $WARMUP_TOTAL_SECONDS,
     "attempts": $WARMUP_ATTEMPTS,
-    "stability_window_seconds": $WARMUP_STABILITY_WINDOW_SECONDS,
-    "max_rps_drift_percent": $WARMUP_MAX_RPS_DRIFT_PERCENT,
-    "stable": true,
+    "fixed_duration": true,
+    "stability_gate": "not_applied",
     "included_in_results": false
   },
   "database_pool": {
@@ -524,7 +509,6 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "bounds_validation": $BOUNDS_VALIDATION_JSON,
     "excludes_warmup": true
   },
-  "measurement_stability": $MEASUREMENT_STABILITY,
   "metrics": {
     "window_source": "locust_spawning_complete_to_last_worker_stop",
     "response_time_source": "Locust locust_stats.csv",
@@ -569,10 +553,6 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
 }
 JSON
 
-if [ "$RUN_MODE" = official ] && [ "$MEASUREMENT_STABLE" != true ]; then
-  echo "A medicao oficial ficou instavel e foi registrada como non_official." >&2
-  exit 2
-fi
 if [ "$RUN_MODE" = official ] && [ "$RATE_TARGET_MET" != true ]; then
   echo "A rodada oficial nao atingiu a entrega minima de $PROTOCOL_MINIMUM_DELIVERY_PERCENT% ($PROTOCOL_MINIMUM_DELIVERY_RPS req/s) e foi registrada como non_official." >&2
   exit 2

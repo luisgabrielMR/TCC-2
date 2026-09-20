@@ -76,8 +76,7 @@ class ResultsExporterTests(unittest.TestCase):
             "execution_order": {"position": run, "sequence_id": f"round_{run}"},
             "locust": {"users": 50},
             "test_phase": {"elapsed_seconds": 300},
-            "warmup": {"total_duration_seconds": 300},
-            "measurement_stability": {"stable": True, "first_last_rps_change_percent": 2},
+            "warmup": {"total_duration_seconds": 300, "fixed_duration": True, "stability_gate": "not_applied"},
             "metrics": {"window_source": "locust_test_start_stop"},
             "monitoring_preflight": {"official_eligible": True},
         }

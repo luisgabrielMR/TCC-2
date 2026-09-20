@@ -4,7 +4,7 @@
 
 | Fonte | Papel |
 | --- | --- |
-| `methodological-notes.md` | protocolo implementado da metodologia 15 |
+| `methodological-notes.md` | protocolo implementado da metodologia 16 |
 | `validation-methodology-15.md` | evidência dos dez pilotos e seus limites |
 | `tcc-compliance-matrix.md` | relação entre implementação e exigências acadêmicas |
 | `api-contract.md` e `sql-contract.md` | equivalência HTTP e SQL |

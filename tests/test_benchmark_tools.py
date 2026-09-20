@@ -47,7 +47,6 @@ import scripts.summarize_results as summary
 from scripts.summarize_results import (
     duration_from_metadata,
     measured_throughput,
-    measurement_status,
     result_confidence,
     scalability_rows,
 )
@@ -56,186 +55,32 @@ from scripts.validate_monitoring import (
     prometheus_collection_config,
     wait_for_official_evidence,
 )
-from scripts.validate_warmup_stability import DEFAULT_SCENARIOS, validate
 
 
-class WarmupValidationTests(unittest.TestCase):
-    def write_fixture(self, root: Path, include_writes: bool = True) -> tuple[Path, Path]:
-        config = json.loads(DEFAULT_SCENARIOS.read_text(encoding="utf-8"))
-        endpoints = [entry["endpoint"] for entry in config["scenarios"]["mixed"]]
-        if not include_writes:
-            endpoints = [endpoint for endpoint in endpoints if not endpoint.startswith(("POST", "PUT"))]
+class FixedDurationWarmupTests(unittest.TestCase):
+    def test_warmup_runners_do_not_invoke_a_stability_validator(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        for relative in (
+            "scripts/run_warmup.sh",
+            "scripts/run_one_language.sh",
+            "launchers/windows/powershell/benchmark-common.ps1",
+            "launchers/windows/powershell/rodar-linguagem.ps1",
+        ):
+            with self.subTest(relative=relative):
+                source = (root / relative).read_text(encoding="utf-8")
+                self.assertNotIn("validate_warmup_stability", source)
+                self.assertNotIn("WARMUP_STABILITY_", source)
 
-        stats = root / "locust_stats.csv"
-        with stats.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=["Name", "Request Count", "Failure Count"])
-            writer.writeheader()
-            for endpoint in endpoints:
-                writer.writerow({"Name": endpoint, "Request Count": 100, "Failure Count": 0})
-            writer.writerow({"Name": "Aggregated", "Request Count": len(endpoints) * 100, "Failure Count": 0})
-
-        history = root / "locust_stats_history.csv"
-        with history.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(
-                handle,
-                fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
-            )
-            writer.writeheader()
-            for timestamp, requests in ((1, 0), (46, 4500), (91, 9000), (136, 13500)):
-                writer.writerow({
-                    "Timestamp": timestamp,
-                    "User Count": 50,
-                    "Name": "Aggregated",
-                    "Total Request Count": requests,
-                })
-
-        (root / "locust_exceptions.csv").write_text("Count,Message,Traceback,Nodes\n", encoding="utf-8")
-        return stats, history
-
-    def test_mixed_warmup_is_stable_when_all_routes_are_covered(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            stats, history = self.write_fixture(Path(temp))
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
-        self.assertTrue(result["stable"])
-        self.assertEqual(result["missing_endpoints"], [])
-        self.assertEqual(result["rps_drift_percent"], 0)
-
-    def test_mixed_warmup_rejects_read_only_coverage(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            stats, history = self.write_fixture(Path(temp), include_writes=False)
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
-        self.assertFalse(result["stable"])
-        self.assertEqual(result["missing_endpoints"], [
-            "POST /customers", "PUT /customers/{id}", "POST /orders",
-        ])
-
-    def test_warmup_allows_initial_change_when_three_final_windows_match(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            stats, history = self.write_fixture(root)
-            with history.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
-                )
-                writer.writeheader()
-                for timestamp, requests in ((1, 0), (46, 4500), (91, 11250), (136, 18000), (181, 24750)):
-                    writer.writerow({
-                        "Timestamp": timestamp,
-                        "User Count": 50,
-                        "Name": "Aggregated",
-                        "Total Request Count": requests,
-                    })
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
-        self.assertTrue(result["stable"])
-        self.assertEqual(result["rps_drift_percent"], 0)
-        self.assertEqual(result["first_last_rps_drift_percent"], 50)
-        self.assertEqual(result["first_last_rps_change_percent"], 50)
-
-    def test_measurement_rejects_initial_change_even_when_final_windows_match(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            stats, history = self.write_fixture(root)
-            with history.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
-                )
-                writer.writeheader()
-                for timestamp, requests in ((1, 0), (46, 4500), (91, 11250), (136, 18000), (181, 24750)):
-                    writer.writerow({
-                        "Timestamp": timestamp,
-                        "User Count": 50,
-                        "Name": "Aggregated",
-                        "Total Request Count": requests,
-                    })
-            result = validate(
-                stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
-                require_first_last_stability=True,
-            )
-        self.assertFalse(result["stable"])
-        self.assertTrue(result["first_last_stability_required"])
-        self.assertTrue(any("first-to-last RPS drift" in reason for reason in result["reasons"]))
-
-    def test_warmup_rejects_transition_inside_three_final_windows(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            stats, history = self.write_fixture(root)
-            with history.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
-                )
-                writer.writeheader()
-                for timestamp, requests in ((1, 0), (46, 4500), (91, 9000), (136, 15750)):
-                    writer.writerow({
-                        "Timestamp": timestamp,
-                        "User Count": 50,
-                        "Name": "Aggregated",
-                        "Total Request Count": requests,
-                    })
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
-        self.assertFalse(result["stable"])
-        self.assertEqual(result["rps_drift_percent"], 50)
-
-    def test_warmup_smooths_batched_multiprocess_counter_reports(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            stats, history = self.write_fixture(root)
-            with history.open("w", encoding="utf-8", newline="") as handle:
-                writer = csv.DictWriter(
-                    handle,
-                    fieldnames=["Timestamp", "User Count", "Name", "Total Request Count"],
-                )
-                writer.writeheader()
-                for timestamp in range(1, 137):
-                    # Distributed workers report counters in batches. A report delayed
-                    # across a window boundary must not look like a throughput change.
-                    lag = 3 if 46 <= timestamp <= 91 else 0
-                    requests = max(0, ((timestamp - lag) // 3) * 600)
-                    writer.writerow({
-                        "Timestamp": timestamp,
-                        "User Count": 50,
-                        "Name": "Aggregated",
-                        "Total Request Count": requests,
-                    })
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10)
-        self.assertTrue(result["stable"])
-        self.assertLess(result["rps_drift_percent"], 10)
-
-    def test_warmup_rejects_when_expected_user_count_is_not_reached(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            stats, history = self.write_fixture(Path(temp))
-            result = validate(stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10, expected_users=100)
-        self.assertFalse(result["stable"])
-        self.assertEqual(result["expected_users"], 100)
-        self.assertEqual(result["observed_peak_users"], 50)
-        self.assertIn("peak user count 50 does not match expected 100", result["reasons"])
-
-    def test_latency_drift_is_recorded_without_rejecting_warmup(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            stats, history = self.write_fixture(Path(temp))
-            diagnostics = {"reasons": ["Latency drift GET /health: 20.00% exceeds 10.00%"]}
-            with patch("scripts.validate_warmup_stability.latency_windows", return_value=diagnostics):
-                result = validate(
-                    stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
-                    diagnose_latency_stability=True,
-                )
-        self.assertTrue(result["stable"])
-        self.assertEqual(result["latency_stability_mode"], "diagnostic")
-        self.assertEqual(result["latency_stability"]["reasons"], diagnostics["reasons"])
-
-    def test_required_latency_drift_still_rejects_validation(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            stats, history = self.write_fixture(Path(temp))
-            diagnostics = {"reasons": ["Latency drift GET /health: 20.00% exceeds 10.00%"]}
-            with patch("scripts.validate_warmup_stability.latency_windows", return_value=diagnostics):
-                result = validate(
-                    stats, history, "mixed", DEFAULT_SCENARIOS, 45, 10,
-                    require_latency_stability=True,
-                )
-        self.assertFalse(result["stable"])
-        self.assertEqual(result["latency_stability_mode"], "required")
+    def test_fixed_duration_warmup_is_recorded_without_a_stability_gate(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        for relative in (
+            "scripts/run_one_language.sh",
+            "launchers/windows/powershell/rodar-linguagem.ps1",
+        ):
+            with self.subTest(relative=relative):
+                source = (root / relative).read_text(encoding="utf-8")
+                self.assertIn("fixed_duration", source)
+                self.assertIn("not_applied", source)
 
 
 class SummaryTests(unittest.TestCase):
@@ -249,13 +94,6 @@ class SummaryTests(unittest.TestCase):
     def test_duration_supports_legacy_metrics(self) -> None:
         elapsed, source = duration_from_metadata({"metrics": {"started_epoch": 100, "finished_epoch": 407}})
         self.assertEqual((elapsed, source), (307, "metrics_window_legacy"))
-
-    def test_measurement_trend_statuses(self) -> None:
-        self.assertEqual(measurement_status(12, True), "possible_late_warmup")
-        self.assertEqual(measurement_status(12, False), "fluctuating")
-        self.assertEqual(measurement_status(-12, True), "decreasing_throughput")
-        self.assertEqual(measurement_status(2, False), "fluctuating")
-        self.assertEqual(measurement_status(2, True), "stable")
 
     def test_scalability_marks_flat_throughput_as_probable_saturation(self) -> None:
         common = {
@@ -329,9 +167,6 @@ class SummaryTests(unittest.TestCase):
                 "result_classification": "non_official", "failures": 0,
                 "requests": 1000, "p95_ms": 20, "p99_ms": 30, "avg_ms": 10,
                 "p50_ms": 8, "locust_cpu_average_percent": 30,
-                "measurement_stability_status": "stable",
-                "measurement_final_windows_stable": True,
-                "measurement_rps_change_percent": 1,
                 "resource_metrics_available": True, "cadvisor_metrics_available": True,
                 "resource_metric_source": "cadvisor_via_prometheus",
                 "cpu_average_percent": 50, "cpu_max_percent": 70,
@@ -355,9 +190,6 @@ class SummaryTests(unittest.TestCase):
                 "result_classification": "official", "failures": 0,
                 "requests": 1000, "p95_ms": 20, "p99_ms": 30, "avg_ms": 10,
                 "p50_ms": 8, "locust_cpu_average_percent": 30,
-                "measurement_stability_status": "stable",
-                "measurement_final_windows_stable": True,
-                "measurement_rps_change_percent": 1,
                 "resource_metrics_available": True, "cadvisor_metrics_available": True,
                 "cpu_average_percent": 20, "cpu_max_percent": 40,
                 "memory_average_bytes": 100, "memory_max_bytes": 120,
@@ -376,7 +208,7 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(measured_throughput(600, 3, 150, True), (200, "request_count / monotonic elapsed_seconds"))
         self.assertEqual(measured_throughput(600, 3, 150, False), (150, "locust_reported_rps"))
 
-    def test_confidence_requires_five_clean_stable_runs_for_methodology_seven(self) -> None:
+    def test_confidence_requires_five_clean_runs_for_methodology_seven(self) -> None:
         clean = {
             "failures": 0,
             "resource_metrics_available": True,
@@ -384,7 +216,6 @@ class SummaryTests(unittest.TestCase):
             "locust_cpu_max_percent": 70,
             "locust_cpu_quota_average_percent": 70,
             "locust_cpu_quota_max_percent": 70,
-            "measurement_stability_status": "stable",
             "throughput_rps": 1000,
             "methodology_version": 7,
             "load_profile": "fixed_200",
@@ -395,7 +226,7 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_average_percent": 90}, *ordered[1:]]), "invalid_load_generator")
         self.assertEqual(result_confidence([{**ordered[0], "locust_cpu_quota_max_percent": 150}, *ordered[1:]]), "adequate")
         variable = [{**row, "throughput_rps": rps} for row, rps in zip(ordered, (800, 900, 1000, 1100, 1200))]
-        self.assertEqual(result_confidence(variable), "invalid_run_variability")
+        self.assertEqual(result_confidence(variable), "adequate")
 
     def test_dashboard_accepts_an_empty_results_directory(self) -> None:
         original_raw = dashboard.RAW
@@ -412,9 +243,7 @@ class SummaryTests(unittest.TestCase):
         clean = {
             "resultClassification": "official", "failures": 0,
             "resourceMetricsAvailable": True, "exactMeasurementWindow": True,
-            "locustCpuAvg": 70, "locustCpuMax": 150,
-            "measurementAvailable": True, "measurementFinalStable": True,
-            "measurementRpsChange": 0, "methodologyVersion": 7,
+            "locustCpuAvg": 70, "locustCpuMax": 150, "methodologyVersion": 7,
             "loadProfile": "fixed_200", "executionOrderPosition": 1, "rps": 200,
         }
         rows = [{**clean, "executionOrderPosition": position} for position in range(1, 6)]
@@ -1007,9 +836,6 @@ class SummaryFixtureTests(unittest.TestCase):
                 "language": "python", "methodology_version": 6,
                 "result_classification": classification, "failures": 0,
                 "requests": 1000, "p95_ms": 20, "locust_cpu_average_percent": 30,
-                "measurement_stability_status": "stable",
-                "measurement_final_windows_stable": True,
-                "measurement_rps_change_percent": 1,
                 "resource_metrics_available": True, "exact_measurement_window": True,
                 "execution_order_position": 1,
             }

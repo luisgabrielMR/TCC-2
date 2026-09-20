@@ -26,7 +26,7 @@ from workload_schedule import (
     static_workload_manifest,
 )
 
-CURRENT_METHODOLOGY = 15
+CURRENT_METHODOLOGY = 16
 FIXED_LOAD_MINIMUM_DELIVERY_PERCENT = 95
 CPU_QUOTAS = {
     "postgres": 1.0,
@@ -206,9 +206,8 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "duration_seconds": _number(environment, "WARMUP_DURATION_SECONDS", "300", int),
             "users": users,
             "spawn_rate": spawn_rate,
-            "stability_window_seconds": _number(environment, "WARMUP_STABILITY_WINDOW_SECONDS", "45", int),
-            "max_rps_drift_percent": _number(environment, "WARMUP_MAX_RPS_DRIFT_PERCENT", "10"),
-            "latency_drift_mode": "diagnostic_per_endpoint_mean",
+            "fixed_duration": True,
+            "stability_gate": "not_applied",
         },
         "database_pool": {
             "min": _number(environment, "DB_POOL_MIN", "1", int),

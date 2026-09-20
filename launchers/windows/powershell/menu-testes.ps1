@@ -77,8 +77,6 @@ function Invoke-Warmup {
     $environment = Get-BenchmarkEnvironment
     $hostUrl = Get-BenchmarkValue $environment "LOCUST_HOST" "http://host.docker.internal:8000"
     $seconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "300")
-    $windowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_WINDOW_SECONDS" "45")
-    $maxDrift = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
     $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
     $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
     $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
@@ -87,7 +85,6 @@ function Invoke-Warmup {
     Invoke-BenchmarkWarmup `
         -Environment $environment -Scenario "mixed" -Users $users -SpawnRate $spawnRate `
         -InitialDurationSeconds $seconds `
-        -StabilityWindowSeconds $windowSeconds -MaxRpsDriftPercent $maxDrift `
         -WaitSeconds $waitSeconds -Processes $locustProcesses `
         -HostUrl $hostUrl -ResultRelative "results/raw/warmup/manual_$stamp" | Out-Host
 }

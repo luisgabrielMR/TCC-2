@@ -46,7 +46,7 @@ CONDICOES PADRAO
 - pool maximo 20; cotas API 2 CPU, banco 1 CPU, Locust 4 CPU;
 - restauracao logica deterministica entre execucoes; nao e cache frio;
 - CPU/memoria via cAdvisor; atividade/esperas via postgres-exporter;
-- verificar taxa entregue, erros, estabilidade e cobertura.
+- verificar taxa entregue, erros e cobertura.
 
 INTERPRETACAO E RESULTADOS
 1. Consultar docs/methodological-notes.md para condicoes, limites e metricas.

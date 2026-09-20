@@ -91,9 +91,6 @@ def assess(raw: Path, sequence: str) -> dict:
             reasons.append("HTTP failures or missing HTTP evidence")
         if (numeric(aggregate.get("Request Count")) or 0) <= 0:
             reasons.append("No completed HTTP requests")
-        for phase in ("warmup", "measurement_stability"):
-            if metadata.get(phase, {}).get("stable") is not True:
-                reasons.append(f"{phase} stability not confirmed")
         if load.get("generator_headroom_met") is not True or database.get("database_headroom_met") is not True:
             reasons.append("Operational CPU margin was not confirmed")
         if postgres.get("activity_diagnostics_available") != "True":

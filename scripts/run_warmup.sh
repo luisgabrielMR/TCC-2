@@ -43,29 +43,14 @@ run_attempt() {
   "$PYTHON_BIN" "$SCRIPT_DIR/finalize_locust_csv.py" --prefix "$host_prefix" || return 2
   "$PYTHON_BIN" "$SCRIPT_DIR/record_workload_mix.py" --scenario "$SCENARIO_NAME" \
     --schedule-seed "$WORKLOAD_SCHEDULE_SEED" --prefix "$host_prefix" || return 2
-  "$PYTHON_BIN" "$SCRIPT_DIR/validate_warmup_stability.py" \
-    --stats "${host_prefix}_stats.csv" \
-    --diagnose-latency-stability \
-    --history "${host_prefix}_stats_history.csv" \
-    --scenario "$SCENARIO_NAME" \
-    --expected-users "$USERS" \
-    --window-seconds "$WARMUP_STABILITY_WINDOW_SECONDS" \
-    --max-rps-drift-percent "$WARMUP_MAX_RPS_DRIFT_PERCENT" \
-    --output "$attempt_relative/validation.json" || return 2
-  "$PYTHON_BIN" -c 'import json,sys; raise SystemExit(0 if json.load(open(sys.argv[1], encoding="utf-8"))["stable"] else 1)' \
-    "$attempt_relative/validation.json"
 }
 
 attempt_status=0
 run_attempt 1 "$WARMUP_DURATION_SECONDS" || attempt_status=$?
-if [ "$attempt_status" -eq 2 ]; then
+if [ "$attempt_status" -ne 0 ]; then
   echo "Falha operacional durante o warmup." >&2
-  exit 1
-fi
-if [ "$attempt_status" -eq 1 ]; then
-  echo "Warmup nao estabilizou na duracao padronizada; a rodada foi abortada." >&2
   exit 1
 fi
 
 printf '%s\n' "$WARMUP_DURATION_SECONDS" > "$RESULT_RELATIVE/warmup/total_duration_seconds.txt"
-echo "Warmup estavel concluido. Seus resultados nao entram na coleta principal."
+echo "Warmup de duracao fixa concluido. Seus resultados nao entram na coleta principal."

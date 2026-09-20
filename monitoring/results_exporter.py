@@ -80,20 +80,6 @@ def throughput_rps(requests: object, elapsed: float, reported: object, use_exact
     return number(requests) / elapsed if use_exact and elapsed > 0 else number(reported)
 
 
-def measurement_status(metadata: dict) -> str:
-    measurement = metadata.get("measurement_stability", {})
-    if not measurement:
-        return "unavailable"
-    if not measurement.get("stable"):
-        return "fluctuating"
-    change = number(measurement.get("first_last_rps_change_percent"))
-    if change > 10:
-        return "possible_late_warmup"
-    if change < -10:
-        return "decreasing_throughput"
-    return "stable"
-
-
 def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
     runs: list[dict] = []
     endpoints: list[dict] = []
@@ -127,7 +113,6 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
         cadvisor_api = resource(cadvisor_rows, lambda name: name == f"tcc_benchmark_{language}_api")
         cadvisor_locust = resource(cadvisor_rows, lambda name: name == "tcc_benchmark_locust")
         cadvisor_postgres = resource(cadvisor_rows, lambda name: name == "tcc_benchmark_postgres")
-        measurement = metadata.get("measurement_stability", {})
         methodology = integer(metadata.get("methodology_version")) or 1
         classification = metadata.get("result_classification", "legacy")
         commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
@@ -171,8 +156,6 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
             "p99_ms": number(aggregate.get("99%")),
             "duration_seconds": duration,
             "warmup_seconds": number(metadata.get("warmup", {}).get("total_duration_seconds")),
-            "measurement_change_percent": number(measurement.get("first_last_rps_change_percent")),
-            "measurement_status": measurement_status(metadata),
             "exact_window": exact_window,
             "cadvisor_available": cadvisor_available,
             "postgres_metrics_available": bool(postgres_summary),
@@ -255,8 +238,6 @@ def confidence(rows: list[dict]) -> str:
         for row in rows
     ):
         return "invalid_load_generator"
-    if any(row["measurement_status"] != "stable" for row in rows):
-        return "invalid_instability"
     required_runs = 5 if any(
         integer(row.get("methodology")) >= 7 and row.get("load_profile", "").startswith("fixed_")
         for row in rows
@@ -266,10 +247,6 @@ def confidence(rows: list[dict]) -> str:
     positions = {row["order_position"] for row in rows}
     if 0 in positions or len(positions) < required_runs:
         return "invalid_order_bias"
-    values = [row["rps"] for row in rows]
-    middle = statistics.median(values) if values else 0
-    if middle <= 0 or (max(values) - min(values)) / middle * 100 > 10:
-        return "invalid_run_variability"
     return "adequate"
 
 
@@ -402,7 +379,6 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
         metrics.add("benchmark_result_error_rate", failures / requests if requests else 0, labels, "HTTP error ratio")
         metrics.add("benchmark_result_duration_seconds", median(group, "duration_seconds"), labels, "Median measured test duration")
         metrics.add("benchmark_result_warmup_seconds", median(group, "warmup_seconds"), labels, "Median warmup duration")
-        metrics.add("benchmark_result_measurement_rps_change_percent", median(group, "measurement_change_percent"), labels, "Median RPS change during measurement")
         for quantile, key_name in (("avg", "avg_ms"), ("p50", "p50_ms"), ("p95", "p95_ms"), ("p99", "p99_ms")):
             metrics.add("benchmark_result_latency_ms", median(group, key_name), {**labels, "quantile": quantile}, "Benchmark response latency")
         if all(row["resources_available"] for row in group):

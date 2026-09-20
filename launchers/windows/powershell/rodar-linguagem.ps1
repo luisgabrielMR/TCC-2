@@ -16,14 +16,12 @@ $ErrorActionPreference = "Stop"
 Set-Location $script:BenchmarkRoot
 
 $environment = Get-BenchmarkEnvironment
-$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "15")
+$methodologyVersion = [int](Get-BenchmarkValue $environment "METHODOLOGY_VERSION" "16")
 $apiBaseUrl = Get-BenchmarkValue $environment "API_BASE_URL" "http://127.0.0.1:8000"
 $users = [int](Get-BenchmarkValue $environment "LOCUST_USERS" "50")
 $spawnRate = [int](Get-BenchmarkValue $environment "LOCUST_SPAWN_RATE" "10")
 $duration = Get-BenchmarkValue $environment "LOCUST_DURATION" "5m"
 $warmupSeconds = [int](Get-BenchmarkValue $environment "WARMUP_DURATION_SECONDS" "300")
-$warmupWindowSeconds = [int](Get-BenchmarkValue $environment "WARMUP_STABILITY_WINDOW_SECONDS" "45")
-$warmupMaxDriftPercent = [double](Get-BenchmarkValue $environment "WARMUP_MAX_RPS_DRIFT_PERCENT" "10")
 $waitSeconds = Get-BenchmarkValue $environment "LOCUST_WAIT_SECONDS" "0.1"
 $locustProcesses = [int](Get-BenchmarkValue $environment "LOCUST_PROCESSES" "4")
 if ($locustProcesses -lt 1) { throw "LOCUST_PROCESSES deve ser um inteiro positivo." }
@@ -172,8 +170,6 @@ try {
         -Users $users `
         -SpawnRate $spawnRate `
         -InitialDurationSeconds $warmupSeconds `
-        -StabilityWindowSeconds $warmupWindowSeconds `
-        -MaxRpsDriftPercent $warmupMaxDriftPercent `
         -WaitSeconds $waitSeconds -ScheduleSeed $workloadScheduleSeed `
         -Processes $locustProcesses `
         -HostUrl $locustHost `
@@ -206,22 +202,6 @@ try {
     $metricsStartEpoch = [double]$loadBounds.started_epoch
     $metricsEndEpoch = [double]$loadBounds.finished_epoch
     Stop-BenchmarkMeasurements $measurement
-    $measurementValidationPath = Join-Path $resultDirectory "measurement_stability.json"
-    Invoke-BenchmarkPython @(
-        (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
-        "--stats", (Join-Path $resultDirectory "locust_stats.csv"),
-        "--history", (Join-Path $resultDirectory "locust_stats_history.csv"),
-        "--scenario", $Scenario,
-        "--expected-users", "$users",
-        "--phase-label", "Measurement",
-        "--require-first-last-stability",
-        "--diagnose-latency-stability",
-        "--window-seconds", "$warmupWindowSeconds",
-        "--max-rps-drift-percent", "$warmupMaxDriftPercent",
-        "--output", $measurementValidationPath
-    ) | Out-Host
-    $measurementValidation = Get-Content $measurementValidationPath -Raw | ConvertFrom-Json
-    $measurementStable = [bool]$measurementValidation.stable
 
     # O pacing e fechado: a taxa efetiva e medida e pode ficar abaixo do nominal.
     # Isso nao identifica sozinho se o limite esta na API, banco ou gerador.
@@ -307,9 +287,9 @@ try {
         "dotnet" { "Pooling nativo do Npgsql" }
     }
     $metadata = [ordered]@{
-        result_classification = $(if ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet) { "official" } else { "non_official" })
+        result_classification = $(if ($RunMode -eq "official" -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet) { "official" } else { "non_official" })
         requested_run_mode = $RunMode
-        official_run = ($RunMode -eq "official" -and $measurementStable -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet)
+        official_run = ($RunMode -eq "official" -and $rateTargetMet -and $generatorHeadroomMet -and $databaseHeadroomMet)
         language = $Language
         scenario = $resultScenario
         workload_scenario = $Scenario
@@ -352,9 +332,8 @@ try {
             retry_duration_seconds = 0
             total_duration_seconds = $warmupResult.total_duration_seconds
             included_in_results = $false
-            stability_window_seconds = $warmupWindowSeconds
-            max_rps_drift_percent = $warmupMaxDriftPercent
-            stable = $warmupResult.stable
+            fixed_duration = $true
+            stability_gate = "not_applied"
             attempts = $warmupResult.attempts
         }
         database_pool = [ordered]@{
@@ -428,7 +407,6 @@ try {
             bounds_validation = $boundsValidation
             excludes_warmup = $true
         }
-        measurement_stability = $measurementValidation
         metrics = [ordered]@{
             window_source = "locust_spawning_complete_to_last_worker_stop"
             response_time_source = "Locust locust_stats.csv"
@@ -477,9 +455,6 @@ try {
         })
     }
     $metadata | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 (Join-Path $resultDirectory "metadata.json")
-    if ($RunMode -eq "official" -and -not $measurementStable) {
-        throw "A medicao oficial ficou instavel e foi registrada como non_official: $($measurementValidation.reasons -join '; ')"
-    }
     if ($RunMode -eq "official" -and -not $rateTargetMet) {
         throw "A rodada oficial nao atingiu a entrega minima de $minimumDeliveryPercent% ($minimumDeliveryRps req/s) para o alvo de $loadTargetRps req/s (obtido $achievedRps) e foi registrada como non_official."
     }

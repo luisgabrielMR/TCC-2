@@ -54,7 +54,7 @@ cinco repetições por nível. O runner detecta a próxima etapa incompleta e re
 somente as linguagens ainda ausentes do mesmo commit, metodologia e calibração;
 mudanças nesses elementos criam uma campanha distinta.
 
-O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando a medicao permanece estavel, entrega pelo menos 95% do alvo (47,5 req/s em `fixed_50` e 95 req/s em `fixed_100`), mantem a CPU media do Locust na janela abaixo de 90% da cota e usa no maximo 80% da capacidade calibrada. A bateria de saturacao permanece separada e e piloto por padrao.
+O preflight `official` ocorre antes da confirmacao. Cada linguagem repete o contrato, valida o monitoramento por container e so grava `result_classification=official` quando entrega pelo menos 95% do alvo (47,5 req/s em `fixed_50` e 95 req/s em `fixed_100`), mantem a CPU media do Locust na janela abaixo de 90% da cota e usa no maximo 80% da capacidade calibrada. A bateria de saturacao permanece separada e e piloto por padrao.
 
 ## Monitoramento
 
@@ -93,6 +93,6 @@ essas esperas sao diagnostico, nao resultados oficiais.
 
 O PostgreSQL deve reportar `SHOW statement_timeout` como `30s`. O Compose aplica
 essa configuracao ao recriar o servico; o preflight bloqueia valores diferentes.
-Os novos resultados exigem estabilidade de RPS e de latencia media por endpoint.
+Os novos resultados usam aquecimento e medição de duração fixa; não há critério de estabilidade de RPS ou latência.
 As falhas de publicacao de CSV interrompem a execucao; os arquivos `locust_final_*`
 sao preservados para diagnostico. Nao promova resultados manualmente para `official`.

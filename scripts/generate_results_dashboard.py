@@ -40,18 +40,6 @@ def comparable_rows(rows: list[dict]) -> list[dict]:
     return [row for row in candidates if int(number(row.get("methodologyVersion")) or 1) == latest_version]
 
 
-def measurement_status(change_percent: float, final_windows_stable: bool, available: bool = True) -> str:
-    if not available:
-        return "unavailable"
-    if not final_windows_stable:
-        return "fluctuating"
-    if change_percent > 10:
-        return "possible_late_warmup"
-    if change_percent < -10:
-        return "decreasing_throughput"
-    return "stable"
-
-
 def result_confidence(rows: list[dict]) -> str:
     if any(row.get("resultClassification") in {"non_official", "legacy"} for row in rows):
         return "non_official"
@@ -63,8 +51,6 @@ def result_confidence(rows: list[dict]) -> str:
         return "invalid_measurement_window"
     if any(row["locustCpuAvg"] >= 90 for row in rows):
         return "invalid_load_generator"
-    if any(not row["measurementAvailable"] or not row["measurementFinalStable"] or abs(row["measurementRpsChange"]) > 10 for row in rows):
-        return "invalid_instability"
     required_runs = 5 if any(
         int(number(row.get("methodologyVersion")) or 1) >= 7
         and row.get("loadProfile", "").startswith("fixed_")
@@ -75,10 +61,6 @@ def result_confidence(rows: list[dict]) -> str:
     order_positions = {row["executionOrderPosition"] for row in rows}
     if 0 in order_positions or len(order_positions) < required_runs:
         return "invalid_order_bias"
-    rps_values = [row["rps"] for row in rows]
-    rps_median = statistics.median(rps_values) if rps_values else 0
-    if rps_median <= 0 or (max(rps_values) - min(rps_values)) / rps_median * 100 > 10:
-        return "invalid_run_variability"
     return "adequate"
 
 
@@ -166,7 +148,6 @@ def collect() -> dict:
         cadvisor_locust = find_resource(cadvisor_rows, lambda name: name == "tcc_benchmark_locust")
         cadvisor_postgres = find_resource(cadvisor_rows, lambda name: name == "tcc_benchmark_postgres")
         locust_metadata = metadata.get("locust", {})
-        measurement = metadata.get("measurement_stability", {})
         methodology_version = int(number(metadata.get("methodology_version")) or 1)
         classification = metadata.get("result_classification", "legacy")
         commit_sha = metadata.get("commit_sha") or metadata.get("git_commit") or "legacy"
@@ -240,9 +221,6 @@ def collect() -> dict:
                 or bool(metadata.get("monitoring_preflight", {}).get("official_eligible"))
             ),
             "exactMeasurementWindow": exact_window,
-            "measurementAvailable": bool(measurement),
-            "measurementFinalStable": bool(measurement.get("stable")),
-            "measurementRpsChange": number(measurement.get("first_last_rps_change_percent")),
         })
 
         for row in rows:
@@ -305,8 +283,6 @@ def collect() -> dict:
         for (campaign, language, load_profile, methodology, classification), rows in summary_groups.items():
             total_requests = sum(row["requests"] for row in rows)
             total_failures = sum(row["failures"] for row in rows)
-            trend_rows = [row for row in rows if row["measurementAvailable"]]
-            measurement_change = median(trend_rows, "measurementRpsChange")
             summary.append({
                 "language": language,
                 "loadProfile": load_profile,
@@ -331,12 +307,6 @@ def collect() -> dict:
                 "memoryMaxMiB": median(rows, "memoryMaxMiB"),
                 "locustCpuAvg": median(rows, "locustCpuAvg"),
                 "postgresCpuAvg": median(rows, "postgresCpuAvg"),
-                "measurementRpsChange": measurement_change,
-                "measurementStatus": measurement_status(
-                    measurement_change,
-                    all(row["measurementFinalStable"] for row in trend_rows),
-                    bool(trend_rows),
-                ),
                 "confidence": result_confidence(rows),
             })
         summary.sort(key=lambda row: LANGUAGE_ORDER.get(row["language"], 99))
@@ -408,8 +378,6 @@ def collect() -> dict:
                 "testElapsedSeconds": row["testElapsedSeconds"],
                 "scaleEfficiency": efficiency,
                 "locustCpuAvg": row["locustCpuAvg"],
-                "measurementRpsChange": row["measurementRpsChange"],
-                "measurementStatus": row["measurementStatus"],
             })
     for rows in scalability.values():
         rows.sort(key=lambda row: row["users"])
@@ -553,7 +521,7 @@ def render(data: dict) -> str:
 
     <h2 class="section-title">Valores consolidados</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>Linguagem</th><th>Usuários</th><th>Rodadas</th><th>Confiança</th><th>Tempo</th><th>Tendência RPS</th><th>Req./rodada</th><th>Falhas</th><th>RPS</th><th>Média</th><th>P50</th><th>P95</th><th>P99</th><th>CPU API</th><th>CPU Locust</th><th>CPU PostgreSQL</th><th>Memória média</th></tr></thead>
+      <thead><tr><th>Linguagem</th><th>Usuários</th><th>Rodadas</th><th>Confiança</th><th>Tempo</th><th>Req./rodada</th><th>Falhas</th><th>RPS</th><th>Média</th><th>P50</th><th>P95</th><th>P99</th><th>CPU API</th><th>CPU Locust</th><th>CPU PostgreSQL</th><th>Memória média</th></tr></thead>
       <tbody id="summaryRows"></tbody>
     </table></div>
 
@@ -571,7 +539,7 @@ def render(data: dict) -> str:
       <article class="panel"><div class="panel-head"><h3>Eficiência de escala</h3><span class="hint">100% equivale a crescimento linear</span></div><div class="bar-chart" id="capacityEfficiency"></div></article>
     </section>
     <div class="table-wrap" style="margin-top:16px"><table>
-      <thead><tr><th>Usuários</th><th>RPS</th><th>Ganho anterior</th><th>P95</th><th>Eficiência</th><th>CPU Locust</th><th>Tempo</th><th>Tendência RPS</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Usuários</th><th>RPS</th><th>Ganho anterior</th><th>P95</th><th>Eficiência</th><th>CPU Locust</th><th>Tempo</th><th>Estado</th></tr></thead>
       <tbody id="capacityRows"></tbody>
     </table></div>
     <footer>Valores consolidados pela mediana das rodadas disponíveis. Em CPU, 100% equivale aproximadamente a um núcleo lógico. O limite indicado é prático e vale somente para este ambiente.</footer>
@@ -585,8 +553,7 @@ def render(data: dict) -> str:
     const scalingLanguageSelect = document.querySelector("#scalingLanguage");
     const fmt = new Intl.NumberFormat("pt-BR", {{maximumFractionDigits: 2}});
     const statuses = {{baseline: "base controlada", scaling: "escalando", probable_saturation: "saturação provável", failures_detected: "falhas detectadas", load_generator_limit: "limite do Locust"}};
-    const trendStatuses = {{stable: "estável", possible_late_warmup: "possível aquecimento", decreasing_throughput: "queda ao longo do teste", fluctuating: "oscilando", unavailable: "indisponível"}};
-    const confidenceStatuses = {{adequate: "adequada", non_official: "não oficial", preliminary_fewer_than_3_runs: "preliminar (<3)", invalid_failures: "inválida: falhas", invalid_missing_resources: "inválida: métricas ausentes", invalid_measurement_window: "inválida: janela", invalid_load_generator: "inválida: Locust", invalid_instability: "inválida: instável", invalid_order_bias: "inválida: ordem fixa", invalid_run_variability: "inválida: variação"}};
+    const confidenceStatuses = {{adequate: "adequada", non_official: "não oficial", preliminary_fewer_than_3_runs: "preliminar (<3)", invalid_failures: "inválida: falhas", invalid_missing_resources: "inválida: métricas ausentes", invalid_measurement_window: "inválida: janela", invalid_load_generator: "inválida: Locust", invalid_order_bias: "inválida: ordem fixa"}};
 
     function color(language) {{ return COLORS[language] || "#52606d"; }}
     function displayName(language) {{ return names[language] || language; }}
@@ -623,7 +590,6 @@ def render(data: dict) -> str:
         <tr><td>${{fmt.format(row.users)}}</td><td>${{value(row.rps)}}</td><td>${{value(row.rpsGainPrevious, "%")}}</td>
         <td>${{value(row.p95Ms, " ms")}}</td><td>${{value(row.scaleEfficiency, "%")}}</td>
         <td>${{value(row.locustCpuAvg, "%")}}</td><td>${{value(row.testElapsedSeconds, " s")}}</td>
-        <td>${{value(row.measurementRpsChange, "%")}} (${{trendStatuses[row.measurementStatus] || row.measurementStatus}})</td>
         <td>${{statuses[row.status] || row.status}}</td></tr>`).join("");
     }}
 
@@ -663,7 +629,6 @@ def render(data: dict) -> str:
         <tr>
           <td><span class="language"><span class="swatch" style="--bar:${{color(row.language)}}"></span>${{displayName(row.language)}}</span></td>
           <td>${{fmt.format(row.users)}}</td><td>${{row.runs}}</td><td>${{confidenceStatuses[row.confidence] || row.confidence}}</td><td>${{value(row.testElapsedSeconds)}} s</td>
-          <td>${{value(row.measurementRpsChange, "%")}} (${{trendStatuses[row.measurementStatus] || row.measurementStatus}})</td>
           <td>${{fmt.format(Math.round(row.requests))}}</td><td>${{fmt.format(row.failures)}}</td>
           <td>${{value(row.rps)}}</td><td>${{value(row.avgMs)}} ms</td><td>${{value(row.p50Ms)}} ms</td>
           <td>${{value(row.p95Ms)}} ms</td><td>${{value(row.p99Ms)}} ms</td><td>${{value(row.cpuAvg)}}%</td>

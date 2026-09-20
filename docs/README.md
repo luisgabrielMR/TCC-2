@@ -6,8 +6,8 @@ leitura mais simples.
 
 | Documento atual | Quando usar |
 | --- | --- |
-| [Notas metodológicas](methodological-notes.md) | descrever ou revisar o método da metodologia 15 |
-| [Validação local](validation-methodology-15.md) | entender o que os pilotos mostraram e o que ainda falta |
+| [Notas metodológicas](methodological-notes.md) | descrever ou revisar o método da metodologia 16 |
+| [Validação local histórica](validation-methodology-15.md) | entender os pilotos anteriores e seus limites |
 | [Contrato das APIs](api-contract.md) | conferir rotas, entradas e saídas |
 | [Contrato SQL](sql-contract.md) | conferir operações que precisam ser equivalentes |
 | [Modelo de banco](database-model.md) | entender tabelas e relações |

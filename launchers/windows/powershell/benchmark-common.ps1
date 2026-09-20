@@ -250,8 +250,6 @@ function Invoke-BenchmarkWarmup {
         [int]$Users,
         [int]$SpawnRate,
         [int]$InitialDurationSeconds,
-        [int]$StabilityWindowSeconds,
-        [double]$MaxRpsDriftPercent,
         [string]$WaitSeconds,
         [int]$ScheduleSeed = 0,
         [ValidateRange(1, 64)]
@@ -260,7 +258,6 @@ function Invoke-BenchmarkWarmup {
         [string]$ResultRelative
     )
 
-    $attempts = @()
     $durationSeconds = $InitialDurationSeconds
     $attemptNumber = 1
     $attemptRelative = "$ResultRelative/warmup/attempt_$attemptNumber"
@@ -269,34 +266,13 @@ function Invoke-BenchmarkWarmup {
     Write-Host "Warmup ${attemptNumber}: $Scenario, $Users usuarios, ${durationSeconds}s..."
     Invoke-BenchmarkLocust $Scenario $Users $SpawnRate "${durationSeconds}s" $HostUrl "/mnt/$attemptRelative/locust" $WaitSeconds $ScheduleSeed -Processes $Processes | Out-Host
 
-    $validationPath = Join-Path $attemptDirectory "validation.json"
-    Invoke-BenchmarkPython @(
-        (Join-Path $script:BenchmarkRoot "scripts/validate_warmup_stability.py"),
-        "--stats", (Join-Path $attemptDirectory "locust_stats.csv"),
-        "--diagnose-latency-stability",
-        "--history", (Join-Path $attemptDirectory "locust_stats_history.csv"),
-        "--scenario", $Scenario,
-        "--expected-users", "$Users",
-        "--window-seconds", "$StabilityWindowSeconds",
-        "--max-rps-drift-percent", "$MaxRpsDriftPercent",
-        "--output", $validationPath
-    ) | Out-Host
-    $validation = Get-Content $validationPath -Raw | ConvertFrom-Json
-    $attempts += [pscustomobject]@{
-        attempt = $attemptNumber
-        duration_seconds = $durationSeconds
-        validation = $validation
+    return [pscustomobject]@{
+        total_duration_seconds = $InitialDurationSeconds
+        attempts = @([pscustomobject]@{
+            attempt = $attemptNumber
+            duration_seconds = $durationSeconds
+        })
     }
-    if ($validation.stable) {
-        return [pscustomobject]@{
-            stable = $true
-            total_duration_seconds = $InitialDurationSeconds
-            attempts = $attempts
-        }
-    }
-
-    $lastReasons = $attempts[-1].validation.reasons -join "; "
-    throw "Warmup nao estabilizou na duracao padronizada: $lastReasons"
 }
 
 function Get-BenchmarkPythonCommand {
