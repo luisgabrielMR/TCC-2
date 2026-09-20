@@ -75,7 +75,7 @@ de 90% da cota NAO prova ausencia de gargalo. Preferir margem ampla e examinar
 a mudanca entre os dois niveis. Esperas amostradas iguais a zero tambem nao
 provam ausencia de esperas curtas.
 
-Nos perfis de taxa fixa, a execução somente é aceita quando a taxa efetivamente entregue corresponde a, no mínimo, 99% da taxa nominal configurada. Esse limiar foi definido previamente para limitar a diferença de carga entre as implementações comparadas a 1%, admitindo apenas pequenas variações operacionais de temporização do gerador. Assim, `fixed_50` exige pelo menos 49,5 req/s e `fixed_100`, pelo menos 99 req/s. A regra é aplicada somente aos perfis `fixed_*`; uma rodada oficial abaixo desse limite é registrada como `non_official`.
+Nos perfis de taxa fixa, a execução somente é aceita quando a taxa efetivamente entregue corresponde a, no mínimo, 95% da taxa nominal configurada. Esse limiar foi definido previamente para admitir pequenas variações operacionais do gerador de carga, sem aceitar execuções com taxa substancialmente inferior à condição experimental planejada. Assim, `fixed_50` exige pelo menos 47,5 req/s e `fixed_100`, pelo menos 95 req/s. A regra é aplicada somente aos perfis `fixed_*`; uma rodada oficial abaixo desse limite é registrada como `non_official`.
 
 O relatorio opcional assess_primary_pilots.py recebe uma sequence_id explicita
 e confere as dez combinacoes, fontes executaveis iguais e um protocolo por

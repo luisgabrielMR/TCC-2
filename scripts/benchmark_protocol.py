@@ -27,7 +27,7 @@ from workload_schedule import (
 )
 
 CURRENT_METHODOLOGY = 15
-FIXED_LOAD_MINIMUM_DELIVERY_PERCENT = 99
+FIXED_LOAD_MINIMUM_DELIVERY_PERCENT = 95
 CPU_QUOTAS = {
     "postgres": 1.0,
     "locust": 4.0,

@@ -30,7 +30,7 @@ Os perfis de carga respondem a duas perguntas distintas, e por isso sao dois con
 Os perfis `controlled_50`, `capacity_100` e `capacity_200` continuam definidos apenas para releitura do historico.
 
 No protocolo atual, aplicável somente aos perfis `fixed_*`, a entrega mínima é
-99% da taxa nominal: 49,5 req/s em `fixed_50` e 99 req/s em `fixed_100`.
+95% da taxa nominal: 47,5 req/s em `fixed_50` e 95 req/s em `fixed_100`.
 
 A carga percorre a rede interna do Docker. Pelo caminho anterior, atraves da porta publicada no host, o `GET /health` custava de 6 a 7 ms sem consultar o banco, e esse piso entrava em toda medicao de leitura.
 

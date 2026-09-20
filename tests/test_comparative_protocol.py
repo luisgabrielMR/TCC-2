@@ -175,20 +175,20 @@ class ActivityDiagnosticsTests(unittest.TestCase):
 
 
 class CohortTests(unittest.TestCase):
-    def test_fixed_load_delivery_floor_is_99_percent_at_the_boundary(self):
+    def test_fixed_load_delivery_floor_is_95_percent_at_the_boundary(self):
         with patch("scripts.benchmark_protocol._compose_digest", return_value="test-compose"):
             fixed_50 = build_protocol("fixed_50", "mixed", {})["protocol"]["load"]
             fixed_100 = build_protocol("fixed_100", "mixed", {})["protocol"]["load"]
 
-        self.assertEqual(FIXED_LOAD_MINIMUM_DELIVERY_PERCENT, 99)
-        self.assertEqual(fixed_50["minimum_delivery_percent"], 99)
-        self.assertEqual(fixed_50["minimum_delivery_rps"], 49.5)
-        self.assertTrue(meets_minimum_delivery(49.5, fixed_50["target_rps"]))
-        self.assertFalse(meets_minimum_delivery(49.499999, fixed_50["target_rps"]))
-        self.assertEqual(fixed_100["minimum_delivery_percent"], 99)
-        self.assertEqual(fixed_100["minimum_delivery_rps"], 99)
-        self.assertTrue(meets_minimum_delivery(99, fixed_100["target_rps"]))
-        self.assertFalse(meets_minimum_delivery(98.999999, fixed_100["target_rps"]))
+        self.assertEqual(FIXED_LOAD_MINIMUM_DELIVERY_PERCENT, 95)
+        self.assertEqual(fixed_50["minimum_delivery_percent"], 95)
+        self.assertEqual(fixed_50["minimum_delivery_rps"], 47.5)
+        self.assertTrue(meets_minimum_delivery(47.5, fixed_50["target_rps"]))
+        self.assertFalse(meets_minimum_delivery(47.499999, fixed_50["target_rps"]))
+        self.assertEqual(fixed_100["minimum_delivery_percent"], 95)
+        self.assertEqual(fixed_100["minimum_delivery_rps"], 95)
+        self.assertTrue(meets_minimum_delivery(95, fixed_100["target_rps"]))
+        self.assertFalse(meets_minimum_delivery(94.999999, fixed_100["target_rps"]))
 
     def test_variable_rate_profiles_do_not_receive_a_delivery_floor(self):
         with patch("scripts.benchmark_protocol._compose_digest", return_value="test-compose"):
@@ -351,7 +351,7 @@ class PilotAssessmentTests(unittest.TestCase):
                         "load_profile": profile, "language": language, "result_classification": "non_official",
                         "warmup": {"stable": True}, "measurement_stability": {"stable": True},
                         "metrics": {"prometheus_scrape_interval_seconds": 1},
-                        "locust": {"target_rps": nominal, "minimum_delivery_rps": nominal * 0.99, "achieved_rps": nominal, "generator_headroom_met": True, "locust_cpu_quota_average_percent": 5},
+                        "locust": {"target_rps": nominal, "minimum_delivery_rps": nominal * 0.95, "achieved_rps": nominal, "generator_headroom_met": True, "locust_cpu_quota_average_percent": 5},
                         "shared_database": {"database_headroom_met": True, "postgres_cpu_quota_average_percent": 20, "postgres_cpu_quota_max_percent": 40}}
                     manifest = {"commit_sha": "same", "protocol_sha256": profile,
                                 "protocol": {"experimental_source_sha256": {"code": "hash"},

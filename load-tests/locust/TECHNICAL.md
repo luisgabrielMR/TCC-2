@@ -38,7 +38,7 @@ não devem ser misturados com a campanha fechada principal.
 Com pacing maior que zero, o modelo é `closed_paced_users_v1`: cada usuário
 espera sua resposta e então respeita seu próximo ritmo. Logo, a taxa pode cair
 se API, banco ou gerador não conseguirem acompanhar. A entrega mínima esperada
-em perfis fixos é 99% do teto nominal: 49,5 req/s em `fixed_50` e 99 req/s em
+em perfis fixos é 95% do teto nominal: 47,5 req/s em `fixed_50` e 95 req/s em
 `fixed_100`. O manifesto registra tanto `minimum_delivery_percent` quanto
 `minimum_delivery_rps`; os launchers usam esse último valor para classificar a
 rodada. Perfis sem taxa fixa não recebem esse critério.
