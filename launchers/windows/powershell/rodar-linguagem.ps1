@@ -468,6 +468,9 @@ try {
     if ($RunMode -eq "official" -and -not $generatorHeadroomMet) {
         throw "A rodada oficial ficou sem a folga exigida do gerador (CPU ou capacidade calibrada) e foi registrada como non_official."
     }
+    if ($RunMode -eq "official" -and -not $databaseHeadroomMet) {
+        throw "A rodada oficial ficou sem a folga exigida de CPU do PostgreSQL e foi registrada como non_official. Consulte shared_database em metadata.json."
+    }
     Write-Host "Rodada concluida: $resultRelative"
 }
 finally {

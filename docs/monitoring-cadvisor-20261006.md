@@ -50,3 +50,25 @@ Foram analisados os arquivos já gravados e a sintaxe das alterações. A suíte
 automatizada e novas cargas não foram executadas, conforme solicitado.
 A correção da configuração ainda precisa ser observada na execução manual;
 um preflight aprovado não garante continuidade durante toda a carga.
+
+## Revisão adicional do fluxo antes da retomada
+
+A revisão estática da inicialização, coleta, exportação, classificação e
+encerramento identificou mais três problemas corrigidos:
+
+- Os runners PowerShell e Bash gravavam `non_official` quando faltava folga de
+  CPU do PostgreSQL, mas terminavam com sucesso. Agora retornam erro depois de
+  preservar os metadados; o menu não anuncia uma rodada oficial concluída.
+- No Windows, `up -d` precedido por `--profile` não recebia as tentativas de
+  inicialização já previstas. `up --build` também passava fora do tratamento
+  de falhas transitórias de rede do build. Ambos passam pelos caminhos
+  correspondentes, com limites de tentativas e logs do build.
+- A chamada de `docker stats` não tinha timeout. Ela passa a encerrar com erro
+  após 15 segundos sem resposta, evitando espera indefinida no coletor e no
+  encerramento do runner Bash. Isso não substitui nem flexibiliza cAdvisor.
+
+Foram conferidas as sintaxes de 41 arquivos Python, oito PowerShell e 23 Bash,
+além de `git diff --check`. Nenhuma suíte de testes, carga, reset de banco ou
+inicialização de serviço foi executada nesta revisão. A validação de sintaxe
+não comprova o comportamento durante uma medição; os bloqueios do protocolo
+continuam obrigatórios na execução manual.

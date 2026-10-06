@@ -37,12 +37,13 @@ function Get-BenchmarkValue {
 function Invoke-BenchmarkCompose {
     param([string[]]$Arguments)
 
-    if ($Arguments -contains "build") {
+    if ($Arguments -contains "build" -or $Arguments -contains "--build") {
         Invoke-BenchmarkComposeBuild -Arguments $Arguments
         return
     }
 
-    $isServiceStartup = $Arguments.Count -ge 2 -and $Arguments[0] -eq "up" -and $Arguments -contains "-d"
+    # Global options such as --profile precede the up subcommand.
+    $isServiceStartup = $Arguments -contains "up" -and $Arguments -contains "-d"
     $attempts = if ($isServiceStartup) { 3 } else { 1 }
     for ($attempt = 1; $attempt -le $attempts; $attempt++) {
         & docker compose @Arguments

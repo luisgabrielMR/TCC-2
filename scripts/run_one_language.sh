@@ -564,6 +564,10 @@ if [ "$RUN_MODE" = official ] && [ "$GENERATOR_HEADROOM_MET" != true ]; then
   echo "A medicao oficial ficou sem a folga exigida do gerador (CPU ou capacidade calibrada) e foi registrada como non_official." >&2
   exit 2
 fi
+if [ "$RUN_MODE" = official ] && [ "$DATABASE_HEADROOM_MET" != true ]; then
+  echo "A medicao oficial ficou sem a folga exigida de CPU do PostgreSQL e foi registrada como non_official. Consulte shared_database em metadata.json." >&2
+  exit 2
+fi
 
 docker compose stop "$API_SERVICE"
 API_STARTED=false

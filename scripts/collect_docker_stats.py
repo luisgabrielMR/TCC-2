@@ -53,6 +53,7 @@ def sample() -> list[dict[str, object]]:
     completed = subprocess.run(
         ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
         check=True, capture_output=True, text=True, encoding="utf-8",
+        timeout=15,
     )
     timestamp = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
     rows = []
