@@ -6,9 +6,11 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import logging
 import math
 import statistics
 import sys
+import threading
 import time
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -17,6 +19,8 @@ from typing import Callable, Iterable
 
 
 LIVE_FRESHNESS_SECONDS = 30
+SNAPSHOT_REFRESH_SECONDS = 5
+SNAPSHOT_MAX_AGE_SECONDS = 30
 
 
 def number(value: object, default: float = 0.0) -> float:
@@ -97,7 +101,9 @@ def collect_completed_runs(results_root: Path) -> tuple[list[dict], list[dict]]:
         run_directory = stats_path.parent
         metadata = read_json(run_directory / "metadata.json")
         if integer(metadata.get("methodology_version")) >= 8:
-            sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+            scripts_root = str(Path(__file__).resolve().parents[1] / "scripts")
+            if scripts_root not in sys.path:
+                sys.path.insert(0, scripts_root)
             from snapshot_integrity import verified_stats
             try:
                 stats = verified_stats(run_directory / "locust")
@@ -489,40 +495,100 @@ def add_live_metrics(metrics: Metrics, results_root: Path) -> None:
             metrics.add("benchmark_live_container_pids", number(row.get("pids")), labels, "Current container process count")
 
 
-def render_metrics(results_root: Path) -> str:
+def collect_metrics(results_root: Path) -> Metrics:
     metrics = Metrics()
+    runs, endpoints = collect_completed_runs(results_root)
+    metrics.add("benchmark_results_exporter_up", 1, help_text="Benchmark results exporter status")
+    metrics.add("benchmark_results_completed_runs", len(runs), help_text="Completed benchmark runs found")
+    add_result_metrics(metrics, runs, endpoints)
+    add_live_metrics(metrics, results_root)
+    return metrics
+
+
+def unavailable_metrics() -> bytes:
+    metrics = Metrics()
+    metrics.add("benchmark_results_exporter_up", 0, help_text="Benchmark results exporter status")
+    return metrics.render().encode("utf-8")
+
+
+def render_metrics(results_root: Path) -> str:
     try:
-        runs, endpoints = collect_completed_runs(results_root)
-        metrics.add("benchmark_results_exporter_up", 1, help_text="Benchmark results exporter status")
-        metrics.add("benchmark_results_completed_runs", len(runs), help_text="Completed benchmark runs found")
-        add_result_metrics(metrics, runs, endpoints)
-        add_live_metrics(metrics, results_root)
+        return collect_metrics(results_root).render()
     except Exception:
-        metrics.add("benchmark_results_exporter_up", 0, help_text="Benchmark results exporter status")
-    return metrics.render()
+        logging.exception("Failed to collect benchmark results")
+        return unavailable_metrics().decode("utf-8")
+
+
+class MetricsSnapshot:
+    """One reader refreshes artifacts; HTTP scrapes only copy an immutable snapshot."""
+
+    def __init__(self, results_root: Path) -> None:
+        self.results_root = results_root
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._payload = unavailable_metrics()
+        self._healthy = False
+        self._updated_at: float | None = None
+        self._thread = threading.Thread(target=self._refresh, daemon=True, name="results-reader")
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=1)
+
+    def _refresh(self) -> None:
+        while not self._stop.is_set():
+            try:
+                payload = collect_metrics(self.results_root).render().encode("utf-8")
+                healthy = True
+            except Exception:
+                logging.exception("Failed to refresh benchmark results snapshot")
+                payload = unavailable_metrics()
+                healthy = False
+            # Never hold the lock while reading files or validating their hashes.
+            with self._lock:
+                self._payload = payload
+                self._healthy = healthy
+                self._updated_at = time.monotonic()
+            self._stop.wait(SNAPSHOT_REFRESH_SECONDS)
+
+    def response(self) -> tuple[bytes, bool]:
+        with self._lock:
+            payload, healthy, updated_at = self._payload, self._healthy, self._updated_at
+        if updated_at is None or time.monotonic() - updated_at > SNAPSHOT_MAX_AGE_SECONDS:
+            # A stalled reader must not keep publishing a healthy cached result.
+            return unavailable_metrics(), False
+        return payload, healthy
 
 
 class Handler(BaseHTTPRequestHandler):
-    results_root = Path("/results")
+    snapshot: MetricsSnapshot
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path == "/health":
-            payload = b"ok\n"
-            status = 200
+            _, healthy = self.snapshot.response()
+            payload = b"ok\n" if healthy else b"results snapshot unavailable\n"
+            status = 200 if healthy else 503
             content_type = "text/plain; charset=utf-8"
         elif self.path == "/metrics":
-            payload = render_metrics(self.results_root).encode("utf-8")
+            payload, _ = self.snapshot.response()
             status = 200
             content_type = "text/plain; version=0.0.4; charset=utf-8"
         else:
             payload = b"not found\n"
             status = 404
             content_type = "text/plain; charset=utf-8"
-        self.send_response(status)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(payload)))
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError):
+            # The scraper may disconnect during shutdown or a network timeout.
+            return
 
     def log_message(self, format: str, *args: object) -> None:
         return
@@ -534,10 +600,15 @@ def main() -> None:
     parser.add_argument("--host", default="0.0.0.0")
     parser.add_argument("--port", type=int, default=9101)
     args = parser.parse_args()
-    Handler.results_root = args.results
+    Handler.snapshot = MetricsSnapshot(args.results)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
+    Handler.snapshot.start()
     print(f"Benchmark results exporter listening on {args.host}:{args.port}", flush=True)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        Handler.snapshot.stop()
+        server.server_close()
 
 
 if __name__ == "__main__":

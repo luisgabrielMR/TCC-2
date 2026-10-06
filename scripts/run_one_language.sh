@@ -144,9 +144,9 @@ if [ -n "${BENCHMARK_CAMPAIGN_FINGERPRINT:-}" ] && [ "$BENCHMARK_CAMPAIGN_FINGER
   exit 2
 fi
 
-# Prometheus needs a process restart to apply the bind-mounted scrape configuration.
-docker compose --profile monitoring up -d --force-recreate prometheus
-docker compose --profile monitoring up -d postgres-exporter benchmark-results-exporter grafana cadvisor
+# Reload both the bind-mounted Prometheus configuration and exporter code.
+docker compose --profile monitoring up -d --force-recreate prometheus benchmark-results-exporter
+docker compose --profile monitoring up -d postgres-exporter grafana cadvisor
 "$SCRIPT_DIR/reset_db.sh"
 
 docker compose --profile "$LANGUAGE" up -d --build "$API_SERVICE"

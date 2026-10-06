@@ -117,6 +117,13 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
     target_health = {
         target.get("labels", {}).get("job", "unknown"): target.get("health", "unknown") for target in targets
     }
+    target_details = [
+        {key: target.get(key) for key in (
+            "labels", "health", "scrapeUrl", "lastError", "lastScrape",
+            "lastScrapeDuration", "scrapeInterval", "scrapeTimeout",
+        )}
+        for target in targets
+    ]
     cpu_series = query_series(base_url, "container_cpu_usage_seconds_total")
     memory_series = query_series(base_url, "container_memory_working_set_bytes")
 
@@ -152,7 +159,10 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
 
     for job in ("benchmark-results", "postgres", "prometheus"):
         if target_health.get(job) != "up":
-            operational_blockers.append(f"Prometheus target {job} is not up")
+            errors = [str(target["lastError"]) for target in targets
+                      if target.get("labels", {}).get("job") == job and target.get("lastError")]
+            detail = ": " + "; ".join(errors) if errors else ""
+            operational_blockers.append(f"Prometheus target {job} is not up{detail}")
     if target_health.get("cadvisor") != "up":
         cadvisor_blockers.append("Prometheus target cadvisor is not up")
     postgres_series = query_series(base_url, "pg_up")
@@ -201,6 +211,7 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         "grafana_health": grafana,
         "grafana_dashboards": sorted(title for title in dashboard_titles if title),
         "prometheus_targets": target_health,
+        "prometheus_target_details": target_details,
         "cadvisor_target_up": target_health.get("cadvisor") == "up",
         "cadvisor_components": component_status,
         "cadvisor_collection_config": collection_config,

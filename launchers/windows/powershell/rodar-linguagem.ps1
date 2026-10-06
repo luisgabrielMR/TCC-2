@@ -121,9 +121,9 @@ $commit = (& git rev-parse --short HEAD 2>$null)
 if (-not $commit) { $commit = "unknown" }
 
 try {
-    # Prometheus needs a process restart to apply the bind-mounted scrape configuration.
-    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "--force-recreate", "prometheus")
-    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "benchmark-results-exporter", "grafana", "cadvisor")
+    # Reload both the bind-mounted Prometheus configuration and exporter code.
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "--force-recreate", "prometheus", "benchmark-results-exporter")
+    Invoke-BenchmarkCompose @("--profile", "monitoring", "up", "-d", "postgres-exporter", "grafana", "cadvisor")
     Reset-BenchmarkDatabase $environment
     $databaseNeedsReset = $false
     Invoke-BenchmarkCompose @("--profile", $Language, "up", "-d", "--build", $service)
