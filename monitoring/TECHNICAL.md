@@ -9,8 +9,8 @@ CSV/JSON de uma rodada -> results exporter --> Prometheus -> Grafana
 ```
 
 `monitoring/prometheus/prometheus.yml` usa scrape e avaliação de 1 segundo.
-Assim, as métricas do PostgreSQL exporter e do cAdvisor são armazenadas com a
-mesma cadência do housekeeping fixo de 1 s do cAdvisor. Os targets são
+O cAdvisor atualiza internamente com base de 200 ms para acomodar o jitter
+da versão 0.49.1; seus timestamps originais são preservados. Os targets são
 Prometheus, PostgreSQL exporter, cAdvisor e results exporter. Os serviços são
 ativados pelo perfil Compose `monitoring`.
 

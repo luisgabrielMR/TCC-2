@@ -9,6 +9,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 import time
 import urllib.parse
 import urllib.request
@@ -133,6 +134,49 @@ def sample_quality(samples: list[tuple[float, float]], start: float, end: float,
             covered += overlap
     return {"covered_seconds": min(covered, max(end - start, 0)),
             "maximum_gap_seconds": largest_gap, "counter_resets": resets}
+
+
+def cadvisor_sample_quality(
+    cpu: list[dict], memory: list[dict], start: float, end: float,
+    minimum_coverage_percent: float = DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT,
+    maximum_gap_seconds: float = 1.5,
+) -> dict:
+    """Assess original sample timestamps for both preflight and final export."""
+    metrics: dict[str, dict] = {}
+    reasons: list[str] = []
+    elapsed = end - start
+    if elapsed <= 0:
+        return {"valid": False, "reasons": ["invalid_measurement_window"], "metrics": {}}
+    for metric, rows, counter in (("cpu", cpu, True), ("memory", memory, False)):
+        if len(rows) != 1:
+            metrics[metric] = {"series_count": len(rows)}
+            reasons.append(f"{metric}:expected_one_series_found_{len(rows)}")
+            continue
+        samples = clean_samples(rows[0])
+        quality = sample_quality(samples, start, end, maximum_gap_seconds, counter)
+        coverage = quality["covered_seconds"] / elapsed * 100
+        metrics[metric] = {
+            **quality, "series_count": 1, "samples": len(samples),
+            "coverage_percent": coverage,
+            "first_sample_epoch": samples[0][0] if samples else None,
+            "last_sample_epoch": samples[-1][0] if samples else None,
+        }
+        if len(samples) < 2:
+            reasons.append(f"{metric}:insufficient_samples")
+        if quality["counter_resets"]:
+            reasons.append(f"{metric}:counter_resets_{quality['counter_resets']}")
+        if quality["maximum_gap_seconds"] > maximum_gap_seconds:
+            reasons.append(
+                f"{metric}:scrape_gap_{quality['maximum_gap_seconds']:.6f}s"
+                f"_exceeds_{maximum_gap_seconds:g}s"
+            )
+        if coverage < minimum_coverage_percent:
+            reasons.append(f"{metric}:coverage_{coverage:.1f}_percent_below_{minimum_coverage_percent:g}")
+    return {
+        "valid": not reasons, "reasons": reasons, "metrics": metrics,
+        "minimum_required_coverage_percent": minimum_coverage_percent,
+        "maximum_allowed_gap_seconds": maximum_gap_seconds,
+    }
 
 
 def clipped_samples(samples: list[tuple[float, float]], start: float, end: float) -> list[tuple[float, float]]:
@@ -364,6 +408,7 @@ def write_cadvisor_summary(
     memory = result["queries"]["cadvisor_memory_working_set_bytes"]["response"].get("data", {}).get("result", [])
     rows: list[dict[str, object]] = []
     missing: list[str] = []
+    diagnostics: dict[str, dict] = {}
     start = float(result["start_epoch"])
     end = float(result["end_epoch"])
     elapsed = max(end - start, 0.0)
@@ -376,12 +421,19 @@ def write_cadvisor_summary(
             identifiers.append(current_identifier)
         selected_cpu = matching_series(cpu, service, name_pattern, identifiers)
         selected_memory = matching_series(memory, service, name_pattern, identifiers)
+        maximum_gap = float(result.get("step_seconds", DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS)) * 1.5
+        quality = cadvisor_sample_quality(
+            selected_cpu, selected_memory, start, end, minimum_coverage_percent, maximum_gap,
+        )
+        diagnostics[component] = {"container_ids": sorted(set(identifiers)), **quality}
+        if require and not quality["valid"]:
+            missing.extend(f"{component}:{reason}" for reason in quality["reasons"])
+            continue
         if len(selected_cpu) != 1 or len(selected_memory) != 1:
             missing.append(f"{component}:expected_one_cpu_and_memory_series")
             continue
-        maximum_gap = float(result.get("step_seconds", DEFAULT_PROMETHEUS_SCRAPE_INTERVAL_SECONDS)) * 1.5
-        cpu_quality = sample_quality(clean_samples(selected_cpu[0]), start, end, maximum_gap, True)
-        memory_quality = sample_quality(clean_samples(selected_memory[0]), start, end, maximum_gap)
+        cpu_quality = quality["metrics"]["cpu"]
+        memory_quality = quality["metrics"]["memory"]
         cpu_observations = series_cpu_observations(
             cpu, service, name_pattern, identifiers, start, end
         )
@@ -395,15 +447,8 @@ def write_cadvisor_summary(
         )
         cpu_max = max((rate for rate, _ in cpu_observations), default=0.0)
         coverage = min(cpu_quality["covered_seconds"], memory_quality["covered_seconds"]) / elapsed * 100 if elapsed else 0.0
-        if require and (cpu_quality["counter_resets"] or
-                        max(cpu_quality["maximum_gap_seconds"], memory_quality["maximum_gap_seconds"]) > maximum_gap):
-            missing.append(f"{component}:counter_reset_or_scrape_gap")
-            continue
         if not cpu_observations or not memory_samples:
             missing.append(component)
-            continue
-        if require and coverage < minimum_coverage_percent:
-            missing.append(f"{component}:coverage_{coverage:.1f}_percent")
             continue
         canonical_name = {
             "api": "tcc_benchmark_" + service.replace("-", "_"),
@@ -440,8 +485,16 @@ def write_cadvisor_summary(
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
+    diagnostic_path = path.with_name("cadvisor-validation.json")
+    diagnostic_path.write_text(json.dumps({
+        "schema_version": 1,
+        "valid": bool(diagnostics) and all(item["valid"] for item in diagnostics.values()),
+        "required": require, "start_epoch": start, "end_epoch": end,
+        "sample_source": result.get("sample_source"), "components": diagnostics,
+    }, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
     if require and missing:
-        raise RuntimeError("Missing cAdvisor measurement series for: " + ", ".join(missing))
+        raise RuntimeError("Invalid cAdvisor measurement series: " + "; ".join(missing)
+                           + f". Details: {diagnostic_path}")
 
 
 def main() -> int:
@@ -484,19 +537,33 @@ def main() -> int:
         "boundary_method": "two-scrape padding; original scrape timestamps; overlap interpolation at wall-clock boundaries",
         "queries": {},
     }
-    for name, query in QUERIES.items():
-        result["queries"][name] = {
-            "query": query,
-            "response": query_range(args.url, query, query_start, query_end, args.step),
-        }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8", newline="\n")
-    write_postgres_summary(output.with_name("postgres_summary.csv"), result, args.require_postgres)
-    write_cadvisor_summary(
-        output.with_name("cadvisor_summary.csv"), result, args.component, args.require_cadvisor,
-        args.minimum_cadvisor_coverage_percent,
-    )
+    stage = "prometheus_queries"
+    try:
+        for name, query in QUERIES.items():
+            result["queries"][name] = {
+                "query": query,
+                "response": query_range(args.url, query, query_start, query_end, args.step),
+            }
+        output.write_text(json.dumps(result, indent=2, ensure_ascii=True) + "\n", encoding="utf-8", newline="\n")
+        stage = "postgresql_summary"
+        write_postgres_summary(output.with_name("postgres_summary.csv"), result, args.require_postgres)
+        stage = "cadvisor_summary"
+        write_cadvisor_summary(
+            output.with_name("cadvisor_summary.csv"), result, args.component, args.require_cadvisor,
+            args.minimum_cadvisor_coverage_percent,
+        )
+    except (OSError, ValueError, RuntimeError) as exc:
+        output.with_name("prometheus-validation.json").write_text(json.dumps({
+            "valid": False, "stage": stage, "error": str(exc),
+            "start_epoch": args.start, "end_epoch": args.end,
+        }, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+        print(f"Prometheus export blocked ({stage}): {exc}", file=sys.stderr)
+        return 2
+    output.with_name("prometheus-validation.json").write_text(json.dumps({
+        "valid": True, "stage": "complete", "start_epoch": args.start, "end_epoch": args.end,
+    }, indent=2) + "\n", encoding="utf-8")
     print(f"Prometheus series exported to {output}")
     return 0
 

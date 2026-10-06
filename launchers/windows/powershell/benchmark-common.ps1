@@ -296,8 +296,31 @@ function Invoke-BenchmarkPython {
     param([string[]]$Arguments)
     $python = Get-BenchmarkPythonCommand
     $allArguments = @($python.Prefix) + $Arguments
-    & $python.FilePath @allArguments
-    if ($LASTEXITCODE -ne 0) { throw "Python falhou: $($Arguments -join ' ')" }
+    $stderrLines = [System.Collections.Generic.List[string]]::new()
+    $previousErrorPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell wraps native stderr as ErrorRecord. Preserve the
+        # actual Python reason instead of replacing it with only the command.
+        $ErrorActionPreference = "Continue"
+        & $python.FilePath @allArguments 2>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord]) {
+                $line = $_.ToString()
+                $stderrLines.Add($line)
+                if ($stderrLines.Count -gt 20) { $stderrLines.RemoveAt(0) }
+                Write-Host $line -ForegroundColor Red
+            } else {
+                Write-Output $_
+            }
+        }
+        $pythonExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorPreference
+    }
+    if ($pythonExitCode -ne 0) {
+        $details = if ($stderrLines.Count) { "`n" + ($stderrLines -join "`n") } else { "" }
+        throw "Python falhou (codigo $pythonExitCode): $($Arguments -join ' ')$details"
+    }
 }
 
 function Start-BenchmarkMeasurements {

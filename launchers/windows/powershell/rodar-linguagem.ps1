@@ -150,6 +150,7 @@ try {
         (Join-Path $script:BenchmarkRoot "scripts/validate_monitoring.py"),
         "--prometheus-url", "http://127.0.0.1:$(Get-BenchmarkValue $environment 'PROMETHEUS_PORT' '9090')",
         "--grafana-url", "http://127.0.0.1:$(Get-BenchmarkValue $environment 'GRAFANA_PORT' '3000')",
+        "--minimum-cadvisor-coverage-percent", $minimumCadvisorCoveragePercent.ToString("R", [Globalization.CultureInfo]::InvariantCulture),
         "--api-service", $service, "--mode", $RunMode, "--output", $monitoringPreflightPath
     )
     $monitoringPreflight = Get-Content $monitoringPreflightPath -Raw | ConvertFrom-Json
@@ -438,7 +439,8 @@ try {
             sample_interval_seconds = $metricsInterval
             docker_stats_sample_interval_seconds = $metricsInterval
             prometheus_scrape_interval_seconds = 1
-            cadvisor_housekeeping_interval_seconds = 1
+            cadvisor_housekeeping_interval_seconds = $protocolManifest.protocol.metrics.cadvisor_housekeeping_interval_seconds
+            cadvisor_housekeeping_jitter_factor = $protocolManifest.protocol.metrics.cadvisor_housekeeping_jitter_factor
             maximum_cadvisor_scrape_gap_seconds = 1.5
             container_primary_source = "cAdvisor via Prometheus"
             container_cpu_source = "cAdvisor via Prometheus"

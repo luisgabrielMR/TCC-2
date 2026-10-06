@@ -222,7 +222,8 @@ def build_protocol(load_profile: str, scenario: str, values: dict[str, str] | No
             "postgres_collector_revision": 3,
             "collector_interval_seconds": _number(environment, "METRICS_SAMPLE_INTERVAL_SECONDS", "2"),
             "prometheus_scrape_interval_seconds": 1,
-            "cadvisor_housekeeping_interval_seconds": 1,
+            "cadvisor_housekeeping_interval_seconds": 0.2,
+            "cadvisor_housekeeping_jitter_factor": 1.0,
             "minimum_cadvisor_coverage_percent": _number(
                 environment, "OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT", "95"
             ),

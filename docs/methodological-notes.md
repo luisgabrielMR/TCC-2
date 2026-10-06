@@ -146,7 +146,13 @@ a 5 s das requisicoes iniciadas antes da parada. Contagens/histogramas devem
 reconciliar; requests cancelados ou pendentes nao sao promovidos.
 
 Prometheus coleta a cada 1 s, incluindo cAdvisor e PostgreSQL exporter;
-cAdvisor usa housekeeping de 1 s. Revisao3 do coletor exporta timestamps reais,
+cAdvisor usa housekeeping com base de 200 ms e jitter de até 100% na versão
+0.49.1. O ajuste interno acomoda o scrape de 1 s; não altera os critérios de
+95% de cobertura e gap máximo de 1,5 s. O manifesto registra ambos os
+intervalos e o jitter. O preflight avalia 30 s de amostras reais antes da carga;
+a exportação continua avaliando toda a janela medida. Veja o
+[diagnóstico de 06/10/2026](monitoring-cadvisor-20261006.md).
+Revisao3 do coletor exporta timestamps reais,
 margem de scrape e medias ponderadas pelo tempo, rejeitando
 gaps/reset/ambiguidade quando a evidencia e obrigatoria.
 As métricas de CPU e memória coletadas pelo cAdvisor devem apresentar cobertura

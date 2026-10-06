@@ -218,6 +218,8 @@ class CohortTests(unittest.TestCase):
         with patch("scripts.benchmark_protocol._compose_digest", return_value="test-compose"):
             manifest = build_protocol("fixed_50", "mixed", {})
         self.assertEqual(manifest["protocol"]["metrics"]["prometheus_scrape_interval_seconds"], 1)
+        self.assertEqual(manifest["protocol"]["metrics"]["cadvisor_housekeeping_interval_seconds"], 0.2)
+        self.assertEqual(manifest["protocol"]["metrics"]["cadvisor_housekeeping_jitter_factor"], 1.0)
         self.assertEqual(manifest["protocol"]["metrics"]["minimum_cadvisor_coverage_percent"], 95)
         self.assertEqual(manifest["protocol"]["metrics"]["maximum_cadvisor_scrape_gap_seconds"], 1.5)
         configuration = (ROOT / "monitoring/prometheus/prometheus.yml").read_text(encoding="utf-8")

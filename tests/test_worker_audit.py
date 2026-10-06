@@ -43,13 +43,16 @@ class WorkerAuditTests(unittest.TestCase):
             self.assertTrue(user.stop())
             self.assertEqual(calls, [True, False])
 
-    def test_cadvisor_requires_fixed_runtime_sampling(self):
+    def test_cadvisor_requires_headroom_for_runtime_sampling_jitter(self):
         with patch("scripts.validate_monitoring.subprocess.run") as run:
-            run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=1s"])
+            run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=200ms"])
             self.assertTrue(cadvisor_collection_config()["fixed_interval_valid"])
-            run.return_value.stdout = json.dumps(["--housekeeping_interval=1s"])
+            # Disabling dynamic housekeeping does not disable v0.49.1 jitter.
+            run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=1s"])
             self.assertFalse(cadvisor_collection_config()["fixed_interval_valid"])
-            run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=1s", "--allow_dynamic_housekeeping=true"])
+            run.return_value.stdout = json.dumps(["--housekeeping_interval=200ms"])
+            self.assertFalse(cadvisor_collection_config()["fixed_interval_valid"])
+            run.return_value.stdout = json.dumps(["--allow_dynamic_housekeeping=false", "--housekeeping_interval=200ms", "--allow_dynamic_housekeeping=true"])
             self.assertFalse(cadvisor_collection_config()["fixed_interval_valid"])
 
     def test_master_quit_stops_workers_before_original_quit(self):

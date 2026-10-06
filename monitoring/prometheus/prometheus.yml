@@ -12,6 +12,7 @@ scrape_configs:
       - targets: ["postgres-exporter:9187"]
 
   - job_name: cadvisor
+    honor_timestamps: true
     static_configs:
       - targets: ["cadvisor:8080"]
 

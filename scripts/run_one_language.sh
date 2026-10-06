@@ -160,6 +160,7 @@ LOCUST_PREFLIGHT_STARTED=true
 "$PYTHON_BIN" "$SCRIPT_DIR/validate_monitoring.py" \
   --prometheus-url "http://127.0.0.1:${PROMETHEUS_PORT:-9090}" \
   --grafana-url "http://127.0.0.1:${GRAFANA_PORT:-3000}" \
+  --minimum-cadvisor-coverage-percent "$OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT" \
   --api-service "$API_SERVICE" --mode "$RUN_MODE" --output "$MONITORING_PREFLIGHT_PATH"
 docker compose stop locust
 LOCUST_PREFLIGHT_STARTED=false
@@ -536,7 +537,8 @@ cat > "$RESULT_DIR/metadata.json" <<JSON
     "sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "docker_stats_sample_interval_seconds": $METRICS_SAMPLE_INTERVAL_SECONDS,
     "prometheus_scrape_interval_seconds": 1,
-    "cadvisor_housekeeping_interval_seconds": 1,
+    "cadvisor_housekeeping_interval_seconds": 0.2,
+    "cadvisor_housekeeping_jitter_factor": 1.0,
     "maximum_cadvisor_scrape_gap_seconds": 1.5,
     "container_primary_source": "cAdvisor via Prometheus",
     "container_cpu_source": "cAdvisor via Prometheus",

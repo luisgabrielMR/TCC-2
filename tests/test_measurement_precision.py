@@ -173,11 +173,16 @@ class MeasurementPrecisionTests(unittest.TestCase):
             timestamps = [0, 1, *range(3, 101)]
             quality = sample_quality([(t, t) for t in timestamps], 0, 100, 1.5, True)
             self.assertGreater(quality["covered_seconds"], 95)
-            with self.assertRaisesRegex(RuntimeError, "counter_reset_or_scrape_gap"):
+            with self.assertRaisesRegex(RuntimeError, "scrape_gap_2.000000s_exceeds_1.5s"):
                 write_cadvisor_summary(
                     output, self.cadvisor_result(timestamps), component, require=True,
                     minimum_coverage_percent=95,
                 )
+            diagnosis = json.loads(output.with_name("cadvisor-validation.json").read_text())
+            self.assertFalse(diagnosis["valid"])
+            cpu = diagnosis["components"]["api"]["metrics"]["cpu"]
+            self.assertEqual(cpu["maximum_gap_seconds"], 2)
+            self.assertGreater(cpu["coverage_percent"], 95)
 
             # Historical/coarser data derives the independent gap bound from its step.
             result = self.cadvisor_result(range(0, 101, 5))

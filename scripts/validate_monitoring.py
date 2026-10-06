@@ -12,8 +12,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+try:
+    from .export_prometheus_data import cadvisor_sample_quality, DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT
+except ImportError:
+    from export_prometheus_data import cadvisor_sample_quality, DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT
+
 
 EXPECTED_PROMETHEUS_SCRAPE_INTERVAL = "1s"
+EXPECTED_CADVISOR_HOUSEKEEPING_INTERVAL = "200ms"
+CADVISOR_PREFLIGHT_WINDOW_SECONDS = 30
 
 
 def prometheus_get(base_url: str, path: str, parameters: dict[str, str] | None = None) -> dict[str, Any]:
@@ -82,6 +89,16 @@ def query_series(base_url: str, metric_name: str) -> list[dict[str, Any]]:
     return payload.get("data", {}).get("result", [])
 
 
+def query_sample_window(base_url: str, metric_name: str, end: float) -> list[dict[str, Any]]:
+    payload = prometheus_get(base_url, "/api/v1/query", {
+        "query": f"{metric_name}[{CADVISOR_PREFLIGHT_WINDOW_SECONDS + 4}s]",
+        "time": str(end + 2),
+    })
+    if payload.get("data", {}).get("resultType") != "matrix":
+        raise RuntimeError("Prometheus did not return original cAdvisor samples")
+    return payload.get("data", {}).get("result", [])
+
+
 def cadvisor_collection_config() -> dict[str, Any]:
     try:
         completed = subprocess.run(
@@ -90,8 +107,14 @@ def cadvisor_collection_config() -> dict[str, Any]:
         )
         command = json.loads(completed.stdout)
         flags = dict(argument.lstrip("-").split("=", 1) for argument in command if "=" in argument)
-        valid = flags.get("allow_dynamic_housekeeping") == "false" and flags.get("housekeeping_interval") == "1s"
-        return {"command": command, "fixed_interval_valid": valid}
+        valid = (flags.get("allow_dynamic_housekeeping") == "false"
+                 and flags.get("housekeeping_interval") == EXPECTED_CADVISOR_HOUSEKEEPING_INTERVAL)
+        return {
+            "command": command, "fixed_interval_valid": valid,
+            "expected_housekeeping_interval": EXPECTED_CADVISOR_HOUSEKEEPING_INTERVAL,
+            "housekeeping_jitter_factor": 1.0,
+            "actual_sample_intervals_require_validation": True,
+        }
     except (OSError, subprocess.SubprocessError, ValueError, TypeError):
         return {"command": [], "fixed_interval_valid": False}
 
@@ -111,7 +134,10 @@ def prometheus_collection_config(targets: list[dict[str, Any]]) -> dict[str, Any
     }
 
 
-def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -> dict[str, Any]:
+def build_report(
+    base_url: str, grafana_url: str, api_service: str, mode: str,
+    minimum_coverage_percent: float = DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT,
+) -> dict[str, Any]:
     targets_payload = prometheus_get(base_url, "/api/v1/targets")
     targets = targets_payload.get("data", {}).get("activeTargets", [])
     target_health = {
@@ -124,8 +150,16 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         )}
         for target in targets
     ]
-    cpu_series = query_series(base_url, "container_cpu_usage_seconds_total")
-    memory_series = query_series(base_url, "container_memory_working_set_bytes")
+    cpu_metric = 'container_cpu_usage_seconds_total{job="cadvisor",cpu="total"}'
+    memory_metric = 'container_memory_working_set_bytes{job="cadvisor"}'
+    cpu_series = query_series(base_url, cpu_metric)
+    memory_series = query_series(base_url, memory_metric)
+    # Inspect existing samples, with the same boundary padding as final export.
+    # A target being up and an interval flag being set do not prove sample cadence.
+    sample_end = time.time() - 2
+    sample_start = sample_end - CADVISOR_PREFLIGHT_WINDOW_SECONDS
+    cpu_window = query_sample_window(base_url, cpu_metric, sample_end)
+    memory_window = query_sample_window(base_url, memory_metric, sample_end)
 
     components = {
         "api": (api_service, "tcc_benchmark_" + api_service.replace("-", "_")),
@@ -136,7 +170,10 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
     cadvisor_blockers: list[str] = []
     collection_config = cadvisor_collection_config()
     if not collection_config["fixed_interval_valid"]:
-        cadvisor_blockers.append("cAdvisor must use fixed one-second housekeeping (dynamic collection disabled)")
+        cadvisor_blockers.append(
+            "cAdvisor must use 200ms housekeeping with dynamic collection disabled; "
+            "v0.49.1 adds jitter even with allow_dynamic_housekeeping=false"
+        )
     prometheus_config = prometheus_collection_config(targets)
     if not prometheus_config["fixed_interval_valid"]:
         cadvisor_blockers.append("Prometheus must scrape postgres-exporter and cAdvisor every 1s")
@@ -145,7 +182,12 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         identifier = container_id(name)
         cpu_matches = [row for row in cpu_series if metric_matches(row.get("metric", {}), service, name, identifier)]
         memory_matches = [row for row in memory_series if metric_matches(row.get("metric", {}), service, name, identifier)]
-        available = bool(cpu_matches and memory_matches)
+        available = bool(identifier and len(cpu_matches) == 1 and len(memory_matches) == 1)
+        cpu_samples = [row for row in cpu_window if metric_matches(row.get("metric", {}), service, name, identifier)]
+        memory_samples = [row for row in memory_window if metric_matches(row.get("metric", {}), service, name, identifier)]
+        quality = cadvisor_sample_quality(
+            cpu_samples, memory_samples, sample_start, sample_end, minimum_coverage_percent,
+        )
         component_status[component] = {
             "compose_service": service,
             "container_name": name,
@@ -153,9 +195,12 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
             "cpu_series": len(cpu_matches),
             "memory_series": len(memory_matches),
             "available": available,
+            "sample_quality": quality,
         }
         if not available:
             cadvisor_blockers.append(f"cAdvisor lacks identifiable CPU and memory series for {component}")
+        if not quality["valid"]:
+            cadvisor_blockers.append(f"cAdvisor {component} sample cadence is invalid: " + "; ".join(quality["reasons"]))
 
     for job in ("benchmark-results", "postgres", "prometheus"):
         if target_health.get(job) != "up":
@@ -214,6 +259,13 @@ def build_report(base_url: str, grafana_url: str, api_service: str, mode: str) -
         "prometheus_target_details": target_details,
         "cadvisor_target_up": target_health.get("cadvisor") == "up",
         "cadvisor_components": component_status,
+        "cadvisor_sample_window": {
+            "start_epoch": sample_start, "end_epoch": sample_end,
+            "duration_seconds": CADVISOR_PREFLIGHT_WINDOW_SECONDS,
+            "sample_source": "prometheus_raw_range_vector",
+            "minimum_coverage_percent": minimum_coverage_percent,
+            "maximum_gap_seconds": 1.5,
+        },
         "cadvisor_collection_config": collection_config,
         "prometheus_collection_config": prometheus_config,
         "postgres_exporter_series": len(postgres_series),
@@ -251,13 +303,18 @@ def main() -> int:
     parser.add_argument(
         "--series-wait-seconds",
         type=float,
-        default=30,
-        help="Maximum time to wait for the first identifiable cAdvisor series after containers start.",
+        default=45,
+        help="Wait for identifiable cAdvisor series and a valid 30-second sample window after startup.",
     )
+    parser.add_argument("--minimum-cadvisor-coverage-percent", type=float,
+                        default=DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
+    if not 0 < args.minimum_cadvisor_coverage_percent <= 100:
+        parser.error("cAdvisor minimum coverage must be between 0 and 100")
     report = wait_for_official_evidence(
-        lambda: build_report(args.prometheus_url, args.grafana_url, args.api_service, args.mode),
+        lambda: build_report(args.prometheus_url, args.grafana_url, args.api_service, args.mode,
+                             args.minimum_cadvisor_coverage_percent),
         args.series_wait_seconds,
     )
     serialized = json.dumps(report, indent=2, ensure_ascii=True)

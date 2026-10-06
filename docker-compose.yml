@@ -122,7 +122,9 @@ services:
       - "--containerd-namespace=moby"
       - "--docker=unix:///var/run/cadvisor-disabled-docker.sock"
       - "--allow_dynamic_housekeeping=false"
-      - "--housekeeping_interval=1s"
+      # v0.49.1 adds up to 100% jitter even when dynamic housekeeping is off.
+      # Refresh ahead of the 1s Prometheus scrape; preserve source timestamps.
+      - "--housekeeping_interval=200ms"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro

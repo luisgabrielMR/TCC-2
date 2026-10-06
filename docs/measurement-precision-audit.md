@@ -138,9 +138,12 @@ tambem ficam fora da janela. Isto nao transforma a carga fechada em chegadas
 abertas nem garante exatamente 200 req/s.
 
 O cAdvisor estava usando housekeeping dinamico e produziu uma lacuna de 8.096 s
-nas amostras PostgreSQL. Agora usa `--allow_dynamic_housekeeping=false` e
+nas amostras PostgreSQL. Naquela revisão foi configurado `--allow_dynamic_housekeeping=false` e
 `--housekeeping_interval=1s`; o validador consulta o comando do container real
-e bloqueia elegibilidade oficial sem esses argumentos. Os timestamps preservados
+e então bloqueava elegibilidade oficial sem esses argumentos. Essa configuração
+foi corrigida em 06/10/2026, pois não eliminava o jitter interno da versão
+0.49.1: consulte o [diagnóstico atual](monitoring-cadvisor-20261006.md).
+Os timestamps preservados
 sao os das amostras armazenadas no Prometheus, inclusive timestamps fornecidos
 pelo proprio exportador, nao uma grade temporal artificial.
 
