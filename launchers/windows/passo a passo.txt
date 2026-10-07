@@ -1,6 +1,6 @@
 ﻿INICIO RAPIDO
 
-PROTOCOLO 15
+PROTOCOLO 17 - CAMPANHA DO TCC
 
 PRE-REQUISITOS
 1. Abrir Docker Desktop e aguardar o Engine.
@@ -15,9 +15,9 @@ ATALHOS
 - 04_MENU_AVANCADO.bat: preparacao, pilotos e perfis auxiliares/historicos.
 
 ANTES DA CAMPANHA
-1. Concluir a verificacao funcional e analisar pilotos dos dois niveis.
+1. Concluir a verificacao funcional e analisar pilotos de fixed_100.
 2. Versionar o protocolo definitivo; a execucao oficial exige Git limpo.
-3. Manter OFFICIAL_PROFILES=fixed_50,fixed_100 para o desenho de dois niveis.
+3. Manter OFFICIAL_PROFILE=fixed_100, OFFICIAL_PROFILES=fixed_100 e OFFICIAL_ROUNDS=5.
 4. Nao alterar codigo, configuracoes, imagens ou recursos durante a campanha.
 5. Calibracao health_only e diagnostico opcional. O fluxo atual nao exige
    recalibracao por commit nem relatorio de verificacao do mesmo commit.
@@ -26,23 +26,22 @@ ANTES DA CAMPANHA
 CAMPANHA OFICIAL
 1. Executar 02_PROXIMA_RODADA_OFICIAL.bat.
 2. Conferir perfil, rodada, campanha e ordem; confirmar com SIM.
-3. Cada chamada executa cinco APIs de um perfil, nao os dois juntos.
-4. Completar cinco rodadas POR PERFIL: dez chamadas completas,
-   cinquenta medicoes de API no total.
-5. O planejador alterna perfis e rotaciona a ordem das linguagens.
+3. Cada chamada executa as cinco APIs no perfil fixed_100.
+4. Completar cinco rodadas: cinco chamadas completas,
+   25 medicoes de API no total.
+5. O planejador rotaciona a ordem das linguagens a cada rodada.
 6. Em caso de interrupcao, repetir o atalho. Somente resultados oficiais da
    campanha correspondente contam para decidir o que falta.
 7. Preparacao, restauracao e coleta tambem consomem tempo.
 
 CONDICOES PADRAO
 - mixed: mesmas operacoes, SQL, payloads e dataset entre as APIs;
-- fixed_50: 100 usuarios, pacing 2 segundos, teto nominal 50 req/s;
 - fixed_100: 100 usuarios, pacing 1 segundo, teto nominal 100 req/s;
 - carga FECHADA com pacing: nao e chegada aberta nem garante taxa entregue;
 - ciclo ponderado deterministico por worker; quatro processos Locust;
 - fases iniciais dos usuarios distribuidas;
 - warmup 300 segundos; medicao 300 segundos, excluindo warmup;
-- cinco repeticoes por linguagem e por perfil;
+- cinco repeticoes por linguagem no unico perfil fixed_100;
 - pool maximo 20; cotas API 2 CPU, banco 1 CPU, Locust 4 CPU;
 - restauracao logica deterministica entre execucoes; nao e cache frio;
 - CPU/memoria via cAdvisor; atividade/esperas via postgres-exporter;
@@ -63,5 +62,5 @@ INTERPRETACAO E RESULTADOS
 
 PERFIS AUXILIARES
 - saturation_25, 50, 100, 200 e 400: pacing zero; pilotos por padrao.
-- fixed_125 e outros perfis antigos nao integram a campanha de dois niveis.
+- fixed_50, fixed_125 e outros perfis auxiliares nao integram a campanha do TCC.
 - Preservar resultados historicos e analisar em coortes separadas.

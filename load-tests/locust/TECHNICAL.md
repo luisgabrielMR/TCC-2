@@ -23,14 +23,13 @@ Essa composição é igual para as APIs na mesma execução.
 
 ## Perfis
 
-`scripts/benchmark_protocol.py` define os perfis. Os atuais usados pela campanha
-são:
+`scripts/benchmark_protocol.py` define os perfis. A campanha do TCC usa somente:
 
 | Perfil | Usuários | Spawn | Pacing | Teto nominal |
 | --- | ---: | ---: | ---: | ---: |
-| `fixed_50` | 100 | 20/s | 2 s | 50 req/s |
 | `fixed_100` | 100 | 20/s | 1 s | 100 req/s |
 
+`fixed_50` (100 usuários, subida de 20/s, pacing de 2 s e teto de 50 req/s),
 `fixed_125`, `controlled_50`, `capacity_*` e `saturation_*` permanecem
 como perfis auxiliares ou históricos. Perfis de saturação usam pacing zero e
 não devem ser misturados com a campanha fechada principal.

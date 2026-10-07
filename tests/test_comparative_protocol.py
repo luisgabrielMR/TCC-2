@@ -359,6 +359,62 @@ capture_exporter() { printf '%s\n' "$@"; }
                     self.assertEqual(arguments.count("--component"), 3)
 
     @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell launcher")
+    def test_tcc_campaign_resumes_and_completes_five_fixed_100_rounds(self):
+        # Exercise the real planner with the shipped configuration, without running APIs.
+        code = r'''
+$ast = [System.Management.Automation.Language.Parser]::ParseFile(
+    (Join-Path (Get-Location) 'launchers/windows/powershell/menu-testes.ps1'), [ref]$null, [ref]$null)
+$definition = $ast.Find({param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-NextOfficialRoundPlan'}, $true)
+Invoke-Expression $definition.Extent.Text
+function Get-BenchmarkEnvironment {
+    $values = @{}
+    Get-Content '.env.example' | ForEach-Object {
+        if ($_ -match '^\s*([^#][^=]*)=(.*)$') { $values[$matches[1].Trim()] = $matches[2].Trim() }
+    }
+    return $values
+}
+function Get-BenchmarkValue($Environment, $Name, $Default) {
+    if ($Environment.ContainsKey($Name)) { return $Environment[$Name] }
+    return $Default
+}
+function Get-OfficialCampaignIdentity($Environment, $Profile) {
+    return [pscustomobject]@{ fingerprint=$Profile; methodology_version=17; commit_sha='test' }
+}
+$global:completed = @{}
+function Get-OfficialLanguagesForSequence($SequenceId, $Profile, $MethodologyVersion, $CommitSha) {
+    if ($global:completed.ContainsKey($SequenceId)) { return @($global:completed[$SequenceId]) }
+    return @()
+}
+$initial = Get-NextOfficialRoundPlan
+$global:completed[$initial.sequence_id] = @('python', 'node')
+$resumed = Get-NextOfficialRoundPlan
+$plans = @()
+for ($step = 0; $step -lt 5; $step++) {
+    $plan = Get-NextOfficialRoundPlan
+    if ($plan.all_complete) { throw 'Premature completion' }
+    $plans += $plan
+    $global:completed[$plan.sequence_id] = @('python','node','java','go','dotnet')
+}
+ConvertTo-Json -Depth 5 -Compress -InputObject @{
+    initial=$initial; resumed=$resumed; plans=$plans; final=(Get-NextOfficialRoundPlan)
+}
+'''
+        result = subprocess.run(["powershell", "-NoProfile", "-Command", code], cwd=ROOT,
+                                capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        campaign = json.loads(result.stdout)
+        self.assertEqual(campaign["initial"]["completed_languages"], [])
+        self.assertEqual(campaign["resumed"]["sequence_id"], campaign["initial"]["sequence_id"])
+        self.assertEqual(campaign["resumed"]["completed_languages"], ["python", "node"])
+        languages = ["python", "node", "java", "go", "dotnet"]
+        for index, plan in enumerate(campaign["plans"]):
+            self.assertEqual(plan["load_profile"], "fixed_100")
+            self.assertEqual((plan["round"], plan["total_rounds"]), (index + 1, 5))
+            self.assertEqual(plan["ordered_languages"], languages[index:] + languages[:index])
+        self.assertEqual(sum(len(plan["ordered_languages"]) for plan in campaign["plans"]), 25)
+        self.assertTrue(campaign["final"]["all_complete"])
+
+    @unittest.skipUnless(sys.platform == "win32", "Windows PowerShell launcher")
     def test_menu_rotates_both_profiles_and_all_five_languages(self):
         # Load only the planning function AST, never the interactive entrypoint.
         code = r'''

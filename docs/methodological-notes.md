@@ -8,8 +8,9 @@ comparada e o conjunto implementacao + runtime + servidor + driver; nao a
 linguagem isolada. O resultado vale para o hardware, quotas e workload registrados.
 
 Este documento descreve a implementacao atual; nao e a redacao academica final.
-A matriz de aderencia referencia o PDF aprovado, que nao esta versionado aqui.
-Conferir o texto final com esse PDF antes de entregar o TCC.
+A matriz de aderencia registra a referencia anterior em PDF e o texto do TCC
+fornecido em 07/10/2026, que define a campanha de perfil unico. Conferir a
+revisao academica final antes de entregar o TCC.
 
 A metodologia 16 e os pilotos por ela produzidos sao historicos. Eles nao
 atendem automaticamente aos criterios da metodologia 17 e nao podem ser
@@ -29,16 +30,15 @@ promovidos ou combinados com a nova campanha.
   smoke, preflight e calibracao health-only.
 
 O cenário de carga foi definido atribuindo a mesma probabilidade às sete operações funcionais que acessam o banco de dados. Essa estratégia evita privilegiar artificialmente determinado endpoint ou tipo de operação e garante participação equivalente dos diferentes caminhos de execução no workload. Como quatro das sete operações são de leitura e três são de escrita, a composição resultante corresponde a aproximadamente 57,14% de leituras e 42,86% de escritas. Esses percentuais não representam uma estimativa de tráfego de produção, mas decorrem diretamente da distribuição uniforme das operações avaliadas.
-- A campanha oficial atual percorre `OFFICIAL_PROFILES=fixed_50,fixed_100`.
-  Ambos usam 100 usuarios, spawn rate 20/s e quatro processos Locust.
-  `fixed_50` usa pacing de 2 s e teto nominal de 50 req/s; `fixed_100` usa
-  pacing de 1 s e teto nominal de 100 req/s.
+- A campanha oficial do TCC usa apenas `OFFICIAL_PROFILES=fixed_100`, com
+  100 usuarios, spawn rate 20/s, quatro processos Locust, pacing de 1 s e
+  teto nominal de 100 req/s. `fixed_50` permanece auxiliar/historico.
 - Os perfis `fixed_*` sobrescrevem usuarios, spawn rate e pacing, sem depender
   dos valores gerais de `LOCUST_USERS`, `LOCUST_SPAWN_RATE` e
   `LOCUST_WAIT_SECONDS`. Isso impede que duas execucoes de um mesmo perfil
   recebam cargas diferentes por configuracao local.
-- Modelo FECHADO com pacing: usuarios aguardam respostas; 50/100 req/s sao
-  taxas nominais, nao chegadas abertas independentes. Publicar a taxa efetiva.
+- Modelo FECHADO com pacing: usuarios aguardam respostas; 100 req/s e uma
+  taxa nominal, nao chegadas abertas independentes. Publicar a taxa efetiva.
   Nao usar esse desenho para inferir comportamento sob fila aberta/sobrecarga.
 - A primeira requisicao de cada usuario recebe uma fase distribuida no periodo.
   O tempo de spawn nao e contado pelo pacing da primeira tarefa.
@@ -53,10 +53,9 @@ O cenário de carga foi definido atribuindo a mesma probabilidade às sete opera
 - Payloads de criacao de clientes usam faixas disjuntas por worker; outros
   payloads percorrem ciclos com offsets. Nao se garante identica intercalacao
   concorrente de atualizacoes, nem identico instante de acesso a cada registro.
-- Cinco rodadas POR NIVEL, ordem das cinco linguagens rotacionada. O menu Windows
-  percorre OFFICIAL_PROFILES, alternando tambem a ordem dos perfis por rodada.
-  Uma chamada de proxima rodada executa cinco APIs de um nivel; sao dez chamadas
-  para completar os dois niveis com cinco repeticoes.
+- Cinco rodadas de `fixed_100`, com ordem das cinco linguagens rotacionada.
+  Uma chamada de proxima rodada executa cinco APIs; sao cinco chamadas
+  completas e 25 execucoes de API, com cinco repeticoes por linguagem.
 - Warmup oficial: 300 s; medicao oficial: 300 s apos spawn completo. O warmup
   e uma etapa de duracao fixa, comum a todas as implementacoes, sem criterio de
   estabilidade de RPS ou latencia. O banco e restaurado antes da medicao.
@@ -69,17 +68,17 @@ A avaliacao local das dez combinacoes esta em
 ao protocolo atual. O nivel50 manteve
 CPU media PostgreSQL de 32,6% a 36,9% da cota, enquanto o nivel100 atingiu
 63,3% a 73,3%, incluindo tres avisos de margem >=70%. A configuracao atual
-mantem ambos na campanha oficial e nao designa um perfil como referencia
-principal. Interpretar e divulgar os niveis separadamente; nao misturar seus
-resultados nem apresentar um deles como evidencia de ausencia de pressao no
-banco. Foram observadas esperas de I/O mesmo no nivel50; os niveis nao eliminam
+seleciona somente `fixed_100`, conforme o TCC. Os dados de `fixed_50` permanecem
+historicos/auxiliares e nao integram a campanha oficial atual. Nao misturar
+resultados nem apresentar o perfil selecionado como evidencia de ausencia de
+pressao no banco. Foram observadas esperas de I/O mesmo no nivel50; os niveis nao eliminam
 nem isolam o custo do banco e nao demonstram latencias estacionarias.
 
-Antes da campanha, executar ambos os niveis em todas as APIs. Avaliar entrega
+Antes da campanha, validar o perfil `fixed_100` em todas as APIs. Avaliar entrega
 da carga, falhas, latencia por endpoint, CPU media E picos do banco/gerador,
 sessoes ativas e esperas. O criterio operacional existente de CPU media abaixo
-de 90% da cota NAO prova ausencia de gargalo. Preferir margem ampla e examinar
-a mudanca entre os dois niveis. Esperas amostradas iguais a zero tambem nao
+de 90% da cota NAO prova ausencia de gargalo. Examinar a margem de CPU e as
+esperas no perfil escolhido. Esperas amostradas iguais a zero tambem nao
 provam ausencia de esperas curtas.
 
 Nos perfis de taxa fixa, a execução somente é aceita quando a taxa efetivamente entregue corresponde a, no mínimo, 95% da taxa nominal configurada. Esse limiar foi definido previamente para admitir pequenas variações operacionais do gerador de carga, sem aceitar execuções com taxa substancialmente inferior à condição experimental planejada. Assim, `fixed_50` exige pelo menos 47,5 req/s e `fixed_100`, pelo menos 95 req/s. A regra é aplicada somente aos perfis `fixed_*`; uma rodada oficial abaixo desse limite é registrada como `non_official`.

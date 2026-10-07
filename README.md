@@ -41,11 +41,10 @@ Cada área tem dois arquivos:
 
 ## Estado do experimento
 
-O protocolo atual é a metodologia 17. A campanha oficial inclui `fixed_50` e
-`fixed_100`: ambos usam 100 usuários, mas com pacing de 2 s e 1 s,
-respectivamente. A carga é fechada; 50 e 100 req/s são tetos nominais e a taxa
-efetivamente entregue é sempre registrada. Nenhum dos dois perfis está definido
-como referência principal na configuração atual.
+O protocolo atual é a metodologia 17. Conforme o TCC, a campanha oficial usa
+somente `fixed_100`, com 100 usuários, subida de 20 usuários/s e pacing de 1 s.
+A carga é fechada; 100 req/s é um teto nominal e a taxa efetivamente entregue
+é sempre registrada. São cinco rodadas de cinco APIs, totalizando 25 execuções.
 
 Nas rodadas oficiais, a CPU e a memória do cAdvisor para API, PostgreSQL e
 Locust devem cobrir ao menos 95% da janela medida. Essa completude é independente
@@ -53,8 +52,8 @@ da entrega mínima de carga; lacunas temporais acima de 1,5 s também invalidam 
 evidência de monitoramento.
 
 Foram executados pilotos técnicos dos dois níveis, mas eles continuam
-`non_official`. A campanha científica ainda exige cinco repetições oficiais por
-linguagem e por perfil. Leia [a validação local](docs/validation-methodology-15.md)
+`non_official`. Esses pilotos são históricos; a campanha científica exige cinco
+repetições oficiais por linguagem em `fixed_100`. Leia [a validação local](docs/validation-methodology-15.md)
 antes de interpretar ou publicar qualquer resultado.
 
 ## Regras importantes

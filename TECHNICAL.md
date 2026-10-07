@@ -40,16 +40,17 @@ efetivamente usadas em cada execução.
 
 ## Protocolo vigente
 
-| Item | `fixed_50` | `fixed_100` |
-| --- | ---: | ---: |
-| Usuários | 100 | 100 |
-| Spawn rate | 20/s | 20/s |
-| Pacing por usuário | 2 s | 1 s |
-| Teto nominal | 50 req/s | 100 req/s |
-| Repetições oficiais | 5 | 5 |
+| Item | `fixed_100` |
+| --- | ---: |
+| Usuários | 100 |
+| Spawn rate | 20/s |
+| Pacing por usuário | 1 s |
+| Teto nominal | 100 req/s |
+| Repetições oficiais por linguagem | 5 |
 
 O aquecimento e a medição oficiais duram 300 segundos cada. O Locust usa quatro
-processos. O menu alterna a ordem das linguagens e dos perfis entre rodadas.
+processos. O menu rotaciona a ordem das linguagens entre as cinco rodadas do
+único perfil oficial, totalizando 25 execuções de API.
 
 Os serviços compartilham o mesmo PostgreSQL, o mesmo seed, o mesmo contrato
 HTTP, SQL equivalente e pool máximo de 20 conexões. O que se compara é a

@@ -22,11 +22,11 @@ escritas (aprox. 42,86%). `GET /health` continua disponível para verificar se a
 API está ativa, para smoke, preflight e calibração, mas não entra na janela
 medida de `mixed` porque não consulta o banco.
 
-A campanha oficial atual inclui `fixed_50` e `fixed_100`. Ambos usam 100
-usuários: o primeiro faz pacing de 2 segundos, até 50 requisições por segundo,
-e o segundo usa 1 segundo, até 100 requisições por segundo. Esses valores são
-tetos nominais; o relatório registra a taxa realmente entregue. Os perfis
-impõem esses parâmetros, mesmo que valores gerais diferentes estejam no `.env`.
+A campanha oficial atual usa somente `fixed_100`: 100 usuários, subida de
+20 usuários por segundo e pacing de 1 segundo, com teto nominal de 100
+requisições por segundo. O relatório registra a taxa realmente entregue.
+O perfil impõe esses parâmetros, mesmo que valores gerais diferentes estejam
+no `.env`. `fixed_50` permanece disponível como perfil auxiliar ou histórico.
 
 Os pilotos são curtos para validar o fluxo. Uma coleta oficial usa 300 segundos
 de aquecimento e 300 segundos de medição. Não trate um piloto como resultado
