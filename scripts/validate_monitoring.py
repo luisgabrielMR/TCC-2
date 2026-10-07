@@ -12,9 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-try:
+if __package__:
     from .export_prometheus_data import cadvisor_sample_quality, DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT
-except ImportError:
+else:
+    # The pgAdmin Python launcher uses an isolated path and omits this directory.
+    # Resolve it from the file so direct CLI execution also works outside the repo.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
     from export_prometheus_data import cadvisor_sample_quality, DEFAULT_OFFICIAL_MINIMUM_CADVISOR_COVERAGE_PERCENT
 
 

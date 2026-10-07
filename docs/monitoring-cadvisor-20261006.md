@@ -72,3 +72,25 @@ além de `git diff --check`. Nenhuma suíte de testes, carga, reset de banco ou
 inicialização de serviço foi executada nesta revisão. A validação de sintaxe
 não comprova o comportamento durante uma medição; os bloqueios do protocolo
 continuam obrigatórios na execução manual.
+
+## Correção do import no Python do pgAdmin
+
+A tentativa `python/mixed_fixed_50/run_4` falhou na importação do validador,
+antes de consultar o monitoramento. O Python 3.13.2 selecionado pelo launcher
+usa caminhos isolados (`isolated=1`, `safe_path=True`) e não acrescenta a pasta
+do script ao `sys.path`. Por isso, o fallback `from export_prometheus_data`
+também falhava. A checagem anterior de sintaxe não executava esse import.
+
+Na execução direta, `validate_monitoring.py` agora acrescenta sua própria
+pasta, resolvida por `__file__`, antes do import. A importação como pacote
+continua relativa. Não foi necessário instalar dependências ou alterar o
+Python do usuário.
+
+A falha foi reproduzida com `--help` antes da correção. Depois dela, nove
+scripts de linha de comando do fluxo passaram por `--help` usando
+`Invoke-BenchmarkPython` e o mesmo executável do pgAdmin. Os quatro testes
+isolados de `test_monitoring_cadence.py` passaram, incluindo a execução direta
+em subprocesso com `-I`, fora da pasta do repositório. Esse caso impede que o
+`sys.path` preparado pela suíte esconda novamente o problema. Nenhuma carga,
+consulta aos serviços, inicialização de container ou alteração no banco foi
+realizada nessas verificações. Elas não validam o desempenho sob carga.

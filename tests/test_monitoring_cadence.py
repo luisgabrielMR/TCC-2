@@ -1,13 +1,27 @@
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 from scripts.validate_monitoring import build_report
 
 
 class MonitoringCadenceTests(unittest.TestCase):
+    def test_direct_cli_imports_work_with_isolated_python_outside_repository(self):
+        # --help exits before any Docker, Prometheus or Grafana interaction.
+        # A subprocess cannot inherit the sys.path fixup used by this test module.
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                [sys.executable, "-I", "-B", str(ROOT / "scripts/validate_monitoring.py"), "--help"],
+                cwd=directory, capture_output=True, text=True, timeout=15,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--minimum-cadvisor-coverage-percent", result.stdout)
+
     def report(self, timestamps):
         identifiers = {
             "tcc_benchmark_python_api": "api-id",
