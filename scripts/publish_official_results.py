@@ -262,13 +262,13 @@ Coleta de **10 a 12 de outubro de 2026**: cinco rodadas de cinco implementaçõe
 
 As métricas acima são **medianas entre as cinco rodadas**: mediana das médias de latência, dos P95/P99, da vazão e das médias de CPU/memória. Mediana de P95 não é o P95 global. CPU usa 100% por núcleo lógico; cada API tinha cota de dois núcleos. Memória é o working set do container.
 
-![Latência e dispersão das cinco rodadas](figures/latency.png)
+![Latência média e P99 das APIs](figures/latency.png)
 
 ![CPU e memória das APIs](figures/resources.png)
 
 ![Comparação das sete operações](figures/endpoints.png)
 
-![Variação entre as rodadas](figures/rounds.png)
+![Latência média e P95 por execução](figures/rounds.png)
 
 As barras mostram medianas e as linhas mostram os valores de cada execução. Os eixos começam em zero; não há intervalos de confiança. Os gráficos descrevem esta campanha; não demonstram significância estatística ou superioridade geral de uma linguagem. As figuras por operação usam escalas separadas para leituras e escritas, ambas iniciadas em zero.
 
