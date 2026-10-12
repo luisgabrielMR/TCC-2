@@ -1,0 +1,62 @@
+[
+  {
+    "language": ".NET",
+    "runs": 5,
+    "requests": 149993,
+    "failures": 0,
+    "rps": 99.96826418428763,
+    "avg_ms": 33.01776504133546,
+    "p95_ms": 130.0,
+    "p99_ms": 250.0,
+    "api_cpu_avg": 26.243902,
+    "api_memory_avg": 93424664.0
+  },
+  {
+    "language": "Go",
+    "runs": 5,
+    "requests": 149992,
+    "failures": 0,
+    "rps": 99.97411634602481,
+    "avg_ms": 35.68600617623897,
+    "p95_ms": 130.0,
+    "p99_ms": 260.0,
+    "api_cpu_avg": 18.318312,
+    "api_memory_avg": 10325635.0
+  },
+  {
+    "language": "Java",
+    "runs": 5,
+    "requests": 149951,
+    "failures": 0,
+    "rps": 99.97129171991857,
+    "avg_ms": 30.375289246443717,
+    "p95_ms": 120.0,
+    "p99_ms": 250.0,
+    "api_cpu_avg": 12.114876,
+    "api_memory_avg": 215467743.0
+  },
+  {
+    "language": "Node.js",
+    "runs": 5,
+    "requests": 149976,
+    "failures": 0,
+    "rps": 99.97184830042602,
+    "avg_ms": 36.00491666045464,
+    "p95_ms": 130.0,
+    "p99_ms": 270.0,
+    "api_cpu_avg": 15.978496,
+    "api_memory_avg": 68587522.0
+  },
+  {
+    "language": "Python",
+    "runs": 5,
+    "requests": 149884,
+    "failures": 0,
+    "rps": 99.96801749889404,
+    "avg_ms": 33.36414569041228,
+    "p95_ms": 130.0,
+    "p99_ms": 250.0,
+    "api_cpu_avg": 24.215755,
+    "api_memory_avg": 51360231.0
+  }
+]

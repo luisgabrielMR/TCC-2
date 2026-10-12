@@ -2,27 +2,38 @@
   "annotations": {
     "list": []
   },
-  "description": "Metricas ao vivo e paineis complementares para investigar a execucao dos benchmarks.",
+  "description": "Saúde dos serviços, PostgreSQL atual e Locust durante carga. Resultados científicos em dashboard separado.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [
     {
-      "asDropdown": false,
-      "icon": "external link",
-      "includeVars": true,
-      "keepTime": true,
-      "tags": [],
-      "targetBlank": false,
-      "title": "Voltar aos resultados oficiais",
-      "tooltip": "Abrir os indicadores usados diretamente no TCC",
+      "title": "Resultados oficiais",
       "type": "link",
-      "url": "/d/tcc-benchmark-overview/tcc-benchmark-resultados-oficiais"
+      "url": "/d/tcc-benchmark-overview/tcc-benchmark-resultados-oficiais",
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false
     }
   ],
   "liveNow": true,
   "panels": [
+    {
+      "id": 100,
+      "type": "text",
+      "title": "Diagnóstico operacional · estado atual dos serviços",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 3
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "Este dashboard mostra o **ambiente agora**. Após encerrar a campanha, API e Locust ficam parados; ausência de séries ao vivo não invalida os resultados históricos. Use **Resultados oficiais** para comparar as medições preservadas."
+      }
+    },
     {
       "datasource": {
         "type": "prometheus",
@@ -35,17 +46,17 @@
           },
           "mappings": [
             {
+              "type": "value",
               "options": {
                 "0": {
-                  "color": "red",
-                  "text": "INDISPONIVEL"
+                  "text": "Indisponível",
+                  "color": "red"
                 },
                 "1": {
-                  "color": "green",
-                  "text": "ATIVO"
+                  "text": "Operacional",
+                  "color": "green"
                 }
-              },
-              "type": "value"
+              }
             }
           ],
           "thresholds": {
@@ -65,12 +76,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
         "x": 0,
-        "y": 0
+        "y": 3,
+        "w": 6,
+        "h": 4
       },
-      "id": 1,
+      "id": 101,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -89,7 +100,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_results_exporter_up",
+          "expr": "up{job=\"benchmark-results\"}",
           "instant": true,
           "legendFormat": "Resultados",
           "range": false,
@@ -111,17 +122,17 @@
           },
           "mappings": [
             {
+              "type": "value",
               "options": {
                 "0": {
-                  "color": "red",
-                  "text": "INDISPONIVEL"
+                  "text": "Indisponível",
+                  "color": "red"
                 },
                 "1": {
-                  "color": "green",
-                  "text": "ATIVO"
+                  "text": "Operacional",
+                  "color": "green"
                 }
-              },
-              "type": "value"
+              }
             }
           ],
           "thresholds": {
@@ -141,12 +152,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 0
+        "x": 6,
+        "y": 3,
+        "w": 6,
+        "h": 4
       },
-      "id": 2,
+      "id": 102,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -165,14 +176,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "pg_up",
+          "expr": "up{job=\"prometheus\"}",
           "instant": true,
-          "legendFormat": "PostgreSQL",
+          "legendFormat": "Resultados",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "PostgreSQL",
+      "title": "Prometheus",
       "type": "stat"
     },
     {
@@ -185,187 +196,30 @@
           "color": {
             "mode": "thresholds"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Indisponível",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Operacional",
+                  "color": "green"
+                }
               }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 8,
-        "y": 0
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
+            }
           ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_results_completed_runs",
-          "instant": true,
-          "legendFormat": "Rodadas",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Rodadas carregadas",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 12,
-        "y": 0
-      },
-      "id": 4,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_locust_users",
-          "instant": true,
-          "legendFormat": "Usuarios",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Usuarios agora",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 16,
-        "y": 0
-      },
-      "id": 5,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_locust_rps",
-          "instant": true,
-          "legendFormat": "RPS",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Throughput agora",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
-                "color": "red",
+                "color": "green",
                 "value": 1
               }
             ]
@@ -374,12 +228,12 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 0
+        "x": 12,
+        "y": 3,
+        "w": 6,
+        "h": 4
       },
-      "id": 6,
+      "id": 103,
       "options": {
         "colorMode": "background",
         "graphMode": "none",
@@ -392,230 +246,23 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto",
+        "textMode": "value_and_name",
         "wideLayout": true
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_live_locust_failures",
+          "expr": "up{job=\"cadvisor\"}",
           "instant": true,
-          "legendFormat": "Falhas",
+          "legendFormat": "Resultados",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "Falhas agora",
+      "title": "cAdvisor",
       "type": "stat"
     },
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 4
-      },
-      "id": 20,
-      "panels": [],
-      "title": "Resultados concluidos por classificacao",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-RdYlGr"
-          },
-          "decimals": 2,
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 5
-      },
-      "id": 21,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"median\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{classification}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Throughput por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 5
-      },
-      "id": 22,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P95 por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "blue",
-            "mode": "fixed"
-          },
-          "decimals": 2,
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 0,
-        "y": 13
-      },
-      "id": 23,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_duration_seconds{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Tempo medido sem warmup",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "fixedColor": "#2F9FC9",
-            "mode": "fixed"
-          },
-          "decimals": 0,
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 6,
-        "y": 13
-      },
-      "id": 24,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_requests{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Requisicoes por rodada",
-      "type": "bargauge"
-    },
-    {
       "datasource": {
         "type": "prometheus",
         "uid": "Prometheus"
@@ -625,15 +272,30 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "Indisponível",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "Operacional",
+                  "color": "green"
+                }
+              }
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
+                "color": "red",
                 "value": null
               },
               {
-                "color": "red",
+                "color": "green",
                 "value": 1
               }
             ]
@@ -642,80 +304,17 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 6,
-        "x": 12,
-        "y": 13
-      },
-      "id": 25,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_failures{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Falhas HTTP",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 3,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.001
-              },
-              {
-                "color": "red",
-                "value": 0.01
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 6,
         "x": 18,
-        "y": 13
+        "y": 3,
+        "w": 6,
+        "h": 4
       },
-      "id": 26,
+      "id": 104,
       "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -723,689 +322,34 @@
           "fields": "",
           "values": false
         },
-        "showUnfilled": true,
-        "valueMode": "color"
+        "textMode": "value_and_name",
+        "wideLayout": true
       },
       "targets": [
         {
           "editorMode": "code",
-          "expr": "benchmark_result_error_rate{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
+          "expr": "up{job=\"postgres\"}",
           "instant": true,
-          "legendFormat": "{{language}}",
+          "legendFormat": "Resultados",
           "range": false,
           "refId": "A"
         }
       ],
-      "title": "Taxa de erro",
-      "type": "bargauge"
+      "title": "PostgreSQL exporter",
+      "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 20
-      },
-      "id": 27,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_cpu_percent{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",component=\"api\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{metric_source}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "CPU media da API",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-BlYlRd"
-          },
-          "decimals": 2,
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 20
-      },
-      "id": 28,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_memory_bytes{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",stat=\"average\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{metric_source}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Memoria media da API",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 28
-      },
-      "id": 29,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"avg\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia media por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 28
-      },
-      "id": 34,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p50\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P50 por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 28
-      },
-      "id": 35,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_result_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",quantile=\"p99\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\"}",
-          "instant": true,
-          "legendFormat": "{{language}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia P99 por linguagem",
-      "type": "bargauge"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 36
-      },
-      "id": 10,
-      "panels": [],
-      "title": "Execucao ao vivo",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 18,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 37
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_locust_rps",
-          "legendFormat": "{{language}} run {{run}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Throughput do Locust",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 37
-      },
-      "id": 12,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_locust_latency_ms",
-          "legendFormat": "{{quantile}}",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Latencia do Locust",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 45
-      },
-      "id": 13,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_container_cpu_percent",
-          "legendFormat": "{{container}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "rate(container_cpu_usage_seconds_total{name=~\"tcc_benchmark_.*\"}[$__rate_interval]) * 100",
-          "legendFormat": "{{name}} (cAdvisor)",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "CPU dos containers",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "bytes"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 45
-      },
-      "id": 14,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_live_container_memory_bytes",
-          "legendFormat": "{{container}}",
-          "range": true,
-          "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "container_memory_usage_bytes{name=~\"tcc_benchmark_.*\"}",
-          "legendFormat": "{{name}} (cAdvisor)",
-          "range": true,
-          "refId": "B"
-        }
-      ],
-      "title": "Memoria dos containers",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 53
-      },
-      "id": 30,
-      "panels": [],
-      "title": "Endpoints",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-RdYlGr"
-          },
-          "decimals": 2,
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 54
-      },
-      "id": 31,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{endpoint}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Throughput por endpoint",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-GrYlRd"
-          },
-          "decimals": 2,
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 54
-      },
-      "id": 32,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_endpoint_run_latency_ms{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",quantile=\"p95\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{endpoint}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "P95 por endpoint",
-      "type": "bargauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 24,
-        "x": 0,
-        "y": 63
-      },
-      "id": 33,
-      "options": {
-        "displayMode": "gradient",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "valueMode": "color"
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "benchmark_endpoint_run_failures{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",load_profile=~\"$load_profile\",language=~\"$language\",endpoint=~\"$endpoint\"}",
-          "instant": true,
-          "legendFormat": "{{language}} - {{endpoint}}",
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "title": "Falhas por endpoint",
-      "type": "bargauge"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 70
-      },
       "id": 50,
+      "type": "row",
+      "title": "PostgreSQL · atividade atual",
+      "collapsed": false,
       "panels": [],
-      "title": "PostgreSQL",
-      "type": "row"
+      "gridPos": {
+        "x": 0,
+        "y": 7,
+        "w": 24,
+        "h": 1
+      }
     },
     {
       "datasource": {
@@ -1429,10 +373,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
         "x": 0,
-        "y": 71
+        "y": 8,
+        "w": 12,
+        "h": 8
       },
       "id": 51,
       "options": {
@@ -1484,10 +428,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 71
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
       },
       "id": 52,
       "options": {
@@ -1532,74 +476,6 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
-          },
-          "decimals": 2,
-          "max": 100,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 90
-              },
-              {
-                "color": "green",
-                "value": 98
-              }
-            ]
-          },
-          "unit": "percent"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 16,
-        "y": 71
-      },
-      "id": 53,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "100 * rate(pg_stat_database_blks_hit{datname=\"benchmark_db\"}[$__rate_interval]) / clamp_min(rate(pg_stat_database_blks_hit{datname=\"benchmark_db\"}[$__rate_interval]) + rate(pg_stat_database_blks_read{datname=\"benchmark_db\"}[$__rate_interval]), 1)",
-          "legendFormat": "Cache hit",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Taxa de acerto do cache",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
             "mode": "palette-classic"
           },
           "custom": {
@@ -1614,10 +490,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 79
+        "y": 16,
+        "w": 12,
+        "h": 8
       },
       "id": 54,
       "options": {
@@ -1690,10 +566,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 12,
-        "y": 79
+        "y": 16,
+        "w": 12,
+        "h": 8
       },
       "id": 55,
       "options": {
@@ -1740,6 +616,75 @@
           "color": {
             "mode": "thresholds"
           },
+          "decimals": 2,
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 90
+              },
+              {
+                "color": "green",
+                "value": 98
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 8,
+        "h": 5
+      },
+      "id": 53,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "100 * rate(pg_stat_database_blks_hit{datname=\"benchmark_db\"}[$__rate_interval]) / clamp_min(rate(pg_stat_database_blks_hit{datname=\"benchmark_db\"}[$__rate_interval]) + rate(pg_stat_database_blks_read{datname=\"benchmark_db\"}[$__rate_interval]), 1)",
+          "legendFormat": "Cache hit",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Taxa de acerto do cache",
+      "type": "stat",
+      "description": "Razão nas leituras observadas na janela atual. Sem atividade, o valor não caracteriza a campanha concluída."
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -1754,10 +699,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "x": 8,
+        "y": 24,
         "w": 8,
-        "x": 0,
-        "y": 87
+        "h": 5
       },
       "id": 56,
       "options": {
@@ -1814,10 +759,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
+        "x": 16,
+        "y": 24,
         "w": 8,
-        "x": 8,
-        "y": 87
+        "h": 5
       },
       "id": 57,
       "options": {
@@ -1848,59 +793,304 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "fillOpacity": 12,
-            "lineWidth": 2,
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "unit": "Bps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 7,
-        "w": 8,
-        "x": 16,
-        "y": 87
-      },
-      "id": 58,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
+      "id": 10,
+      "type": "row",
+      "title": "Locust · expandir durante uma execução",
+      "collapsed": true,
+      "panels": [
         {
-          "editorMode": "code",
-          "expr": "rate(pg_stat_database_temp_bytes{datname=\"benchmark_db\"}[$__rate_interval])",
-          "legendFormat": "temporarios/s",
-          "range": true,
-          "refId": "A"
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 31,
+            "w": 8,
+            "h": 4
+          },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_live_locust_users",
+              "instant": true,
+              "legendFormat": "Usuarios",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Usuarios agora",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 8,
+            "y": 31,
+            "w": 8,
+            "h": 4
+          },
+          "id": 5,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_live_locust_rps",
+              "instant": true,
+              "legendFormat": "RPS",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput agora",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 16,
+            "y": 31,
+            "w": 8,
+            "h": 4
+          },
+          "id": 6,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "textMode": "auto",
+            "wideLayout": true
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_live_locust_failures",
+              "instant": true,
+              "legendFormat": "Falhas",
+              "range": false,
+              "refId": "A"
+            }
+          ],
+          "title": "Falhas agora",
+          "type": "stat"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 18,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 35,
+            "w": 12,
+            "h": 8
+          },
+          "id": 11,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_live_locust_rps",
+              "legendFormat": "{{language}} run {{run}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Throughput do Locust",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineWidth": 2,
+                "showPoints": "never",
+                "spanNulls": true
+              },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 35,
+            "w": 12,
+            "h": 8
+          },
+          "id": 12,
+          "options": {
+            "legend": {
+              "calcs": [
+                "lastNotNull",
+                "max"
+              ],
+              "displayMode": "table",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "editorMode": "code",
+              "expr": "benchmark_live_locust_latency_ms",
+              "legendFormat": "{{quantile}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Latencia do Locust",
+          "type": "timeseries"
         }
       ],
-      "title": "Arquivos temporarios",
-      "type": "timeseries"
+      "gridPos": {
+        "x": 0,
+        "y": 29,
+        "w": 24,
+        "h": 1
+      }
     }
   ],
   "refresh": "5s",
@@ -1912,232 +1102,7 @@
     "diagnostico"
   ],
   "templating": {
-    "list": [
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todos",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_result_runs, scenario)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Cenario",
-        "multi": true,
-        "name": "scenario",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_result_runs, scenario)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todas",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_run_throughput_rps, classification)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Classificacao",
-        "multi": true,
-        "name": "classification",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_run_throughput_rps, classification)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todas",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\"}, methodology)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Metodologia",
-        "multi": true,
-        "name": "methodology",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\"}, methodology)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todas",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, campaign)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Campanha",
-        "multi": true,
-        "name": "campaign",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\"}, campaign)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todas",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\"}, run)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Rodada",
-        "multi": true,
-        "name": "run",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\"}, run)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todos",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_result_runs{scenario=~\"$scenario\"}, load_profile)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Perfil",
-        "multi": true,
-        "name": "load_profile",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_result_runs{scenario=~\"$scenario\"}, load_profile)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todas",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_result_runs, language)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Linguagem",
-        "multi": true,
-        "name": "language",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_result_runs, language)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "selected": true,
-          "text": "Todos",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "Prometheus"
-        },
-        "definition": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Endpoint",
-        "multi": true,
-        "name": "endpoint",
-        "options": [],
-        "query": {
-          "query": "label_values(benchmark_endpoint_run_throughput_rps{classification=~\"$classification\",methodology=~\"$methodology\",campaign=~\"$campaign\",run=~\"$run\",scenario=~\"$scenario\",language=~\"$language\"}, endpoint)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 1,
-        "type": "query"
-      }
-    ]
+    "list": []
   },
   "time": {
     "from": "now-15m",
@@ -2155,6 +1120,6 @@
   "timezone": "browser",
   "title": "TCC Benchmark - Monitoramento e Diagnostico",
   "uid": "tcc-benchmark-extras",
-  "version": 5,
+  "version": 6,
   "weekStart": ""
 }

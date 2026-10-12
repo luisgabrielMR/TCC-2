@@ -23,3 +23,6 @@ requirements.txt text eol=lf
 
 *.bat text eol=crlf
 *.ps1 text eol=crlf
+
+# Preserve published checksums across Windows/Linux checkouts.
+results/official/** -text

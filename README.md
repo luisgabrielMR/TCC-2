@@ -51,10 +51,16 @@ Locust devem cobrir ao menos 95% da janela medida. Essa completude é independen
 da entrega mínima de carga; lacunas temporais acima de 1,5 s também invalidam a
 evidência de monitoramento.
 
-Foram executados pilotos técnicos dos dois níveis, mas eles continuam
-`non_official`. Esses pilotos são históricos; a campanha científica exige cinco
-repetições oficiais por linguagem em `fixed_100`. Leia [a validação local](docs/validation-methodology-15.md)
-antes de interpretar ou publicar qualquer resultado.
+A campanha oficial foi concluída entre 10 e 12 de outubro de 2026: **25
+execuções, 749.796 requisições e zero falhas registradas pelo Locust**.
+Os [resultados oficiais](results/official/2026-10-12_fixed_100_m17/README.md)
+reúnem gráficos, CSVs, protocolo, commit medido e evidências originais com hashes.
+As figuras mostram também a variação entre as cinco repetições; não constituem
+um ranking universal das linguagens.
+
+Os pilotos anteriores continuam `non_official` e não entram nessa publicação.
+A [validação local histórica](docs/validation-methodology-15.md) documenta a
+preparação; os resultados publicados preservam a metodologia 17 e o commit da coleta.
 
 ## Regras importantes
 

@@ -59,3 +59,6 @@ results/archive/**
 *.zip
 *.tar
 *.tar.gz
+
+# Published official evidence is an explicit, immutable campaign snapshot.
+!results/official/**/evidence.zip
