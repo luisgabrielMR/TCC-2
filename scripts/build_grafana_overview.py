@@ -1,4 +1,4 @@
-"""Build the provisioned official-results dashboard (Grafana 11 core panels)."""
+"""Build consolidated and complementary Grafana result dashboards."""
 from __future__ import annotations
 
 import json
@@ -6,6 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DESTINATION = ROOT / "monitoring/grafana/dashboards/benchmark-overview.json"
+ANALYSIS_DESTINATION = DESTINATION.with_name("benchmark-analysis.json")
 SOURCE = {"type": "prometheus", "uid": "Prometheus"}
 LANGUAGES = {"python": ("Python", "#E0B400"), "node": ("Node.js", "#73BF69"), "java": ("Java", "#FF9830"), "go": ("Go", "#56D9EB"), "dotnet": (".NET", "#B877D9")}
 FILTER = 'classification="official",methodology="$methodology",campaign="$campaign",scenario="$scenario",load_profile="$load_profile",language=~"$language"'
@@ -94,20 +95,24 @@ def range_expressions(expression):
             ("Máximo", f"max by(language)({expression})")]
 
 
-def delivery_table(y):
+def delivery_table(y, *, show_ranges=False):
     expressions = []
     for prefix, expression in [("Vazão", metric("benchmark_run_throughput_rps")),
                                ("Erro", "100 * " + metric("benchmark_run_failures") + " / " + metric("benchmark_run_requests"))]:
-        expressions.extend((f"{prefix} · {label.lower()}", query) for label, query in range_expressions(expression))
+        if show_ranges:
+            expressions.extend((f"{prefix} · {label.lower()}", query) for label, query in range_expressions(expression))
+        else:
+            expressions.append((prefix, range_expressions(expression)[1][1]))
     panel = chart(61, "Vazão e taxa de erro", expressions, "language", 0, y, 24, 9,
-                  "Vazão em req/s e erro em %. Mínimo, mediana e máximo entre execuções. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.")
+                  ("Mínimo, mediana e máximo entre execuções. " if show_ranges else "Valores consolidados: medianas por API. ")
+                  + "Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.")
     panel["type"] = "table"
     panel["options"] = {"showHeader": True, "cellHeight": "md", "enablePagination": False, "footer": {"show": False}}
     panel["fieldConfig"]["defaults"] = {"unit": "reqps", "decimals": 3,
         "custom": {"align": "right", "cellOptions": {"type": "auto"}, "minWidth": 80}}
     panel["fieldConfig"]["overrides"] += [
-        *[{"matcher": {"id": "byName", "options": "Erro · " + name}, "properties": [
-            {"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]} for name in ("mínimo", "mediana", "máximo")],
+        *[{"matcher": {"id": "byName", "options": name}, "properties": [
+            {"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]} for name in ("Erro", "Erro · mínimo", "Erro · mediana", "Erro · máximo")],
         {"matcher": {"id": "byName", "options": "Linguagem"}, "properties": [{"id": "custom.align", "value": "left"}]},
     ]
 
@@ -120,45 +125,59 @@ def variable(name, label, query, current, multi=False, sort=1):
             "current": {"text": "Todas" if multi else current, "value": "$__all" if multi else current, "selected": True}}
 
 
-def build():
+def build(*, secondary=False):
     PANELS.clear()
-    row(20, "Latência das APIs", 0)
-    chart(21, "Tempo médio de resposta", [("Latência", metric("benchmark_result_latency_ms", 'quantile="avg"'))],
-          "language", 0, 1, 12, 10, "Mediana das médias de latência. Eixo comum para todas as APIs, iniciado em zero. Menor = resposta mais rápida.", soft_max=40)
-    chart(22, "Percentis de resposta · P50, P95 e P99", by_language("benchmark_result_latency_ms", 'quantile=~"p50|p95|p99"'),
-          "quantile", 12, 1, 12, 10, "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. Cada barra é a mediana dos percentis de cada execução, não um percentil global.")
-    chart(51, "$quantile por execução", by_language("benchmark_run_latency_ms", 'quantile="$quantile"'),
-          "run", 0, 11, 12, 11, "Cada grupo compara a métrica de latência selecionada das APIs na execução indicada. O filtro Latência alterna média, P50, P95 e P99. Unidade: milissegundos.")
-    chart(23, "$quantile · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_latency_ms", 'quantile="$quantile"')),
-          "language", 12, 11, 12, 11, "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são mínimo e máximo de requisições individuais nem intervalos de confiança.")
-    row(30, "Recursos das APIs · mínimo, mediana e máximo", 22)
-    chart(31, "Uso médio de CPU", range_expressions(metric("benchmark_run_cpu_percent", 'component="api",stat="average"')),
-          "language", 0, 23, 12, 10, "Mínimo, mediana e máximo das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos. Eixo iniciado em zero, ajustado ao consumo observado.", "percent", 30)
-    chart(32, "Uso médio de memória", range_expressions(metric("benchmark_run_memory_bytes", 'stat="average"') + " / 1048576"),
-          "language", 12, 23, 12, 10, "Mínimo, mediana e máximo das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
-    row(40, "Tempo de resposta por operação", 33)
-    for identifier, title, pattern, y in [(41, "Leituras · $quantile", "GET .*", 34), (42, "Escritas · $quantile", "(POST|PUT) .*", 46)]:
-        chart(identifier, title, by_language("benchmark_endpoint_latency_ms", f'quantile="$quantile",endpoint=~"{pattern}"'),
-              "endpoint", 0, y, 24, 12, "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.")
-    row(60, "Vazão e erros", 58)
-    delivery_table(59)
+    if secondary:
+        row(20, "Variabilidade da latência", 0)
+        chart(51, "$quantile por execução", by_language("benchmark_run_latency_ms", 'quantile="$quantile"'),
+              "run", 0, 1, 12, 11, "Cada grupo compara a métrica de latência selecionada na execução indicada. O filtro Latência alterna média, P50, P95 e P99. Unidade: milissegundos.")
+        chart(23, "$quantile · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_latency_ms", 'quantile="$quantile"')),
+              "language", 12, 1, 12, 11, "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.")
+        row(30, "Variabilidade dos recursos", 12)
+        chart(31, "CPU · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_cpu_percent", 'component="api",stat="average"')),
+              "language", 0, 13, 12, 10, "Extremos e mediana das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.", "percent", 30)
+        chart(32, "Memória · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_memory_bytes", 'stat="average"') + " / 1048576"),
+              "language", 12, 13, 12, 10, "Extremos e mediana das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
+        row(60, "Variabilidade da vazão e dos erros", 23)
+        delivery_table(24, show_ranges=True)
+    else:
+        row(20, "Latência das APIs", 0)
+        chart(21, "Tempo médio de resposta", [("Latência", metric("benchmark_result_latency_ms", 'quantile="avg"'))],
+              "language", 0, 1, 12, 10, "Valor consolidado: mediana das médias de latência. Menor = resposta mais rápida. A variabilidade está no painel Análise complementar.", soft_max=40)
+        chart(22, "Percentis de resposta · P50, P95 e P99", by_language("benchmark_result_latency_ms", 'quantile=~"p50|p95|p99"'),
+              "quantile", 12, 1, 12, 10, "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. As barras são medianas dos percentis de cada execução, não percentis globais.")
+        row(30, "Recursos das APIs", 11)
+        chart(31, "Uso médio de CPU", [("CPU", metric("benchmark_result_cpu_percent", 'component="api",stat="average"'))],
+              "language", 0, 12, 12, 10, "Valor consolidado: mediana das médias de CPU. 100% corresponde a um núcleo lógico; cota: dois núcleos. A escala acompanha o consumo observado.", "percent", 30)
+        chart(32, "Uso médio de memória", [("Memória", metric("benchmark_result_memory_bytes", 'stat="average"') + " / 1048576")],
+              "language", 12, 12, 12, 10, "Valor consolidado: mediana das médias do working set do container, em MiB. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
+        row(40, "Tempo de resposta por operação", 22)
+        for identifier, title, pattern, y in [(41, "Leituras · $quantile", "GET .*", 23), (42, "Escritas · $quantile", "(POST|PUT) .*", 35)]:
+            chart(identifier, title, by_language("benchmark_endpoint_latency_ms", f'quantile="$quantile",endpoint=~"{pattern}"'),
+                  "endpoint", 0, y, 24, 12, "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.")
+        row(60, "Vazão e erros", 47)
+        delivery_table(48)
     variables = [
         variable("methodology", "Metodologia", 'label_values(benchmark_result_runs{classification="official"}, methodology)', "17", sort=4),
         variable("campaign", "Campanha", 'label_values(benchmark_result_runs{classification="official",methodology="$methodology"}, campaign)', "m17_d2716c1f9187_92483cd5afca"),
         variable("scenario", "Cenário", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, scenario)', "mixed_fixed_100"),
         variable("load_profile", "Perfil", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign",scenario="$scenario"}, load_profile)', "fixed_100"),
         variable("language", "Linguagem", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, language)', "", multi=True),
-        {"name": "quantile", "label": "Latência", "type": "custom", "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99", "current": {"text": "P95", "value": "p95"}, "options": [{"text": text, "value": value, "selected": value == "p95"} for text, value in [("Média", "avg"), ("P50", "p50"), ("P95", "p95"), ("P99", "p99")]], "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
+        {"name": "quantile", "label": "Latência" if secondary else "Latência por operação", "type": "custom", "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99", "current": {"text": "P95", "value": "p95"}, "options": [{"text": text, "value": value, "selected": value == "p95"} for text, value in [("Média", "avg"), ("P50", "p50"), ("P95", "p95"), ("P99", "p99")]], "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
     ]
     for item in variables:
         if item["name"] in {"methodology", "campaign", "scenario", "load_profile"}:
             item["hide"] = 2
-    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-overview", "title": "TCC Benchmark - Resultados Oficiais", "description": "Resultados oficiais: média, P50/P95/P99, CPU, memória, vazão e erros; mediana e extremos entre execuções. Uma campanha por vez; diagnósticos ao vivo em outro dashboard.", "editable": True, "schemaVersion": 40, "version": 13, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": PANELS, "links": [
+    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-analysis" if secondary else "tcc-benchmark-overview", "title": "TCC Benchmark - Análise Complementar" if secondary else "TCC Benchmark - Resultados Oficiais", "description": "Variação entre execuções e extremos das métricas oficiais." if secondary else "Comparação consolidada das APIs: média, P50/P95/P99, CPU, memória, operações, vazão e erros.", "editable": True, "schemaVersion": 40, "version": 1 if secondary else 14, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": list(PANELS), "links": [
+        {"title": "Resultados consolidados" if secondary else "Análise complementar", "type": "link",
+         "url": "/d/tcc-benchmark-overview" if secondary else "/d/tcc-benchmark-analysis",
+         "icon": "dashboard", "includeVars": True, "keepTime": False},
         {"title": "Monitoramento ao vivo", "type": "link", "url": "/d/tcc-benchmark-extras/tcc-benchmark-monitoramento-e-diagnostico", "icon": "dashboard", "includeVars": False, "keepTime": False},
         {"title": "Resultados e evidências no GitHub", "type": "link", "url": "https://github.com/luisgabrielMR/TCC-2/tree/main/results/official/2026-10-12_fixed_100_m17", "icon": "external link", "targetBlank": True},
     ]}
 
 
 if __name__ == "__main__":
-    DESTINATION.write_text(json.dumps(build(), indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
-    print(DESTINATION)
+    for destination, secondary in [(DESTINATION, False), (ANALYSIS_DESTINATION, True)]:
+        destination.write_text(json.dumps(build(secondary=secondary), indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+        print(destination)

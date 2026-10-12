@@ -10,8 +10,8 @@ A fonte provisionada é Prometheus em `http://prometheus:9090`. O provedor
 `provisioning/dashboards/default.yml` atualiza a pasta de dashboards a cada
 10 segundos. O Compose define o dashboard de visão geral como página inicial.
 
-Os arquivos provisionados incluem `benchmark-overview.json` e
-`benchmark-extras.json`. Eles devem ser tratados como visualização: para a
+Os arquivos provisionados incluem `benchmark-overview.json`,
+`benchmark-analysis.json` e `benchmark-extras.json`. Eles devem ser tratados como visualização: para a
 análise acadêmica, preserve e consolide os CSVs/JSONs da rodada, filtrando
 classificação, campanha, perfil e protocolo antes de comparar.
 
@@ -21,9 +21,17 @@ métrica por operação ficam visíveis. As consultas são instantâneas: reflet
 os artefatos salvos republicados pelo exporter. A janela de tempo do Grafana
 não corresponde à duração da execução original.
 
-`python scripts/build_grafana_overview.py` gera a definição oficial. Ela tem
-nove painéis: média, comparação P50/P95/P99, latência por execução, extremos
-da latência selecionada, CPU, memória, leituras, escritas e tabela de vazão/erro.
+`python scripts/build_grafana_overview.py` gera duas definições:
+
+- `benchmark-overview.json`: sete painéis com medianas por API — média,
+  P50/P95/P99, CPU, memória, leituras, escritas e tabela de vazão/erro.
+- `benchmark-analysis.json`: cinco painéis complementares — latência por
+  execução, extremos da latência selecionada, extremos de CPU/memória e
+  tabela com extremos da vazão/erro.
+
+Os links entre as visões usam `includeVars` para preservar a campanha e os
+filtros. No principal, o filtro de latência altera apenas as operações; no
+complementar, altera latência por execução e o resumo dos extremos.
 
 Os resumos mínimo/mediana/máximo usam `min by(language)`,
 `quantile by(language)(0.5, ...)` e `max by(language)` sobre métricas de cada
@@ -40,7 +48,8 @@ categorias sem unidade; os percentis usam ms. Cores por linguagem ficam nos
 painéis comparativos; nos gráficos de extremos, cinza indica mínimo, azul
 mediana e laranja máximo. Leituras e escritas têm escalas independentes.
 
-O painel corresponde à consolidação descrita na página 14 do TCC (28).
+As duas visões cobrem a consolidação descrita na página 14 do TCC (28).
+A separação altera a apresentação, sem retirar a evidência de variabilidade.
 P66/P75/P80/P90/P98/P99,9/P99,99/P100 permanecem nos CSVs brutos, sem serem
 confundidos com novos percentis globais ou incluídos na consolidação do TCC.
 

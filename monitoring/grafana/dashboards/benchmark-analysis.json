@@ -1,0 +1,1886 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "id": null,
+  "uid": "tcc-benchmark-analysis",
+  "title": "TCC Benchmark - Análise Complementar",
+  "description": "Variação entre execuções e extremos das métricas oficiais.",
+  "editable": true,
+  "schemaVersion": 40,
+  "version": 1,
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "tags": [
+    "tcc",
+    "benchmark",
+    "resultados-oficiais"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "methodology",
+        "label": "Metodologia",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\"}, methodology)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\"}, methodology)",
+        "refresh": 1,
+        "sort": 4,
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "allValue": ".*",
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false,
+        "current": {
+          "text": "17",
+          "value": "17",
+          "selected": true
+        }
+      },
+      {
+        "name": "campaign",
+        "label": "Campanha",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",methodology=\"$methodology\"}, campaign)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",methodology=\"$methodology\"}, campaign)",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "allValue": ".*",
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false,
+        "current": {
+          "text": "m17_d2716c1f9187_92483cd5afca",
+          "value": "m17_d2716c1f9187_92483cd5afca",
+          "selected": true
+        }
+      },
+      {
+        "name": "scenario",
+        "label": "Cenário",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\"}, scenario)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\"}, scenario)",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "allValue": ".*",
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false,
+        "current": {
+          "text": "mixed_fixed_100",
+          "value": "mixed_fixed_100",
+          "selected": true
+        }
+      },
+      {
+        "name": "load_profile",
+        "label": "Perfil",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\",scenario=\"$scenario\"}, load_profile)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\",scenario=\"$scenario\"}, load_profile)",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 2,
+        "includeAll": false,
+        "multi": false,
+        "allValue": ".*",
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false,
+        "current": {
+          "text": "fixed_100",
+          "value": "fixed_100",
+          "selected": true
+        }
+      },
+      {
+        "name": "language",
+        "label": "Linguagem",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "query": {
+          "query": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\"}, language)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "definition": "label_values(benchmark_result_runs{classification=\"official\",campaign=\"$campaign\"}, language)",
+        "refresh": 1,
+        "sort": 1,
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "allValue": ".*",
+        "options": [],
+        "regex": "",
+        "skipUrlSync": false,
+        "current": {
+          "text": "Todas",
+          "value": "$__all",
+          "selected": true
+        }
+      },
+      {
+        "name": "quantile",
+        "label": "Latência",
+        "type": "custom",
+        "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99",
+        "current": {
+          "text": "P95",
+          "value": "p95"
+        },
+        "options": [
+          {
+            "text": "Média",
+            "value": "avg",
+            "selected": false
+          },
+          {
+            "text": "P50",
+            "value": "p50",
+            "selected": false
+          },
+          {
+            "text": "P95",
+            "value": "p95",
+            "selected": true
+          },
+          {
+            "text": "P99",
+            "value": "p99",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 20,
+      "title": "Variabilidade da latência",
+      "type": "row",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 51,
+      "title": "$quantile por execução",
+      "type": "barchart",
+      "description": "Cada grupo compara a métrica de latência selecionada na execução indicada. O filtro Latência alterna média, P50, P95 e P99. Unidade: milissegundos.",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 12,
+        "h": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "B",
+          "expr": "benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "C",
+          "expr": "benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "D",
+          "expr": "benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "E",
+          "expr": "benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(run|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "run",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "run": "Execução",
+              "Value #A": ".NET",
+              "Value A": ".NET",
+              "Value #B": "Go",
+              "Value B": "Go",
+              "Value #C": "Java",
+              "Value C": "Java",
+              "Value #D": "Node.js",
+              "Value D": "Node.js",
+              "Value #E": "Python",
+              "Value E": "Python"
+            },
+            "indexByName": {},
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Execução",
+                "desc": false
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "left",
+            "axisLabel": "Latência (ms)",
+            "fillOpacity": 90,
+            "lineWidth": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(dotnet|[.]NET)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(go|Go)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(java|Java)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(node|Node[.]js)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(python|Python)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0B400"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8F9CAB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mediana"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Execução"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "Execução",
+        "orientation": "vertical",
+        "stacking": "none",
+        "groupWidth": 0.65,
+        "barWidth": 0.85,
+        "barRadius": 0.03,
+        "showValue": "never",
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "fullHighlight": false
+      }
+    },
+    {
+      "id": 23,
+      "title": "$quantile · mínimo, mediana e máximo",
+      "type": "barchart",
+      "description": "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.",
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 12,
+        "h": 11
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by(language)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile by(language)(0.5, benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "C",
+          "expr": "max by(language)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "Mínimo",
+              "Value A": "Mínimo",
+              "Value #B": "Mediana",
+              "Value B": "Mediana",
+              "Value #C": "Máximo",
+              "Value C": "Máximo"
+            },
+            "indexByName": {},
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Linguagem",
+                "desc": false
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "left",
+            "axisLabel": "Latência (ms)",
+            "fillOpacity": 90,
+            "lineWidth": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(dotnet|[.]NET)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(go|Go)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(java|Java)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(node|Node[.]js)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(python|Python)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0B400"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8F9CAB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mediana"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "dotnet": {
+                        "text": ".NET",
+                        "color": "#B877D9",
+                        "index": 0
+                      },
+                      "go": {
+                        "text": "Go",
+                        "color": "#56D9EB",
+                        "index": 1
+                      },
+                      "java": {
+                        "text": "Java",
+                        "color": "#FF9830",
+                        "index": 2
+                      },
+                      "node": {
+                        "text": "Node.js",
+                        "color": "#73BF69",
+                        "index": 3
+                      },
+                      "python": {
+                        "text": "Python",
+                        "color": "#E0B400",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "Linguagem",
+        "orientation": "vertical",
+        "stacking": "none",
+        "groupWidth": 0.65,
+        "barWidth": 0.85,
+        "barRadius": 0.03,
+        "showValue": "never",
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "fullHighlight": false
+      }
+    },
+    {
+      "id": 30,
+      "title": "Variabilidade dos recursos",
+      "type": "row",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 12,
+        "w": 24,
+        "h": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 31,
+      "title": "CPU · mínimo, mediana e máximo",
+      "type": "barchart",
+      "description": "Extremos e mediana das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.",
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by(language)(benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile by(language)(0.5, benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "C",
+          "expr": "max by(language)(benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "Mínimo",
+              "Value A": "Mínimo",
+              "Value #B": "Mediana",
+              "Value B": "Mediana",
+              "Value #C": "Máximo",
+              "Value C": "Máximo"
+            },
+            "indexByName": {},
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Linguagem",
+                "desc": false
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "left",
+            "axisLabel": "CPU (%)",
+            "fillOpacity": 90,
+            "lineWidth": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "axisSoftMax": 30
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(dotnet|[.]NET)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(go|Go)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(java|Java)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(node|Node[.]js)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(python|Python)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0B400"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8F9CAB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mediana"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "dotnet": {
+                        "text": ".NET",
+                        "color": "#B877D9",
+                        "index": 0
+                      },
+                      "go": {
+                        "text": "Go",
+                        "color": "#56D9EB",
+                        "index": 1
+                      },
+                      "java": {
+                        "text": "Java",
+                        "color": "#FF9830",
+                        "index": 2
+                      },
+                      "node": {
+                        "text": "Node.js",
+                        "color": "#73BF69",
+                        "index": 3
+                      },
+                      "python": {
+                        "text": "Python",
+                        "color": "#E0B400",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "Linguagem",
+        "orientation": "vertical",
+        "stacking": "none",
+        "groupWidth": 0.65,
+        "barWidth": 0.85,
+        "barRadius": 0.03,
+        "showValue": "never",
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "fullHighlight": false
+      }
+    },
+    {
+      "id": 32,
+      "title": "Memória · mínimo, mediana e máximo",
+      "type": "barchart",
+      "description": "Extremos e mediana das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.",
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 10
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by(language)(benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576)",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile by(language)(0.5, benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576)",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "C",
+          "expr": "max by(language)(benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576)",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "Mínimo",
+              "Value A": "Mínimo",
+              "Value #B": "Mediana",
+              "Value B": "Mediana",
+              "Value #C": "Máximo",
+              "Value C": "Máximo"
+            },
+            "indexByName": {},
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Linguagem",
+                "desc": false
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:MiB",
+          "decimals": 2,
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisPlacement": "left",
+            "axisLabel": "Memória (MiB)",
+            "fillOpacity": 90,
+            "lineWidth": 0,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "axisSoftMax": 250
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(dotnet|[.]NET)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(go|Go)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(java|Java)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(node|Node[.]js)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(python|Python)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0B400"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8F9CAB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mediana"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "dotnet": {
+                        "text": ".NET",
+                        "color": "#B877D9",
+                        "index": 0
+                      },
+                      "go": {
+                        "text": "Go",
+                        "color": "#56D9EB",
+                        "index": 1
+                      },
+                      "java": {
+                        "text": "Java",
+                        "color": "#FF9830",
+                        "index": 2
+                      },
+                      "node": {
+                        "text": "Node.js",
+                        "color": "#73BF69",
+                        "index": 3
+                      },
+                      "python": {
+                        "text": "Python",
+                        "color": "#E0B400",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "xField": "Linguagem",
+        "orientation": "vertical",
+        "stacking": "none",
+        "groupWidth": 0.65,
+        "barWidth": 0.85,
+        "barRadius": 0.03,
+        "showValue": "never",
+        "legend": {
+          "showLegend": true,
+          "placement": "bottom",
+          "displayMode": "list"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        },
+        "xTickLabelRotation": 0,
+        "xTickLabelSpacing": 0,
+        "fullHighlight": false
+      }
+    },
+    {
+      "id": 60,
+      "title": "Variabilidade da vazão e dos erros",
+      "type": "row",
+      "description": "",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 1
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "id": 61,
+      "title": "Vazão e taxa de erro",
+      "type": "table",
+      "description": "Mínimo, mediana e máximo entre execuções. Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 9
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by(language)(benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "B",
+          "expr": "quantile by(language)(0.5, benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "C",
+          "expr": "max by(language)(benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "D",
+          "expr": "min by(language)(100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "E",
+          "expr": "quantile by(language)(0.5, 100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        },
+        {
+          "refId": "F",
+          "expr": "max by(language)(100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "instant": true,
+          "range": false,
+          "editorMode": "code",
+          "format": "table",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterFieldsByName",
+          "options": {
+            "include": {
+              "pattern": "^(language|Value.*)$"
+            }
+          }
+        },
+        {
+          "id": "joinByField",
+          "options": {
+            "byField": "language",
+            "mode": "outer"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "language": "Linguagem",
+              "Value #A": "Vazão · mínimo",
+              "Value A": "Vazão · mínimo",
+              "Value #B": "Vazão · mediana",
+              "Value B": "Vazão · mediana",
+              "Value #C": "Vazão · máximo",
+              "Value C": "Vazão · máximo",
+              "Value #D": "Erro · mínimo",
+              "Value D": "Erro · mínimo",
+              "Value #E": "Erro · mediana",
+              "Value E": "Erro · mediana",
+              "Value #F": "Erro · máximo",
+              "Value F": "Erro · máximo"
+            },
+            "indexByName": {},
+            "excludeByName": {}
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "sort": [
+              {
+                "field": "Linguagem",
+                "desc": false
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 3,
+          "custom": {
+            "align": "right",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "minWidth": 80
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(dotnet|[.]NET)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#B877D9"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(go|Go)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(java|Java)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(node|Node[.]js)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#73BF69"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "^(python|Python)$"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#E0B400"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mínimo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#8F9CAB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Mediana"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#56D9EB"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Máximo"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "#FF9830"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "none"
+              },
+              {
+                "id": "decimals",
+                "value": 0
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "dotnet": {
+                        "text": ".NET",
+                        "color": "#B877D9",
+                        "index": 0
+                      },
+                      "go": {
+                        "text": "Go",
+                        "color": "#56D9EB",
+                        "index": 1
+                      },
+                      "java": {
+                        "text": "Java",
+                        "color": "#FF9830",
+                        "index": 2
+                      },
+                      "node": {
+                        "text": "Node.js",
+                        "color": "#73BF69",
+                        "index": 3
+                      },
+                      "python": {
+                        "text": "Python",
+                        "color": "#E0B400",
+                        "index": 4
+                      }
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro · mínimo"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro · mediana"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro · máximo"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Linguagem"
+            },
+            "properties": [
+              {
+                "id": "custom.align",
+                "value": "left"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "md",
+        "enablePagination": false,
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ],
+  "links": [
+    {
+      "title": "Resultados consolidados",
+      "type": "link",
+      "url": "/d/tcc-benchmark-overview",
+      "icon": "dashboard",
+      "includeVars": true,
+      "keepTime": false
+    },
+    {
+      "title": "Monitoramento ao vivo",
+      "type": "link",
+      "url": "/d/tcc-benchmark-extras/tcc-benchmark-monitoramento-e-diagnostico",
+      "icon": "dashboard",
+      "includeVars": false,
+      "keepTime": false
+    },
+    {
+      "title": "Resultados e evidências no GitHub",
+      "type": "link",
+      "url": "https://github.com/luisgabrielMR/TCC-2/tree/main/results/official/2026-10-12_fixed_100_m17",
+      "icon": "external link",
+      "targetBlank": true
+    }
+  ]
+}
