@@ -42,7 +42,7 @@ def row(identifier, title, y):
 def chart(identifier, title, expressions, key, x, y, width, height, description, unit="ms", soft_max=None):
     """Use real shared-axis bars, never per-field progress gauges."""
     panel = base(identifier, title, "barchart", x, y, width, height, description)
-    key_label = {"run": "Execução", "language": "Linguagem", "endpoint": "Operação"}[key]
+    key_label = {"run": "Execução", "language": "Linguagem", "endpoint": "Operação", "quantile": "Percentil"}[key]
     renamed = {key: key_label}
     targets = []
     for index, (label, expression) in enumerate(expressions):
@@ -59,6 +59,9 @@ def chart(identifier, title, expressions, key, x, y, width, height, description,
     if key == "language":
         key_properties.append({"id": "mappings", "value": [{"type": "value", "options": {
             code: {"text": name, "color": color, "index": i} for i, (code, (name, color)) in enumerate(LANGUAGES.items())}}]})
+    if key == "quantile":
+        key_properties.append({"id": "mappings", "value": [{"type": "value", "options": {
+            value: {"text": value.upper(), "index": i} for i, value in enumerate(("p50", "p95", "p99"))}}]})
     panel.update(targets=targets, transformations=[
         {"id": "filterFieldsByName", "options": {"include": {"pattern": f"^({key}|Value.*)$"}}},
         *([{"id": "joinByField", "options": {"byField": key, "mode": "outer"}}] if len(expressions) > 1 else []),
@@ -66,13 +69,15 @@ def chart(identifier, title, expressions, key, x, y, width, height, description,
         {"id": "sortBy", "options": {"sort": [{"field": key_label, "desc": False}], "fields": {}}},
     ], fieldConfig={"defaults": {"unit": unit, "decimals": 2 if key == "language" else 0, "min": 0,
                                  "color": {"mode": "palette-classic"}, "custom": custom},
-                    "overrides": colors() + [{"matcher": {"id": "byName", "options": key_label}, "properties": key_properties}]},
+                    "overrides": colors() + [{"matcher": {"id": "byName", "options": label}, "properties": [
+                        {"id": "color", "value": {"mode": "fixed", "fixedColor": color}}]} for label, color in
+                        [("Mínimo", "#8F9CAB"), ("Mediana", "#56D9EB"), ("Máximo", "#FF9830")]] + [{"matcher": {"id": "byName", "options": key_label}, "properties": key_properties}]},
                  options={"xField": key_label, "orientation": "vertical", "stacking": "none", "groupWidth": .65,
-                          "barWidth": .85, "barRadius": .03, "showValue": "always" if key == "language" else "never",
-                          "legend": {"showLegend": key != "language", "placement": "bottom", "displayMode": "list"},
+                          "barWidth": .85, "barRadius": .03, "showValue": "always" if key == "language" and len(expressions) == 1 else "never",
+                          "legend": {"showLegend": key != "language" or len(expressions) > 1, "placement": "bottom", "displayMode": "list"},
                           "tooltip": {"mode": "multi", "sort": "none"}, "xTickLabelRotation": 0,
                           "xTickLabelSpacing": 0, "fullHighlight": False})
-    if key == "language":
+    if key == "language" and len(expressions) == 1:
         panel["options"]["colorByField"] = key_label
     PANELS.append(panel)
     return panel
@@ -81,6 +86,30 @@ def chart(identifier, title, expressions, key, x, y, width, height, description,
 def by_language(name, extra=""):
     return [(label, metric(name, extra).replace('language=~"$language"', f'language="{code}"')
              + f' and on(language) {metric("benchmark_result_runs")}') for code, (label, _) in LANGUAGES.items()]
+
+
+def range_expressions(expression):
+    return [("Mínimo", f"min by(language)({expression})"),
+            ("Mediana", f"quantile by(language)(0.5, {expression})"),
+            ("Máximo", f"max by(language)({expression})")]
+
+
+def delivery_table(y):
+    expressions = []
+    for prefix, expression in [("Vazão", metric("benchmark_run_throughput_rps")),
+                               ("Erro", "100 * " + metric("benchmark_run_failures") + " / " + metric("benchmark_run_requests"))]:
+        expressions.extend((f"{prefix} · {label.lower()}", query) for label, query in range_expressions(expression))
+    panel = chart(61, "Vazão e taxa de erro", expressions, "language", 0, y, 24, 9,
+                  "Vazão em req/s e erro em %. Mínimo, mediana e máximo entre execuções. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.")
+    panel["type"] = "table"
+    panel["options"] = {"showHeader": True, "cellHeight": "md", "enablePagination": False, "footer": {"show": False}}
+    panel["fieldConfig"]["defaults"] = {"unit": "reqps", "decimals": 3,
+        "custom": {"align": "right", "cellOptions": {"type": "auto"}, "minWidth": 80}}
+    panel["fieldConfig"]["overrides"] += [
+        *[{"matcher": {"id": "byName", "options": "Erro · " + name}, "properties": [
+            {"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]} for name in ("mínimo", "mediana", "máximo")],
+        {"matcher": {"id": "byName", "options": "Linguagem"}, "properties": [{"id": "custom.align", "value": "left"}]},
+    ]
 
 
 def variable(name, label, query, current, multi=False, sort=1):
@@ -95,30 +124,36 @@ def build():
     PANELS.clear()
     row(20, "Latência das APIs", 0)
     chart(21, "Tempo médio de resposta", [("Latência", metric("benchmark_result_latency_ms", 'quantile="avg"'))],
-          "language", 0, 1, 12, 11, "Mediana das médias de latência. Eixo comum para todas as APIs, iniciado em zero. Menor = resposta mais rápida.", soft_max=40)
-    chart(51, "P95 por execução", by_language("benchmark_run_latency_ms", 'quantile="p95"'),
-          "run", 12, 1, 12, 11, "Cada grupo compara o P95 das APIs na execução indicada. Unidade: milissegundos. Não são percentagens nem percentis globais.")
-    row(30, "Recursos das APIs", 12)
-    chart(31, "Uso médio de CPU", [("CPU", metric("benchmark_result_cpu_percent", 'component="api",stat="average"'))],
-          "language", 0, 13, 12, 10, "Mediana das médias de CPU do container. 100% corresponde a um núcleo lógico; cota: dois núcleos. O eixo começa em zero e acompanha os valores observados.", "percent", 30)
-    chart(32, "Uso médio de memória", [("Memória", metric("benchmark_result_memory_bytes", 'stat="average"') + " / 1048576")],
-          "language", 12, 13, 12, 10, "Mediana das médias do working set do container, em MiB. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
-    row(40, "Tempo de resposta por operação", 23)
-    for identifier, title, pattern, y in [(41, "Leituras · $quantile", "GET .*", 24), (42, "Escritas · $quantile", "(POST|PUT) .*", 36)]:
+          "language", 0, 1, 12, 10, "Mediana das médias de latência. Eixo comum para todas as APIs, iniciado em zero. Menor = resposta mais rápida.", soft_max=40)
+    chart(22, "Percentis de resposta · P50, P95 e P99", by_language("benchmark_result_latency_ms", 'quantile=~"p50|p95|p99"'),
+          "quantile", 12, 1, 12, 10, "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. Cada barra é a mediana dos percentis de cada execução, não um percentil global.")
+    chart(51, "$quantile por execução", by_language("benchmark_run_latency_ms", 'quantile="$quantile"'),
+          "run", 0, 11, 12, 11, "Cada grupo compara a métrica de latência selecionada das APIs na execução indicada. O filtro Latência alterna média, P50, P95 e P99. Unidade: milissegundos.")
+    chart(23, "$quantile · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_latency_ms", 'quantile="$quantile"')),
+          "language", 12, 11, 12, 11, "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são mínimo e máximo de requisições individuais nem intervalos de confiança.")
+    row(30, "Recursos das APIs · mínimo, mediana e máximo", 22)
+    chart(31, "Uso médio de CPU", range_expressions(metric("benchmark_run_cpu_percent", 'component="api",stat="average"')),
+          "language", 0, 23, 12, 10, "Mínimo, mediana e máximo das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos. Eixo iniciado em zero, ajustado ao consumo observado.", "percent", 30)
+    chart(32, "Uso médio de memória", range_expressions(metric("benchmark_run_memory_bytes", 'stat="average"') + " / 1048576"),
+          "language", 12, 23, 12, 10, "Mínimo, mediana e máximo das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
+    row(40, "Tempo de resposta por operação", 33)
+    for identifier, title, pattern, y in [(41, "Leituras · $quantile", "GET .*", 34), (42, "Escritas · $quantile", "(POST|PUT) .*", 46)]:
         chart(identifier, title, by_language("benchmark_endpoint_latency_ms", f'quantile="$quantile",endpoint=~"{pattern}"'),
               "endpoint", 0, y, 24, 12, "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.")
+    row(60, "Vazão e erros", 58)
+    delivery_table(59)
     variables = [
         variable("methodology", "Metodologia", 'label_values(benchmark_result_runs{classification="official"}, methodology)', "17", sort=4),
         variable("campaign", "Campanha", 'label_values(benchmark_result_runs{classification="official",methodology="$methodology"}, campaign)', "m17_d2716c1f9187_92483cd5afca"),
         variable("scenario", "Cenário", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, scenario)', "mixed_fixed_100"),
         variable("load_profile", "Perfil", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign",scenario="$scenario"}, load_profile)', "fixed_100"),
         variable("language", "Linguagem", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, language)', "", multi=True),
-        {"name": "quantile", "label": "Latência da operação", "type": "custom", "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99", "current": {"text": "P95", "value": "p95"}, "options": [{"text": text, "value": value, "selected": value == "p95"} for text, value in [("Média", "avg"), ("P50", "p50"), ("P95", "p95"), ("P99", "p99")]], "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
+        {"name": "quantile", "label": "Latência", "type": "custom", "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99", "current": {"text": "P95", "value": "p95"}, "options": [{"text": text, "value": value, "selected": value == "p95"} for text, value in [("Média", "avg"), ("P50", "p50"), ("P95", "p95"), ("P99", "p99")]], "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
     ]
     for item in variables:
         if item["name"] in {"methodology", "campaign", "scenario", "load_profile"}:
             item["hide"] = 2
-    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-overview", "title": "TCC Benchmark - Resultados Oficiais", "description": "Resultados oficiais: latência, CPU, memória e operações. Uma campanha por vez; diagnósticos ao vivo em outro dashboard.", "editable": True, "schemaVersion": 40, "version": 12, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": PANELS, "links": [
+    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-overview", "title": "TCC Benchmark - Resultados Oficiais", "description": "Resultados oficiais: média, P50/P95/P99, CPU, memória, vazão e erros; mediana e extremos entre execuções. Uma campanha por vez; diagnósticos ao vivo em outro dashboard.", "editable": True, "schemaVersion": 40, "version": 13, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": PANELS, "links": [
         {"title": "Monitoramento ao vivo", "type": "link", "url": "/d/tcc-benchmark-extras/tcc-benchmark-monitoramento-e-diagnostico", "icon": "dashboard", "includeVars": False, "keepTime": False},
         {"title": "Resultados e evidências no GitHub", "type": "link", "url": "https://github.com/luisgabrielMR/TCC-2/tree/main/results/official/2026-10-12_fixed_100_m17", "icon": "external link", "targetBlank": True},
     ]}

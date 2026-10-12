@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -178,8 +179,34 @@ class ResultsExporterTests(unittest.TestCase):
 
         self.assertNotIn("benchmark_result_cpu_percent", output)
         self.assertNotIn("benchmark_result_memory_bytes", output)
+        self.assertNotIn("benchmark_run_cpu_percent", output)
+        self.assertNotIn("benchmark_run_memory_bytes", output)
         self.assertIn("benchmark_result_postgres_connections", output)
         self.assertIn('status="invalid_missing_resources"', output)
+
+    def test_run_resource_metrics_preserve_cadvisor_means_and_run_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            results = Path(temp)
+            for run, cpu, memory in ((1, 17.25, 50000000), (2, 29.5, 90000000)):
+                self.write_run(results, run, 100)
+                path = results / "raw/python/mixed" / f"run_{run}" / "cadvisor_summary.csv"
+                with path.open(newline="") as handle:
+                    rows = list(csv.DictReader(handle))
+                rows[0].update(cpu_average_percent=str(cpu), memory_average_bytes=str(memory),
+                               cpu_max_percent="190", memory_max_bytes="300000000")
+                self.write_csv(path, rows)
+            output = render_metrics(results)
+        for metric, expected in (
+            ("benchmark_run_cpu_percent", {1: 17.25, 2: 29.5}),
+            ("benchmark_run_memory_bytes", {1: 50000000, 2: 90000000}),
+        ):
+            lines = [line for line in output.splitlines() if line.startswith(metric + "{")]
+            self.assertEqual(len(lines), 2)
+            actual = {int(re.search(r'run="(\d+)"', line).group(1)): float(line.rsplit(" ", 1)[1]) for line in lines}
+            self.assertEqual(actual, expected)
+            for line in lines:
+                self.assertIn('metric_source="cadvisor_via_prometheus"', line)
+                self.assertIn('stat="average"', line)
 
 
 if __name__ == "__main__":

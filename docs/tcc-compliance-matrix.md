@@ -1,10 +1,10 @@
 # Matriz de aderencia ao TCC — metodologia 17
 
-Esta matriz registra o protocolo implementado, nao declara uma campanha concluida.
-A referencia documental anterior foi o PDF TCC_Luis_Gabriel_Mendonca_Reos (27),
-paginas 9 a 15. O texto fornecido em 07/10/2026 define um unico perfil,
-fixed_100, e cinco rodadas, totalizando 25 execucoes. Os documentos academicos
-nao estao versionados aqui; conferir a revisao final antes da entrega.
+Esta matriz registra o protocolo implementado e sua visualização. A revisão
+TCC_Luis_Gabriel_Mendonça_Reos (28), páginas 11 a 14, foi conferida em
+12/10/2026: um perfil `fixed_100`, cinco rodadas e 25 execuções. A campanha
+concluída está em `results/official/2026-10-12_fixed_100_m17`, com evidências
+e hashes. O PDF acadêmico não está versionado neste repositório.
 
 | Aspecto | Implementacao / evidencia | Limite de interpretacao |
 | --- | --- | --- |
@@ -23,7 +23,7 @@ nao estao versionados aqui; conferir a revisao final antes da entrega.
 | Gerador | CPU cAdvisor e entrega efetiva; calibracao health-only opcional | CPU media abaixo do limite nao prova capacidade sob toda carga |
 | Repeticoes e ordem | Menu Windows:5 rodadas de fixed_100; rotacao das linguagens; 25 execucoes | Preparado nao significa executado |
 | Separacao dos dados | classification + campaign_fingerprint + protocol_sha256; filtro --campaign | Piloto abreviado permanece non_official; historicos nao sao promovidos |
-| Analise | Latencias, vazao, erros, recursos; medianas e min-max entre rodadas | Sem teste de significancia; adequate nao e confianca estatistica |
+| Analise (TCC 28, p. 14) | Grafana: media, P50/P95/P99, vazao, erro, CPU e memoria; mediana e min-max entre execucoes | Sem teste de significancia; adequate nao e confianca estatistica |
 | Prontidao cientifica | Verificacao funcional + pilotos + congelamento + campanha completa | Nenhum desses passos substitui os outros |
 
 ## Evidencia de execucao
@@ -31,8 +31,9 @@ nao estao versionados aqui; conferir a revisao final antes da entrega.
 A verificacao integrada gera results/raw/verification/<timestamp>/ e
 results/summaries/project-verification.json. Os pilotos ficam nas pastas
 de linguagem/perfil/run_N, com classificacao non_official e tempos registrados.
-Consultar os artefatos da execucao atual, nao inferir aprovacao a partir desta
-matriz ou de registros de uma metodologia antiga.
+A evidencia da campanha oficial publicada esta preservada no pacote de resultados,
+medida no commit d2716c1. Alteracoes posteriores de visualizacao nao modificam
+essa origem; novas coletas precisam de nova verificacao do codigo/configuracao.
 
 ## Criterio de encerramento
 

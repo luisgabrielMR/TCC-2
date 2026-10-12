@@ -21,16 +21,28 @@ métrica por operação ficam visíveis. As consultas são instantâneas: reflet
 os artefatos salvos republicados pelo exporter. A janela de tempo do Grafana
 não corresponde à duração da execução original.
 
-`python scripts/build_grafana_overview.py` gera a definição oficial. Os seis
-painéis usam `barchart`, sem tabelas, gauges ou rolagem interna: latência média,
-P95 por execução, CPU, memória, leituras e escritas. Os gráficos por linguagem
-usam mediana; o P95 por execução preserva as observações individuais.
+`python scripts/build_grafana_overview.py` gera a definição oficial. Ela tem
+nove painéis: média, comparação P50/P95/P99, latência por execução, extremos
+da latência selecionada, CPU, memória, leituras, escritas e tabela de vazão/erro.
 
-Eixos começam em zero e compartilham escala dentro de cada gráfico. CPU usa
-100% por núcleo e máximo suave de 30%, que pode crescer se houver valores
-maiores. A memória é convertida para MiB. As execuções são categorias numéricas
-sem unidade; leituras e escritas têm escalas independentes. Cores e ordem das
-linguagens são consistentes com as imagens publicadas.
+Os resumos mínimo/mediana/máximo usam `min by(language)`,
+`quantile by(language)(0.5, ...)` e `max by(language)` sobre métricas de cada
+execução. A latência usa `benchmark_run_latency_ms`. CPU e memória usam
+`benchmark_run_cpu_percent{component="api",stat="average"}` e
+`benchmark_run_memory_bytes{stat="average"}`, provenientes das médias
+preservadas no cAdvisor. Recursos ausentes não são publicados como zero.
+O máximo das médias não deve ser confundido com a métrica antiga `stat="peak"`.
+A taxa de erro de cada execução é `100 * failures / requests`.
+
+Os eixos começam em zero. CPU mantém 100% por núcleo e máximo suave de 30%,
+que cresce quando necessário. Memória é convertida para MiB. Execuções são
+categorias sem unidade; os percentis usam ms. Cores por linguagem ficam nos
+painéis comparativos; nos gráficos de extremos, cinza indica mínimo, azul
+mediana e laranja máximo. Leituras e escritas têm escalas independentes.
+
+O painel corresponde à consolidação descrita na página 14 do TCC (28).
+P66/P75/P80/P90/P98/P99,9/P99,99/P100 permanecem nos CSVs brutos, sem serem
+confundidos com novos percentis globais ou incluídos na consolidação do TCC.
 
 O dashboard de diagnóstico apresenta somente saúde dos serviços, atividade
 atual do PostgreSQL e Locust ao vivo em uma seção recolhida. Uma ausência de

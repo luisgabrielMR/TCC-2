@@ -306,6 +306,16 @@ def add_result_metrics(metrics: Metrics, runs: list[dict], endpoints: list[dict]
         metrics.add("benchmark_run_requests", row["requests"], labels, "Requests for one benchmark run")
         metrics.add("benchmark_run_failures", row["failures"], labels, "Failures for one benchmark run")
         metrics.add("benchmark_run_duration_seconds", row["duration_seconds"], labels, "Measured duration for one benchmark run")
+        if row["resources_available"]:
+            resource_labels = {**labels, "metric_source": row["resource_source"], "stat": "average"}
+            metrics.add(
+                "benchmark_run_cpu_percent", row["api_cpu_avg"],
+                {**resource_labels, "component": "api"}, "Mean API CPU for one measured run; 100 percent per core",
+            )
+            metrics.add(
+                "benchmark_run_memory_bytes", row["api_memory_avg"], resource_labels,
+                "Mean API working set for one measured run",
+            )
         if row["resources_available"] and row["methodology"] >= 7:
             for component, key_name in (
                 ("api", "api_cadvisor_coverage"),
