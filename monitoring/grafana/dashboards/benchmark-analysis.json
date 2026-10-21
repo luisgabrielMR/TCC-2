@@ -5,10 +5,10 @@
   "id": null,
   "uid": "tcc-benchmark-analysis",
   "title": "TCC Benchmark - Análise Complementar",
-  "description": "Variação entre execuções e extremos das métricas oficiais.",
+  "description": "Variação entre execuções e extremos das métricas oficiais; consolidação por mediana ou média.",
   "editable": true,
   "schemaVersion": 40,
-  "version": 1,
+  "version": 2,
   "timezone": "browser",
   "refresh": "30s",
   "time": {
@@ -161,6 +161,33 @@
           "value": "$__all",
           "selected": true
         }
+      },
+      {
+        "name": "consolidacao",
+        "label": "Consolidação",
+        "type": "custom",
+        "query": "Mediana : median,Média : mean",
+        "description": "Como os valores das cinco execuções são combinados: mediana (padrão do TCC) ou média.",
+        "current": {
+          "text": "Mediana",
+          "value": "median"
+        },
+        "options": [
+          {
+            "text": "Mediana",
+            "value": "median",
+            "selected": true
+          },
+          {
+            "text": "Média",
+            "value": "mean",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "skipUrlSync": false
       },
       {
         "name": "quantile",
@@ -444,7 +471,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -453,6 +480,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -513,9 +544,9 @@
     },
     {
       "id": 23,
-      "title": "$quantile · mínimo, mediana e máximo",
+      "title": "$quantile · ${consolidacao:text}, mínimo e máximo",
       "type": "barchart",
-      "description": "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.",
+      "description": "Mínimo, valor consolidado (mediana ou média, conforme o filtro Consolidação) e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.",
       "gridPos": {
         "x": 12,
         "y": 1,
@@ -538,7 +569,7 @@
         },
         {
           "refId": "B",
-          "expr": "quantile by(language)(0.5, benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"$quantile\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -578,8 +609,8 @@
               "language": "Linguagem",
               "Value #A": "Mínimo",
               "Value A": "Mínimo",
-              "Value #B": "Mediana",
-              "Value B": "Mediana",
+              "Value #B": "Consolidado",
+              "Value B": "Consolidado",
               "Value #C": "Máximo",
               "Value C": "Máximo"
             },
@@ -714,7 +745,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -723,6 +754,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -836,9 +871,9 @@
     },
     {
       "id": 31,
-      "title": "CPU · mínimo, mediana e máximo",
+      "title": "CPU · ${consolidacao:text}, mínimo e máximo",
       "type": "barchart",
-      "description": "Extremos e mediana das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.",
+      "description": "Extremos e valor consolidado (mediana ou média, conforme o filtro Consolidação) das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.",
       "gridPos": {
         "x": 0,
         "y": 13,
@@ -861,7 +896,7 @@
         },
         {
           "refId": "B",
-          "expr": "quantile by(language)(0.5, benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -901,8 +936,8 @@
               "language": "Linguagem",
               "Value #A": "Mínimo",
               "Value A": "Mínimo",
-              "Value #B": "Mediana",
-              "Value B": "Mediana",
+              "Value #B": "Consolidado",
+              "Value B": "Consolidado",
               "Value #C": "Máximo",
               "Value C": "Máximo"
             },
@@ -1038,7 +1073,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1047,6 +1082,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1142,9 +1181,9 @@
     },
     {
       "id": 32,
-      "title": "Memória · mínimo, mediana e máximo",
+      "title": "Memória · ${consolidacao:text}, mínimo e máximo",
       "type": "barchart",
-      "description": "Extremos e mediana das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.",
+      "description": "Extremos e valor consolidado (mediana ou média, conforme o filtro Consolidação) das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.",
       "gridPos": {
         "x": 12,
         "y": 13,
@@ -1167,7 +1206,7 @@
         },
         {
           "refId": "B",
-          "expr": "quantile by(language)(0.5, benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576)",
+          "expr": "(label_replace(quantile by(language)(0.5, benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1207,8 +1246,8 @@
               "language": "Linguagem",
               "Value #A": "Mínimo",
               "Value A": "Mínimo",
-              "Value #B": "Mediana",
-              "Value B": "Mediana",
+              "Value #B": "Consolidado",
+              "Value B": "Consolidado",
               "Value #C": "Máximo",
               "Value C": "Máximo"
             },
@@ -1344,7 +1383,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1353,6 +1392,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1468,7 +1511,7 @@
       "id": 61,
       "title": "Vazão e taxa de erro",
       "type": "table",
-      "description": "Mínimo, mediana e máximo entre execuções. Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.",
+      "description": "Mínimo, valor consolidado (mediana ou média, conforme o filtro Consolidação) e máximo entre execuções. Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.",
       "gridPos": {
         "x": 0,
         "y": 24,
@@ -1491,7 +1534,7 @@
         },
         {
           "refId": "B",
-          "expr": "quantile by(language)(0.5, benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1518,7 +1561,7 @@
         },
         {
           "refId": "E",
-          "expr": "quantile by(language)(0.5, 100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, 100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1556,18 +1599,18 @@
           "options": {
             "renameByName": {
               "language": "Linguagem",
-              "Value #A": "Vazão · mínimo",
-              "Value A": "Vazão · mínimo",
-              "Value #B": "Vazão · mediana",
-              "Value B": "Vazão · mediana",
-              "Value #C": "Vazão · máximo",
-              "Value C": "Vazão · máximo",
-              "Value #D": "Erro · mínimo",
-              "Value D": "Erro · mínimo",
-              "Value #E": "Erro · mediana",
-              "Value E": "Erro · mediana",
-              "Value #F": "Erro · máximo",
-              "Value F": "Erro · máximo"
+              "Value #A": "Vazão · Mínimo",
+              "Value A": "Vazão · Mínimo",
+              "Value #B": "Vazão · Consolidado",
+              "Value B": "Vazão · Consolidado",
+              "Value #C": "Vazão · Máximo",
+              "Value C": "Vazão · Máximo",
+              "Value #D": "Erro · Mínimo",
+              "Value D": "Erro · Mínimo",
+              "Value #E": "Erro · Consolidado",
+              "Value E": "Erro · Consolidado",
+              "Value #F": "Erro · Máximo",
+              "Value F": "Erro · Máximo"
             },
             "indexByName": {},
             "excludeByName": {}
@@ -1692,7 +1735,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1701,6 +1744,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1789,7 +1836,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · mínimo"
+              "options": "Erro · Mínimo"
             },
             "properties": [
               {
@@ -1805,7 +1852,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · mediana"
+              "options": "Erro · Consolidado"
             },
             "properties": [
               {
@@ -1821,7 +1868,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · máximo"
+              "options": "Erro · Máximo"
             },
             "properties": [
               {
@@ -1831,6 +1878,30 @@
               {
                 "id": "decimals",
                 "value": 2
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Vazão · Consolidado"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Vazão · ${consolidacao:text}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Erro · Consolidado"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Erro · ${consolidacao:text}"
               }
             ]
           },

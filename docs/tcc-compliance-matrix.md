@@ -23,7 +23,7 @@ e hashes. O PDF acadêmico não está versionado neste repositório.
 | Gerador | CPU cAdvisor e entrega efetiva; calibracao health-only opcional | CPU media abaixo do limite nao prova capacidade sob toda carga |
 | Repeticoes e ordem | Menu Windows:5 rodadas de fixed_100; rotacao das linguagens; 25 execucoes | Preparado nao significa executado |
 | Separacao dos dados | classification + campaign_fingerprint + protocol_sha256; filtro --campaign | Piloto abreviado permanece non_official; historicos nao sao promovidos |
-| Analise (TCC 28, p. 14) | Grafana: media, P50/P95/P99, vazao, erro, CPU e memoria; mediana e min-max entre execucoes | Sem teste de significancia; adequate nao e confianca estatistica |
+| Analise (TCC 28, p. 14) | Grafana: media, P50/P95/P99, vazao, erro, CPU e memoria; mediana (padrao) ou media entre execucoes, alternavel no filtro Consolidacao, e min-max entre execucoes | Sem teste de significancia; adequate nao e confianca estatistica |
 | Prontidao cientifica | Verificacao funcional + pilotos + congelamento + campanha completa | Nenhum desses passos substitui os outros |
 
 ## Evidencia de execucao

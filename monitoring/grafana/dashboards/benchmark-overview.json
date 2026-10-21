@@ -5,10 +5,10 @@
   "id": null,
   "uid": "tcc-benchmark-overview",
   "title": "TCC Benchmark - Resultados Oficiais",
-  "description": "Comparação consolidada das APIs: média, P50/P95/P99, CPU, memória, operações, vazão e erros.",
+  "description": "Comparação consolidada das APIs, por mediana ou média entre execuções: latência média, P50/P95/P99, CPU, memória, operações, vazão e erros.",
   "editable": true,
   "schemaVersion": 40,
-  "version": 14,
+  "version": 15,
   "timezone": "browser",
   "refresh": "30s",
   "time": {
@@ -163,6 +163,33 @@
         }
       },
       {
+        "name": "consolidacao",
+        "label": "Consolidação",
+        "type": "custom",
+        "query": "Mediana : median,Média : mean",
+        "description": "Como os valores das cinco execuções são combinados: mediana (padrão do TCC) ou média.",
+        "current": {
+          "text": "Mediana",
+          "value": "median"
+        },
+        "options": [
+          {
+            "text": "Mediana",
+            "value": "median",
+            "selected": true
+          },
+          {
+            "text": "Média",
+            "value": "mean",
+            "selected": false
+          }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "hide": 0,
+        "skipUrlSync": false
+      },
+      {
         "name": "quantile",
         "label": "Latência por operação",
         "type": "custom",
@@ -221,9 +248,9 @@
     },
     {
       "id": 21,
-      "title": "Tempo médio de resposta",
+      "title": "Tempo médio de resposta · ${consolidacao:text} das execuções",
       "type": "barchart",
-      "description": "Valor consolidado: mediana das médias de latência. Menor = resposta mais rápida. A variabilidade está no painel Análise complementar.",
+      "description": "Valor consolidado entre as execuções das médias de latência: mediana ou média, conforme o filtro Consolidação. Menor = resposta mais rápida. A variabilidade está no painel Análise complementar.",
       "gridPos": {
         "x": 0,
         "y": 1,
@@ -237,7 +264,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"avg\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"avg\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",quantile=\"avg\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -395,7 +422,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -404,6 +431,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -500,9 +531,9 @@
     },
     {
       "id": 22,
-      "title": "Percentis de resposta · P50, P95 e P99",
+      "title": "Percentis de resposta · P50, P95 e P99 · ${consolidacao:text} das execuções",
       "type": "barchart",
-      "description": "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. As barras são medianas dos percentis de cada execução, não percentis globais.",
+      "description": "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. As barras consolidam os percentis de cada execução (mediana ou média, conforme o filtro Consolidação); não são percentis globais.",
       "gridPos": {
         "x": 12,
         "y": 1,
@@ -516,7 +547,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(quantile)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -525,7 +556,7 @@
         },
         {
           "refId": "B",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(quantile)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -534,7 +565,7 @@
         },
         {
           "refId": "C",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(quantile)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -543,7 +574,7 @@
         },
         {
           "refId": "D",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(quantile)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -552,7 +583,7 @@
         },
         {
           "refId": "E",
-          "expr": "benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_result_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(quantile)(benchmark_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=~\"p50|p95|p99\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -723,7 +754,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -732,6 +763,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -832,9 +867,9 @@
     },
     {
       "id": 31,
-      "title": "Uso médio de CPU",
+      "title": "Uso médio de CPU · ${consolidacao:text} das execuções",
       "type": "barchart",
-      "description": "Valor consolidado: mediana das médias de CPU. 100% corresponde a um núcleo lógico; cota: dois núcleos. A escala acompanha o consumo observado.",
+      "description": "Valor consolidado entre as execuções das médias de CPU: mediana ou média, conforme o filtro Consolidação. 100% corresponde a um núcleo lógico; cota: dois núcleos. A escala acompanha o consumo observado.",
       "gridPos": {
         "x": 0,
         "y": 12,
@@ -848,7 +883,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_result_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"}",
+          "expr": "(label_replace(benchmark_result_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_cpu_percent{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",component=\"api\",stat=\"average\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1006,7 +1041,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1015,6 +1050,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1111,9 +1150,9 @@
     },
     {
       "id": 32,
-      "title": "Uso médio de memória",
+      "title": "Uso médio de memória · ${consolidacao:text} das execuções",
       "type": "barchart",
-      "description": "Valor consolidado: mediana das médias do working set do container, em MiB. Fonte: cAdvisor / Prometheus.",
+      "description": "Valor consolidado entre as execuções das médias do working set do container, em MiB: mediana ou média, conforme o filtro Consolidação. Fonte: cAdvisor / Prometheus.",
       "gridPos": {
         "x": 12,
         "y": 12,
@@ -1127,7 +1166,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_result_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576",
+          "expr": "(label_replace(benchmark_result_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"} / 1048576, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_memory_bytes{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\",stat=\"average\"}) / 1048576, \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1285,7 +1324,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1294,6 +1333,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1408,9 +1451,9 @@
     },
     {
       "id": 41,
-      "title": "Leituras · $quantile",
+      "title": "Leituras · $quantile · ${consolidacao:text}",
       "type": "barchart",
-      "description": "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.",
+      "description": "Mediana ou média entre execuções, conforme o filtro Consolidação, da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.",
       "gridPos": {
         "x": 0,
         "y": 23,
@@ -1424,7 +1467,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1433,7 +1476,7 @@
         },
         {
           "refId": "B",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1442,7 +1485,7 @@
         },
         {
           "refId": "C",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1451,7 +1494,7 @@
         },
         {
           "refId": "D",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1460,7 +1503,7 @@
         },
         {
           "refId": "E",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"GET .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1631,7 +1674,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1640,6 +1683,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -1700,9 +1747,9 @@
     },
     {
       "id": 42,
-      "title": "Escritas · $quantile",
+      "title": "Escritas · $quantile · ${consolidacao:text}",
       "type": "barchart",
-      "description": "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.",
+      "description": "Mediana ou média entre execuções, conforme o filtro Consolidação, da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.",
       "gridPos": {
         "x": 0,
         "y": 35,
@@ -1716,7 +1763,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"dotnet\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1725,7 +1772,7 @@
         },
         {
           "refId": "B",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"go\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1734,7 +1781,7 @@
         },
         {
           "refId": "C",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"java\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1743,7 +1790,7 @@
         },
         {
           "refId": "D",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"node\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1752,7 +1799,7 @@
         },
         {
           "refId": "E",
-          "expr": "benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}",
+          "expr": "(label_replace(benchmark_endpoint_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}, \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(endpoint)(benchmark_endpoint_run_latency_ms{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=\"python\",quantile=\"$quantile\",endpoint=~\"(POST|PUT) .*\"} and on(language) benchmark_result_runs{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -1923,7 +1970,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -1932,6 +1979,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -2010,9 +2061,9 @@
     },
     {
       "id": 61,
-      "title": "Vazão e taxa de erro",
+      "title": "Vazão e taxa de erro · ${consolidacao:text} das execuções",
       "type": "table",
-      "description": "Valores consolidados: medianas por API. Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.",
+      "description": "Valores consolidados entre execuções: mediana ou média, conforme o filtro Consolidação. Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.",
       "gridPos": {
         "x": 0,
         "y": 48,
@@ -2026,7 +2077,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "quantile by(language)(0.5, benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(benchmark_run_throughput_rps{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -2035,7 +2086,7 @@
         },
         {
           "refId": "B",
-          "expr": "quantile by(language)(0.5, 100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"})",
+          "expr": "(label_replace(quantile by(language)(0.5, 100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"median\", \"\", \"\") or label_replace(avg by(language)(100 * benchmark_run_failures{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"} / benchmark_run_requests{classification=\"official\",methodology=\"$methodology\",campaign=\"$campaign\",scenario=\"$scenario\",load_profile=\"$load_profile\",language=~\"$language\"}), \"consolidacao\", \"mean\", \"\", \"\")) and on(consolidacao) label_replace(vector(1), \"consolidacao\", \"$consolidacao\", \"\", \"\")",
           "instant": true,
           "range": false,
           "editorMode": "code",
@@ -2192,7 +2243,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Mediana"
+              "options": "Consolidado"
             },
             "properties": [
               {
@@ -2201,6 +2252,10 @@
                   "mode": "fixed",
                   "fixedColor": "#56D9EB"
                 }
+              },
+              {
+                "id": "displayName",
+                "value": "${consolidacao:text}"
               }
             ]
           },
@@ -2289,7 +2344,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · mínimo"
+              "options": "Erro · Mínimo"
             },
             "properties": [
               {
@@ -2305,7 +2360,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · mediana"
+              "options": "Erro · Consolidado"
             },
             "properties": [
               {
@@ -2321,7 +2376,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Erro · máximo"
+              "options": "Erro · Máximo"
             },
             "properties": [
               {

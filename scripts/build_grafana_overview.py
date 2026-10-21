@@ -11,6 +11,8 @@ SOURCE = {"type": "prometheus", "uid": "Prometheus"}
 LANGUAGES = {"python": ("Python", "#E0B400"), "node": ("Node.js", "#73BF69"), "java": ("Java", "#FF9830"), "go": ("Go", "#56D9EB"), "dotnet": (".NET", "#B877D9")}
 FILTER = 'classification="official",methodology="$methodology",campaign="$campaign",scenario="$scenario",load_profile="$load_profile",language=~"$language"'
 LANGUAGES = dict(sorted(LANGUAGES.items()))
+CENTER = "Consolidado"  # central series; the Consolidação filter renames it to Mediana or Média
+CENTER_NAME = "${consolidacao:text}"
 PANELS: list[dict] = []
 
 
@@ -71,8 +73,9 @@ def chart(identifier, title, expressions, key, x, y, width, height, description,
     ], fieldConfig={"defaults": {"unit": unit, "decimals": 2 if key == "language" else 0, "min": 0,
                                  "color": {"mode": "palette-classic"}, "custom": custom},
                     "overrides": colors() + [{"matcher": {"id": "byName", "options": label}, "properties": [
-                        {"id": "color", "value": {"mode": "fixed", "fixedColor": color}}]} for label, color in
-                        [("Mínimo", "#8F9CAB"), ("Mediana", "#56D9EB"), ("Máximo", "#FF9830")]] + [{"matcher": {"id": "byName", "options": key_label}, "properties": key_properties}]},
+                        {"id": "color", "value": {"mode": "fixed", "fixedColor": color}},
+                        *([{"id": "displayName", "value": CENTER_NAME}] if label == CENTER else [])]} for label, color in
+                        [("Mínimo", "#8F9CAB"), (CENTER, "#56D9EB"), ("Máximo", "#FF9830")]] + [{"matcher": {"id": "byName", "options": key_label}, "properties": key_properties}]},
                  options={"xField": key_label, "orientation": "vertical", "stacking": "none", "groupWidth": .65,
                           "barWidth": .85, "barRadius": .03, "showValue": "always" if key == "language" and len(expressions) == 1 else "never",
                           "legend": {"showLegend": key != "language" or len(expressions) > 1, "placement": "bottom", "displayMode": "list"},
@@ -89,9 +92,33 @@ def by_language(name, extra=""):
              + f' and on(language) {metric("benchmark_result_runs")}') for code, (label, _) in LANGUAGES.items()]
 
 
+def consolidate(median, mean):
+    """Keep only the series selected by the Consolidação filter (median or mean)."""
+    return (f'(label_replace({median}, "consolidacao", "median", "", "") or '
+            f'label_replace({mean}, "consolidacao", "mean", "", "")) '
+            'and on(consolidacao) label_replace(vector(1), "consolidacao", "$consolidacao", "", "")')
+
+
+def consolidated_metric(result_name, run_name, extra="", divisor=""):
+    """Median from the published results or mean of the per-run series, by language."""
+    suffix = f" / {divisor}" if divisor else ""
+    return consolidate(metric(result_name, extra) + suffix, f"avg by(language)({metric(run_name, extra)})" + suffix)
+
+
+def consolidated_by_language(result_name, run_name, extra, by):
+    """One expression per language: median of the published results or mean of the per-run series, by `by`."""
+    expressions = []
+    for code, (label, _) in LANGUAGES.items():
+        scope = lambda name: metric(name, extra).replace('language=~"$language"', f'language="{code}"')
+        runs = metric("benchmark_result_runs")
+        expressions.append((label, consolidate(f"{scope(result_name)} and on(language) {runs}",
+                                               f"avg by({by})({scope(run_name)} and on(language) {runs})")))
+    return expressions
+
+
 def range_expressions(expression):
     return [("Mínimo", f"min by(language)({expression})"),
-            ("Mediana", f"quantile by(language)(0.5, {expression})"),
+            (CENTER, consolidate(f"quantile by(language)(0.5, {expression})", f"avg by(language)({expression})")),
             ("Máximo", f"max by(language)({expression})")]
 
 
@@ -100,11 +127,13 @@ def delivery_table(y, *, show_ranges=False):
     for prefix, expression in [("Vazão", metric("benchmark_run_throughput_rps")),
                                ("Erro", "100 * " + metric("benchmark_run_failures") + " / " + metric("benchmark_run_requests"))]:
         if show_ranges:
-            expressions.extend((f"{prefix} · {label.lower()}", query) for label, query in range_expressions(expression))
+            expressions.extend((f"{prefix} · {label}", query) for label, query in range_expressions(expression))
         else:
             expressions.append((prefix, range_expressions(expression)[1][1]))
-    panel = chart(61, "Vazão e taxa de erro", expressions, "language", 0, y, 24, 9,
-                  ("Mínimo, mediana e máximo entre execuções. " if show_ranges else "Valores consolidados: medianas por API. ")
+    panel = chart(61, "Vazão e taxa de erro" if show_ranges else "Vazão e taxa de erro · ${consolidacao:text} das execuções",
+                  expressions, "language", 0, y, 24, 9,
+                  ("Mínimo, valor consolidado (mediana ou média, conforme o filtro Consolidação) e máximo entre execuções. " if show_ranges
+                   else "Valores consolidados entre execuções: mediana ou média, conforme o filtro Consolidação. ")
                   + "Vazão em req/s e erro em %. A vazão próxima de 100 req/s decorre da carga configurada e não mede capacidade máxima.")
     panel["type"] = "table"
     panel["options"] = {"showHeader": True, "cellHeight": "md", "enablePagination": False, "footer": {"show": False}}
@@ -112,7 +141,9 @@ def delivery_table(y, *, show_ranges=False):
         "custom": {"align": "right", "cellOptions": {"type": "auto"}, "minWidth": 80}}
     panel["fieldConfig"]["overrides"] += [
         *[{"matcher": {"id": "byName", "options": name}, "properties": [
-            {"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]} for name in ("Erro", "Erro · mínimo", "Erro · mediana", "Erro · máximo")],
+            {"id": "unit", "value": "percent"}, {"id": "decimals", "value": 2}]} for name in ("Erro", "Erro · Mínimo", f"Erro · {CENTER}", "Erro · Máximo")],
+        *([{"matcher": {"id": "byName", "options": f"{prefix} · {CENTER}"}, "properties": [
+            {"id": "displayName", "value": f"{prefix} · {CENTER_NAME}"}]} for prefix in ("Vazão", "Erro")] if show_ranges else []),
         {"matcher": {"id": "byName", "options": "Linguagem"}, "properties": [{"id": "custom.align", "value": "left"}]},
     ]
 
@@ -131,30 +162,34 @@ def build(*, secondary=False):
         row(20, "Variabilidade da latência", 0)
         chart(51, "$quantile por execução", by_language("benchmark_run_latency_ms", 'quantile="$quantile"'),
               "run", 0, 1, 12, 11, "Cada grupo compara a métrica de latência selecionada na execução indicada. O filtro Latência alterna média, P50, P95 e P99. Unidade: milissegundos.")
-        chart(23, "$quantile · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_latency_ms", 'quantile="$quantile"')),
-              "language", 12, 1, 12, 11, "Mínimo, mediana e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.")
+        chart(23, "$quantile · ${consolidacao:text}, mínimo e máximo", range_expressions(metric("benchmark_run_latency_ms", 'quantile="$quantile"')),
+              "language", 12, 1, 12, 11, "Mínimo, valor consolidado (mediana ou média, conforme o filtro Consolidação) e máximo da métrica selecionada entre execuções, conforme o TCC, p. 14. Não são extremos de requisições individuais nem intervalos de confiança.")
         row(30, "Variabilidade dos recursos", 12)
-        chart(31, "CPU · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_cpu_percent", 'component="api",stat="average"')),
-              "language", 0, 13, 12, 10, "Extremos e mediana das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.", "percent", 30)
-        chart(32, "Memória · mínimo, mediana e máximo", range_expressions(metric("benchmark_run_memory_bytes", 'stat="average"') + " / 1048576"),
-              "language", 12, 13, 12, 10, "Extremos e mediana das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
+        chart(31, "CPU · ${consolidacao:text}, mínimo e máximo", range_expressions(metric("benchmark_run_cpu_percent", 'component="api",stat="average"')),
+              "language", 0, 13, 12, 10, "Extremos e valor consolidado (mediana ou média, conforme o filtro Consolidação) das médias de CPU de cada execução. Não são picos instantâneos. 100% corresponde a um núcleo lógico; cota: dois núcleos.", "percent", 30)
+        chart(32, "Memória · ${consolidacao:text}, mínimo e máximo", range_expressions(metric("benchmark_run_memory_bytes", 'stat="average"') + " / 1048576"),
+              "language", 12, 13, 12, 10, "Extremos e valor consolidado (mediana ou média, conforme o filtro Consolidação) das médias do working set de cada execução, em MiB. Não são picos instantâneos. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
         row(60, "Variabilidade da vazão e dos erros", 23)
         delivery_table(24, show_ranges=True)
     else:
         row(20, "Latência das APIs", 0)
-        chart(21, "Tempo médio de resposta", [("Latência", metric("benchmark_result_latency_ms", 'quantile="avg"'))],
-              "language", 0, 1, 12, 10, "Valor consolidado: mediana das médias de latência. Menor = resposta mais rápida. A variabilidade está no painel Análise complementar.", soft_max=40)
-        chart(22, "Percentis de resposta · P50, P95 e P99", by_language("benchmark_result_latency_ms", 'quantile=~"p50|p95|p99"'),
-              "quantile", 12, 1, 12, 10, "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. As barras são medianas dos percentis de cada execução, não percentis globais.")
+        chart(21, "Tempo médio de resposta · ${consolidacao:text} das execuções",
+              [("Latência", consolidated_metric("benchmark_result_latency_ms", "benchmark_run_latency_ms", 'quantile="avg"'))],
+              "language", 0, 1, 12, 10, "Valor consolidado entre as execuções das médias de latência: mediana ou média, conforme o filtro Consolidação. Menor = resposta mais rápida. A variabilidade está no painel Análise complementar.", soft_max=40)
+        chart(22, "Percentis de resposta · P50, P95 e P99 · ${consolidacao:text} das execuções",
+              consolidated_by_language("benchmark_result_latency_ms", "benchmark_run_latency_ms", 'quantile=~"p50|p95|p99"', "quantile"),
+              "quantile", 12, 1, 12, 10, "P50, P95 e P99 são os tempos abaixo dos quais ficam aproximadamente 50%, 95% e 99% das requisições. As barras consolidam os percentis de cada execução (mediana ou média, conforme o filtro Consolidação); não são percentis globais.")
         row(30, "Recursos das APIs", 11)
-        chart(31, "Uso médio de CPU", [("CPU", metric("benchmark_result_cpu_percent", 'component="api",stat="average"'))],
-              "language", 0, 12, 12, 10, "Valor consolidado: mediana das médias de CPU. 100% corresponde a um núcleo lógico; cota: dois núcleos. A escala acompanha o consumo observado.", "percent", 30)
-        chart(32, "Uso médio de memória", [("Memória", metric("benchmark_result_memory_bytes", 'stat="average"') + " / 1048576")],
-              "language", 12, 12, 12, 10, "Valor consolidado: mediana das médias do working set do container, em MiB. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
+        chart(31, "Uso médio de CPU · ${consolidacao:text} das execuções",
+              [("CPU", consolidated_metric("benchmark_result_cpu_percent", "benchmark_run_cpu_percent", 'component="api",stat="average"'))],
+              "language", 0, 12, 12, 10, "Valor consolidado entre as execuções das médias de CPU: mediana ou média, conforme o filtro Consolidação. 100% corresponde a um núcleo lógico; cota: dois núcleos. A escala acompanha o consumo observado.", "percent", 30)
+        chart(32, "Uso médio de memória · ${consolidacao:text} das execuções",
+              [("Memória", consolidated_metric("benchmark_result_memory_bytes", "benchmark_run_memory_bytes", 'stat="average"', "1048576"))],
+              "language", 12, 12, 12, 10, "Valor consolidado entre as execuções das médias do working set do container, em MiB: mediana ou média, conforme o filtro Consolidação. Fonte: cAdvisor / Prometheus.", "suffix:MiB", 250)
         row(40, "Tempo de resposta por operação", 22)
-        for identifier, title, pattern, y in [(41, "Leituras · $quantile", "GET .*", 23), (42, "Escritas · $quantile", "(POST|PUT) .*", 35)]:
-            chart(identifier, title, by_language("benchmark_endpoint_latency_ms", f'quantile="$quantile",endpoint=~"{pattern}"'),
-                  "endpoint", 0, y, 24, 12, "Mediana da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.")
+        for identifier, title, pattern, y in [(41, "Leituras · $quantile · ${consolidacao:text}", "GET .*", 23), (42, "Escritas · $quantile · ${consolidacao:text}", "(POST|PUT) .*", 35)]:
+            chart(identifier, title, consolidated_by_language("benchmark_endpoint_latency_ms", "benchmark_endpoint_run_latency_ms", f'quantile="$quantile",endpoint=~"{pattern}"', "endpoint"),
+                  "endpoint", 0, y, 24, 12, "Mediana ou média entre execuções, conforme o filtro Consolidação, da métrica selecionada por operação. Cada grupo compara as APIs na mesma operação. Leituras e escritas usam escalas próprias, iniciadas em zero. GET /health não integra a carga.")
         row(60, "Vazão e erros", 47)
         delivery_table(48)
     variables = [
@@ -163,12 +198,16 @@ def build(*, secondary=False):
         variable("scenario", "Cenário", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, scenario)', "mixed_fixed_100"),
         variable("load_profile", "Perfil", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign",scenario="$scenario"}, load_profile)', "fixed_100"),
         variable("language", "Linguagem", 'label_values(benchmark_result_runs{classification="official",campaign="$campaign"}, language)', "", multi=True),
+        {"name": "consolidacao", "label": "Consolidação", "type": "custom", "query": "Mediana : median,Média : mean",
+         "description": "Como os valores das cinco execuções são combinados: mediana (padrão do TCC) ou média.",
+         "current": {"text": "Mediana", "value": "median"}, "options": [{"text": text, "value": value, "selected": value == "median"} for text, value in [("Mediana", "median"), ("Média", "mean")]],
+         "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
         {"name": "quantile", "label": "Latência" if secondary else "Latência por operação", "type": "custom", "query": "Média : avg,P50 : p50,P95 : p95,P99 : p99", "current": {"text": "P95", "value": "p95"}, "options": [{"text": text, "value": value, "selected": value == "p95"} for text, value in [("Média", "avg"), ("P50", "p50"), ("P95", "p95"), ("P99", "p99")]], "multi": False, "includeAll": False, "hide": 0, "skipUrlSync": False},
     ]
     for item in variables:
         if item["name"] in {"methodology", "campaign", "scenario", "load_profile"}:
             item["hide"] = 2
-    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-analysis" if secondary else "tcc-benchmark-overview", "title": "TCC Benchmark - Análise Complementar" if secondary else "TCC Benchmark - Resultados Oficiais", "description": "Variação entre execuções e extremos das métricas oficiais." if secondary else "Comparação consolidada das APIs: média, P50/P95/P99, CPU, memória, operações, vazão e erros.", "editable": True, "schemaVersion": 40, "version": 1 if secondary else 14, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": list(PANELS), "links": [
+    return {"annotations": {"list": []}, "id": None, "uid": "tcc-benchmark-analysis" if secondary else "tcc-benchmark-overview", "title": "TCC Benchmark - Análise Complementar" if secondary else "TCC Benchmark - Resultados Oficiais", "description": "Variação entre execuções e extremos das métricas oficiais; consolidação por mediana ou média." if secondary else "Comparação consolidada das APIs, por mediana ou média entre execuções: latência média, P50/P95/P99, CPU, memória, operações, vazão e erros.", "editable": True, "schemaVersion": 40, "version": 2 if secondary else 15, "timezone": "browser", "refresh": "30s", "time": {"from": "now-15m", "to": "now"}, "tags": ["tcc", "benchmark", "resultados-oficiais"], "templating": {"list": variables}, "panels": list(PANELS), "links": [
         {"title": "Resultados consolidados" if secondary else "Análise complementar", "type": "link",
          "url": "/d/tcc-benchmark-overview" if secondary else "/d/tcc-benchmark-analysis",
          "icon": "dashboard", "includeVars": True, "keepTime": False},

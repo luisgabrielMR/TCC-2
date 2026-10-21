@@ -23,8 +23,9 @@ não corresponde à duração da execução original.
 
 `python scripts/build_grafana_overview.py` gera duas definições:
 
-- `benchmark-overview.json`: sete painéis com medianas por API — média,
-  P50/P95/P99, CPU, memória, leituras, escritas e tabela de vazão/erro.
+- `benchmark-overview.json`: sete painéis consolidados por API (mediana ou
+  média) — latência média, P50/P95/P99, CPU, memória, leituras, escritas e
+  tabela de vazão/erro.
 - `benchmark-analysis.json`: cinco painéis complementares — latência por
   execução, extremos da latência selecionada, extremos de CPU/memória e
   tabela com extremos da vazão/erro.
@@ -33,8 +34,35 @@ Os links entre as visões usam `includeVars` para preservar a campanha e os
 filtros. No principal, o filtro de latência altera apenas as operações; no
 complementar, altera latência por execução e o resumo dos extremos.
 
-Os resumos mínimo/mediana/máximo usam `min by(language)`,
-`quantile by(language)(0.5, ...)` e `max by(language)` sobre métricas de cada
+**Consolidação (mediana ou média).** A variável `consolidacao` (rótulo
+Consolidação, valores `median`/`mean`, padrão `median`) aparece nos dois
+dashboards e viaja pelos links. Cada consulta consolidada tem dois ramos e o
+filtro mantém só um, sem alterar as demais variáveis:
+
+```promql
+(label_replace(<mediana>, "consolidacao", "median", "", "")
+ or label_replace(<média>, "consolidacao", "mean", "", ""))
+and on(consolidacao) label_replace(vector(1), "consolidacao", "$consolidacao", "", "")
+```
+
+No dashboard principal, o ramo da mediana é a consulta que já existia sobre as
+séries `benchmark_result_*` e `benchmark_endpoint_*`, publicadas pelo exporter;
+os valores com `Mediana` selecionada são, portanto, os mesmos de antes. O ramo
+da média é `avg by(...)` sobre as séries por execução (`benchmark_run_*` e
+`benchmark_endpoint_run_*`), com os mesmos filtros de campanha. A média
+entre execuções de P50/P95/P99 também não é um percentil global. O exporter e
+os arquivos publicados em `results/official` continuam consolidando só pela
+mediana; a média existe apenas na visualização. O gráfico de latência por
+execução não depende da consolidação.
+
+No dashboard complementar, a série central dos extremos é `Consolidado` por
+dentro e recebe o nome `Mediana` ou `Média` por `displayName`
+(`${consolidacao:text}`). As colunas `Vazão · Consolidado` e
+`Erro · Consolidado` seguem a mesma regra.
+
+Os resumos mínimo/valor consolidado/máximo usam `min by(language)`,
+`quantile by(language)(0.5, ...)` ou `avg by(language)(...)`, e
+`max by(language)` sobre métricas de cada
 execução. A latência usa `benchmark_run_latency_ms`. CPU e memória usam
 `benchmark_run_cpu_percent{component="api",stat="average"}` e
 `benchmark_run_memory_bytes{stat="average"}`, provenientes das médias
