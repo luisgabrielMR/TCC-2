@@ -8,16 +8,160 @@ Ele foi organizado para um experimento acadêmico: preparar dados iguais,
 executar uma API por vez, gerar carga, medir recursos e guardar evidências.
 Não é um sistema de produção.
 
-## Comece por aqui
+## Como executar e testar — avaliadores
 
-No Windows, abra `launchers/windows/00_MENU_TESTES.bat`. O menu oferece a
-verificação do projeto, a próxima rodada oficial e o acesso aos recursos
-avançados. Antes de uma rodada oficial, use a verificação e leia os pilotos;
-uma rodada oficial não é um teste rápido.
+Este README é o LEIAME de execução do projeto. O roteiro abaixo permite
+preparar a base e verificar o funcionamento das cinco APIs no Windows, sem
+executar as 25 medições da campanha oficial.
 
-O ambiente requer Docker Engine 29.5.2 e Docker Compose 5.1.4. As versões são
-verificadas antes de uma coleta oficial. Copie `.env.example` para `.env` caso
-a configuração local ainda não exista. Não envie `.env` ao Git.
+### 1. Preparar o ambiente
+
+- Windows com PowerShell e `curl.exe` disponíveis no terminal.
+- Docker Desktop iniciado e configurado para containers Linux. O protocolo
+  do experimento usa Docker Engine **29.5.2** e Docker Compose **5.1.4**;
+  versões divergentes bloqueiam a coleta oficial.
+- Python 3 instalado no Windows, disponível como `py -3` ou `python`.
+  Recomenda-se Python 3.12 para os scripts de apoio. O Python do container
+  não substitui essa instalação local.
+- Git para clonar o repositório e registrar a versão do código nos relatórios.
+- Acesso à internet na primeira execução para baixar imagens e dependências.
+  Para reproduzir as condições do protocolo, disponibilize ao Docker pelo
+  menos oito processadores lógicos; veja os limites em [TECHNICAL.md](TECHNICAL.md).
+
+As APIs e o PostgreSQL são executados em containers: não é necessário instalar
+separadamente PostgreSQL, Node.js, Java, Go ou .NET no computador.
+
+No PowerShell, confira se os comandos estão disponíveis e se o Docker responde:
+
+```powershell
+docker version
+docker compose version
+py -3 --version
+git --version
+curl.exe --version
+```
+
+Se a instalação do Python não incluir o comando `py`, use `python --version`.
+As portas padrão usadas pelo ambiente são 5432, 8000, 8089, 9187, 9090, 3000,
+8080 e 9101; elas precisam estar livres para os serviços correspondentes.
+
+### 2. Obter o código e a configuração
+
+Clone o [repositório do projeto](https://github.com/luisgabrielMR/TCC-2):
+
+```powershell
+git clone https://github.com/luisgabrielMR/TCC-2.git
+Set-Location TCC-2
+Copy-Item .env.example .env
+```
+
+Se recebeu uma cópia pelo AVA ou baixou um ZIP, extraia todos os arquivos e
+abra o PowerShell na pasta que contém `docker-compose.yml` e este README.
+Execute apenas a cópia de `.env.example` para `.env`. Se `.env` já existir,
+preserve sua configuração. Não envie esse arquivo ao Git.
+
+Os valores de `.env.example` permitem iniciar o ambiente local de teste.
+Uma cópia sem o histórico Git permite a avaliação funcional, mas não preserva
+a identificação do commit exigida para uma coleta oficial.
+
+### 3. Base de dados disponibilizada
+
+O projeto inclui **dados fictícios e determinísticos**, sem depender de uma
+base real ou de um dump externo. O schema, os dados iniciais e os índices
+estão em [database/init](database/init); os payloads das requisições estão em
+[common/payloads](common/payloads).
+
+A base contém 200 mil clientes, endereços, pedidos e pagamentos; 400 mil itens
+de pedido e registros de auditoria; e 100 produtos em cinco categorias.
+O procedimento de verificação inicia o PostgreSQL e prepara a base
+automaticamente. Não é necessário importar os arquivos SQL manualmente.
+
+**A verificação restaura o banco do projeto várias vezes**, substituindo os
+dados inseridos em testes anteriores. Use o banco dedicado do benchmark.
+Detalhes estão na [documentação do banco](database/README.md).
+
+### 4. Executar a verificação funcional
+
+Na raiz do projeto, execute:
+
+```powershell
+.\launchers\windows\01_VERIFICAR_PROJETO.bat
+```
+
+Também é possível abrir esse arquivo com duplo clique ou acessar a verificação
+pelo menu `launchers/windows/00_MENU_TESTES.bat`.
+
+O procedimento constrói as cinco APIs, prepara e valida o banco, testa os
+oito endpoints de cada implementação (incluindo `/health`), compara contratos
+e efeitos no banco, verifica o pool Go, executa carga curta, valida o
+monitoramento e executa os testes automatizados. Apenas uma API é testada
+por vez. Aguarde todas as oito etapas; a primeira execução também inclui
+downloads, builds e preparação de dados, e pode demorar conforme o computador
+e a conexão.
+
+### 5. Conferir o resultado
+
+Uma execução aprovada exibe a mensagem iniciada por
+`Verificacao piloto concluida: banco, 5 APIs, contrato, pool Go, warmup misto, monitoramento e testes com fixtures aprovados.`
+
+Os arquivos para conferir a execução são:
+
+- `results/raw/verification/<identificador>/`: evidências daquela verificação,
+  incluindo contratos, estado do banco, carga e monitoramento.
+- `results/summaries/project-verification.json`: relatório da última verificação
+  concluída, com `completed: true` e `all_executable_tests_passed: true`.
+
+Confira a data `checked_at` e o caminho `artifact_directory` do relatório,
+pois uma tentativa que falhou pode deixar o relatório de uma execução anterior.
+Se houver erro, leia a mensagem no terminal; o simples fechamento da janela
+ou término de uma etapa não significa aprovação. Logs de build ficam em
+`results/summaries/build-logs/`.
+
+Ao finalizar, o verificador encerra as APIs e o monitoramento e tenta restaurar
+a base inicial; o PostgreSQL permanece disponível. Para parar os serviços do
+projeto depois da avaliação, sem excluir os dados, execute na raiz:
+
+```powershell
+docker compose --profile "*" stop
+```
+
+### 6. Experimentar uma API manualmente (opcional)
+
+Após a verificação, é possível iniciar uma implementação para consultar suas
+rotas. Exemplo com Python:
+
+```powershell
+docker compose --profile python up -d --build python-api
+```
+
+Aguarde a API iniciar e execute:
+
+```powershell
+curl.exe -i http://127.0.0.1:8000/health
+curl.exe -i http://127.0.0.1:8000/customers/1
+```
+
+Ambas as chamadas devem retornar HTTP 200; a segunda consulta um cliente
+fictício no banco. As demais rotas estão no [contrato HTTP](docs/api-contract.md).
+Encerre a API antes de iniciar outra implementação:
+
+```powershell
+docker compose stop python-api
+```
+
+### Avaliação funcional e campanha oficial
+
+A verificação acima é uma execução piloto (`non_official`): serve para testar
+o projeto e não substitui as medições científicas. A reprodução da campanha
+usa `launchers/windows/02_PROXIMA_RODADA_OFICIAL.bat`, com confirmação,
+requisitos de ambiente e Git limpo. Cada acionamento executa uma rodada de
+cinco APIs; são cinco rodadas para completar as 25 execuções, com 300 segundos
+de aquecimento e 300 segundos de medição por API, além da preparação.
+
+Para essa reprodução, consulte os [atalhos de execução](launchers/README.md)
+e o [passo a passo da campanha](launchers/windows/passo%20a%20passo.txt).
+Os [resultados oficiais já publicados](results/official/2026-10-12_fixed_100_m17/README.md)
+podem ser consultados sem iniciar uma nova campanha.
 
 ## Como ler a documentação
 
