@@ -158,6 +158,16 @@ requisitos de ambiente e Git limpo. Cada acionamento executa uma rodada de
 cinco APIs; são cinco rodadas para completar as 25 execuções, com 300 segundos
 de aquecimento e 300 segundos de medição por API, além da preparação.
 
+**Recomendação opcional para novas execuções:** reinicie o computador antes
+da primeira rodada e entre rodadas completas iniciadas pelo atalho. Após cada
+reinicialização, abra o Docker Desktop, aguarde o Engine ficar disponível e
+o sistema estabilizar, feche programas desnecessários e inicie a próxima
+rodada. Adote o mesmo procedimento em todas as rodadas e registre se houve
+reinicialização. Cada rodada contém cinco execuções de API; não reinicie o
+computador enquanto o atalho estiver executando essa sequência. Essa prática
+não é exigida nem automatizada pelos scripts e não substitui a restauração
+do banco ou o aquecimento previstos no protocolo.
+
 Para essa reprodução, consulte os [atalhos de execução](launchers/README.md)
 e o [passo a passo da campanha](launchers/windows/passo%20a%20passo.txt).
 Os [resultados oficiais já publicados](results/official/2026-10-12_fixed_100_m17/README.md)
